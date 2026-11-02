@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from editor import App,Editor
-from gi.repository import Gtk,GLib
+from gi.repository import Gtk,GLib,Gio
 import vault
 try:vault.crypto();AVAILABLE=True
 except ValueError:AVAILABLE=False
@@ -23,7 +23,9 @@ def pump():
 class VaultNative(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        Gtk.init();cls.app=App();cls.app.register(None)
+        Gtk.init()
+        cls.app=Gio.Application.get_default() or App()
+        if not cls.app.get_is_registered():cls.app.register(None)
     def setUp(self):
         from vault_ui import VaultEditor,VaultLauncher
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)

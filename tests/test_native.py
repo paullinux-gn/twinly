@@ -11,7 +11,7 @@ import cairo
 from editor import App, Editor
 from model import blank, from_html, to_html
 from printing import Pages, PrintPreview
-from gi.repository import Gtk, Adw, GLib
+from gi.repository import Gtk, Adw, GLib, Gio
 
 
 def pump():
@@ -34,8 +34,8 @@ class Native(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         Gtk.init()
-        cls.app=App()
-        cls.app.register(None)
+        cls.app=Gio.Application.get_default() or App()
+        if not cls.app.get_is_registered():cls.app.register(None)
 
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
