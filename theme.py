@@ -7,6 +7,10 @@ BASE_CSS = r"""
             .photo-selection-outline {color:@accent_color;}
             headerbar, headerbar:backdrop {
                 background:@headerbar_bg_color;color:@headerbar_fg_color;}
+            .blur-sidebar headerbar, .blur-sidebar headerbar:backdrop {
+                background:transparent;}
+            .blur-sidebar toolbarview > .top-bar {
+                background:transparent;box-shadow:none;}
             headerbar:backdrop .title, headerbar:backdrop .subtitle {opacity:1;}
             toolbarview.editor-surface > .top-bar {background:transparent;box-shadow:none;}
             toolbarview > .top-bar:backdrop > windowhandle {filter:none;}
