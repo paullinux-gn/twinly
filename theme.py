@@ -3,6 +3,10 @@ import logging
 from gi.repository import Gtk
 
 BASE_CSS = r"""
+ .blur-sidebar headerbar, .blur-sidebar headerbar:backdrop {
+                background:transparent;}
+            .blur-sidebar toolbarview > .top-bar {
+                background:transparent;box-shadow:none;}
             .sidebar-divider {background:transparent;}
             .photo-selection-outline {color:@accent_color;}
             headerbar, headerbar:backdrop {
