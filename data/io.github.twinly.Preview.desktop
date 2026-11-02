@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Twinly
+Comment=Write and connect local HTML documents
+Exec=twinly %F
+Icon=io.github.twinly.Preview
+Terminal=false
+Categories=Office;WordProcessor;GNOME;GTK;
+MimeType=text/html;
+Keywords=Notes;Writing;Documents;HTML;Wiki;
+StartupNotify=true

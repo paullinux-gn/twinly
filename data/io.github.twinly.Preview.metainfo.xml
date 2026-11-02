@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+ <id>io.github.twinly.Preview</id>
+ <metadata_license>CC0-1.0</metadata_license>
+ <name>Twinly</name>
+ <summary>Write and connect local HTML documents</summary>
+ <description>
+  <p>Twinly is a native GTK4 and libadwaita writing application with a calm workspace and portable HTML documents.</p>
+  <ul>
+   <li>Format text, highlight passages, add lists and embed photos</li>
+   <li>Organise real folders and connect documents with internal links</li>
+   <li>Work with two documents and pin a reference alongside your writing</li>
+   <li>Import ODT, Word and PDF text, preview printing and export PDF, ODT and Word files</li>
+   <li>Start with an editable English guide and an embedded sample photo</li>
+  </ul>
+  <p>The current interface is in Dutch. The Getting Started document is in English. Blur depends on the runtime and compositor.</p>
+ </description>
+ <launchable type="desktop-id">io.github.twinly.Preview.desktop</launchable>
+ <provides><binary>twinly</binary><mediatype>text/html</mediatype></provides>
+ <content_rating type="oars-1.1"/>
+ <releases><release version="0.4.0" date="2026-10-30" type="development"><description><p>Public preview preparation with an offline introduction, writable user storage and Flatpak build configuration.</p></description></release></releases>
+</component>

@@ -1,0 +1,17 @@
+2 November 2026
+Python 3.12 / GTK 4.14 / Xvfb
+G_DEBUG=fatal-criticals
+PyNaCl 1.6.2 / cffi 2.0.0 / pycparser 2.23
+
+Ran 207 tests in 47.165s
+OK
+
+Pyflakes: passed (first-party runtime and build scripts)
+Ruff F and B023: passed (first-party runtime and build scripts)
+Python compileall: passed
+Offline source/metadata/introduction validation: passed
+GTK criticals / unhandled tracebacks: none in captured test output
+Publication gate: blocked by unset identity/licence/repository/developer
+
+Expected test output includes simulated disk-full/save-conflict messages.
+Headless EGL/DRI3 and session-bus host warnings remain.

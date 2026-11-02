@@ -1,0 +1,177 @@
+"""Shared floating formatting toolbar and window-wide focus mode."""
+from gi.repository import Gtk,GLib
+from settings import read_settings
+
+class FocusRevealer(Gtk.Revealer):
+    """Prefer one compact control row."""
+    def do_measure(self,orientation,for_size):
+        minimum,natural,min_baseline,nat_baseline=Gtk.Revealer.do_measure(self,orientation,for_size)
+        if orientation==Gtk.Orientation.HORIZONTAL and hasattr(self,'owner'):
+            flow=self.owner.active_editor.format_controls
+            widths=[];child=flow.get_first_child()
+            while child:
+                widths.append(child.measure(Gtk.Orientation.HORIZONTAL,-1)[1])
+                child=child.get_next_sibling()
+            full=sum(widths)+max(0,len(widths)-1)*flow.get_column_spacing()
+            natural=max(minimum,natural+full-flow.measure(Gtk.Orientation.HORIZONTAL,-1)[1])
+            min_baseline=nat_baseline=-1
+        return minimum,natural,min_baseline,nat_baseline
+
+class FocusMixin:
+    def search_controls_open(self):
+        return any(p.search_bar.get_search_mode() for p in (self,self.peer) if p)
+
+    def setup_focus_mode(self):
+        self.focus_mode=False;self.focus_toolbar_visible=False
+        self.focus_hide_timer=0;self.focus_pointer_top=False;self.focus_overlay_slot=None
+        self.toolbar_always_visible=read_settings(self.config).get('toolbar_always_visible',True) is True
+        self.toolbar_pin_button.set_active(self.toolbar_always_visible)
+        motion=Gtk.EventControllerMotion(propagation_phase=Gtk.PropagationPhase.CAPTURE)
+        motion.connect('motion',self.focus_motion)
+        motion.connect('enter',self.focus_motion)
+        motion.connect('leave',self.focus_leave)
+        self.add_controller(motion)
+        self.workspace_overlay.add_css_class('floating-toolbar')
+        self.refresh_focus_layout()
+
+    def toolbar_visibility_toggled(self,button):
+        self.toolbar_always_visible=button.get_active()
+        self.cancel_focus_hide();self.focus_toolbar_visible=self.toolbar_always_visible
+        self.refresh_focus_layout()
+        self.queue_preferences(toolbar_always_visible=self.toolbar_always_visible)
+
+    def cancel_focus_hide(self):
+        if getattr(self,'focus_hide_timer',0):GLib.source_remove(self.focus_hide_timer)
+        self.focus_hide_timer=0
+
+    def release_focus_toolbar(self):
+        slot=getattr(self,'focus_overlay_slot',None)
+        if slot is None:return
+        revealer=self.focus_revealer
+        self.workspace_overlay.remove_overlay(revealer)
+        revealer.set_child(None)
+        slot.set_valign(Gtk.Align.FILL)
+        self.workspace_layout.prepend(slot)
+        slot.set_visible(True)
+        for pane in (self,self.peer):
+            if pane:
+                pane.toolbar.set_visible(True)
+                pane.format_controls.set_hexpand(True)
+                pane.format_controls.set_min_children_per_line(1)
+        self.focus_overlay_slot=None
+        self.focus_revealer=None
+
+    def refresh_focus_layout(self):
+        owner=self.workspace_owner or self
+        if owner is not self:return owner.refresh_focus_layout()
+        enabled=getattr(self,'focus_mode',False)
+        if self.search_controls_open():
+            self.cancel_focus_hide();self.focus_toolbar_visible=False;self.focus_pointer_top=False
+        elif self.toolbar_always_visible:self.focus_toolbar_visible=True
+        slot=self.shared_toolbar if self.peer else self.toolbar
+        if getattr(self,'focus_overlay_slot',None) is not slot:
+            self.release_focus_toolbar()
+            self.workspace_layout.remove(slot)
+            slot.set_valign(Gtk.Align.FILL);slot.set_halign(Gtk.Align.FILL)
+            self.focus_revealer=FocusRevealer(child=slot,
+                transition_type=Gtk.RevealerTransitionType.NONE,transition_duration=0,
+                valign=Gtk.Align.START,halign=Gtk.Align.CENTER,
+                margin_start=16,margin_end=16,margin_top=8)
+            self.focus_revealer.owner=self
+            self.workspace_overlay.add_overlay(self.focus_revealer);self.focus_overlay_slot=slot
+        child=self.workspace_layout.get_first_child()
+        while child:
+            if isinstance(child,Gtk.Separator):child.set_visible(False)
+            child=child.get_next_sibling()
+        for pane in (self,self.peer):
+            if pane:
+                # Keep the child mapped until the revealer finishes fading out.
+                pane.toolbar.set_visible(True)
+                pane.format_controls.set_hexpand(True)
+                count=0;item=pane.format_controls.get_first_child()
+                while item:count+=1;item=item.get_next_sibling()
+                pane.format_controls.set_min_children_per_line(max(1,count))
+                # A FlowBox can report a cached smaller width after reparenting.
+                # Reserve its complete row before GTK measures it vertically.
+                row=0;item=pane.format_controls.get_first_child()
+                while item:
+                    row+=item.measure(Gtk.Orientation.HORIZONTAL,-1)[1]
+                    item=item.get_next_sibling()
+                row+=max(0,count-1)*pane.format_controls.get_column_spacing()
+                pane.toolbar.set_size_request(row+pane.right_controls.measure(Gtk.Orientation.HORIZONTAL,-1)[1]+pane.toolbar.get_spacing(),-1)
+                action=pane.lookup_action('focus-mode')
+                if action:action.set_state(GLib.Variant.new_boolean(enabled))
+        if self.focus_revealer:
+            header_height=max(self.document_header.get_height(),self.document_header.measure(Gtk.Orientation.VERTICAL,-1)[1])
+            self.focus_revealer.set_margin_top(header_height+8)
+            width=max(p.toolbar.measure(Gtk.Orientation.HORIZONTAL,-1)[1] for p in (self,self.peer) if p)
+            width+=self.focus_revealer.get_margin_start()+self.focus_revealer.get_margin_end()+2
+            self.workspace_overlay.set_size_request(width,-1)
+            sidebar_width=self.sidebar_pixel_width if self.split.get_show_sidebar() and not self.split.get_collapsed() else 0
+            self.set_size_request(width+sidebar_width+10,360)
+            slot.set_visible(True)
+            self.focus_revealer.set_can_target(self.focus_toolbar_visible)
+            self.focus_revealer.set_reveal_child(self.focus_toolbar_visible)
+            # Keep the pill over the scrollable document rather than reserving
+            # an empty strip outside it.
+            self.workspace_layout.set_margin_top(0)
+            inset=(slot.measure(Gtk.Orientation.VERTICAL,width)[1]+self.focus_revealer.get_margin_top()
+                   if not self.search_controls_open() else 0)
+            for pane in (self,self.peer):
+                if pane:
+                    pane.search_bar.set_margin_top(header_height if pane.search_bar.get_search_mode() else 0)
+                    pane.documents_page.set_margin_top(header_height)
+                    pane.trash_page.set_margin_top(header_height)
+                    if not hasattr(pane,'document_top_margin'):pane.document_top_margin=pane.view.get_top_margin()
+                    # TextView padding belongs to the scrollable document, so
+                    # it clears the pill initially and scrolls away with text.
+                    pane.view.set_top_margin(pane.document_top_margin+inset)
+
+    def toggle_focus(self,*_):
+        owner=self.workspace_owner or self
+        if owner is not self:return owner.toggle_focus()
+        self.cancel_focus_hide()
+        self.focus_mode=not self.focus_mode;self.focus_pointer_top=False
+        self.focus_toolbar_visible=False
+        if self.focus_mode:
+            self.focus_sidebar_was_visible=self.split.get_show_sidebar()
+            self.split.set_show_sidebar(False);self.sidebar_toggle.set_sensitive(False)
+            self.workspace_overlay.add_css_class('focus-mode')
+        else:
+            self.workspace_overlay.remove_css_class('focus-mode')
+            self.sidebar_toggle.set_sensitive(True)
+            self.split.set_show_sidebar(self.focus_sidebar_was_visible)
+        self.refresh_focus_layout()
+        self.active_editor.view.grab_focus()
+
+    def focus_motion(self,controller,x,y):
+        if self.closed:return
+        if self.search_controls_open():return
+        found,bounds=self.workspace_overlay.compute_bounds(self)
+        if found and not bounds.get_x()<=x<=bounds.get_x()+bounds.get_width():
+            self.focus_leave();return
+        edge=(bounds.get_y() if found else 0)+self.document_header.get_height()+10
+        if self.focus_toolbar_visible:
+            edge=(bounds.get_y() if found else 0)+max(48,self.focus_revealer.get_height())+self.focus_revealer.get_margin_top()+10
+        self.focus_pointer_top=y<=edge
+        if self.focus_pointer_top:
+            self.cancel_focus_hide();self.focus_toolbar_visible=True;self.refresh_focus_layout()
+        else:self.schedule_focus_hide()
+
+    def focus_leave(self,*_):
+        self.focus_pointer_top=False;self.schedule_focus_hide()
+
+    def schedule_focus_hide(self):
+        if not self.toolbar_always_visible and not self.focus_hide_timer and self.focus_toolbar_visible:
+            self.focus_hide_timer=GLib.timeout_add(600,self.hide_focus_toolbar)
+
+    def hide_focus_toolbar(self):
+        if self.toolbar_always_visible:
+            self.focus_hide_timer=0;return False
+        if self.closed:
+            self.focus_hide_timer=0;return False
+        focus=self.get_focus()
+        if self.focus_pointer_top or any(getattr(p,'file_dialogs',[]) for p in (self,self.peer) if p):return True
+        if focus and any(focus is p.toolbar or focus.is_ancestor(p.toolbar) for p in (self,self.peer) if p):return True
+        self.focus_hide_timer=0;self.focus_toolbar_visible=False;self.refresh_focus_layout()
+        return False
