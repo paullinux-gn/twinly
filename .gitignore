@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+/Instellingen/
+/Documenten/
+/build/
+/build-dir/
+/.flatpak-builder/
+/repo/
+/dist/
+*.flatpak
+*.flatpakref
+*.log
+
+.twinly-trash/
+.weave-trash/
