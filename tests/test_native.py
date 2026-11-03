@@ -2104,8 +2104,10 @@ class Native(unittest.TestCase):
                 while child:
                     yield from descendants(child);child=child.get_next_sibling()
             text=[w.get_text() for w in descendants(window) if isinstance(w,Gtk.Label)]
-            for label in ('System','Light','Dark','Dark + Light','Blur strength','Background opacity'):
+            for label in ('Blur strength','Background opacity'):
                 self.assertIn(label,text)
+            for label in ('System','Light','Dark','Dark + Light'):
+                self.assertNotIn(label,text)
         finally:window.close()
         self.assertEqual('Body',PARAGRAPH_STYLES['body'][0])
         self.assertEqual('Yellow',next(iter(COLORS)))

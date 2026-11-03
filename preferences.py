@@ -140,11 +140,9 @@ class PreferencesMixin:
         for mode,label in [('system','System'),('light','Light'),('dark','Dark'),('dark-light','Dark + Light')]:
             button=Gtk.ToggleButton(css_classes=['flat','theme-choice'],tooltip_text='Dark interface, light document' if mode=='dark-light' else label)
             if theme_buttons:button.set_group(next(iter(theme_buttons.values())))
-            content=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4)
             preview=Gtk.DrawingArea(content_width=60,content_height=60)
             preview.set_draw_func(lambda area,cr,w,h,m=mode,b=button:draw_theme(area,cr,w,h,m,b))
-            content.append(preview);content.append(Gtk.Label(label=label))
-            button.set_child(content);button.set_active(mode==self.appearance_mode)
+            button.set_child(preview);button.set_active(mode==self.appearance_mode)
             button.update_property([Gtk.AccessibleProperty.LABEL],[label])
             button.connect('toggled',lambda b,p=preview:p.queue_draw())
             choices.append(button);theme_buttons[mode]=button
