@@ -101,7 +101,7 @@ class PreferencesMixin:
         self.appearance_provider.load_from_string(css)
 
     def show_preferences(self,*_):
-        window=Adw.PreferencesWindow(transient_for=(self.workspace_owner or self),modal=True,title='Voorkeuren',default_width=420,default_height=640)
+        window=Adw.PreferencesWindow(transient_for=(self.workspace_owner or self),modal=True,title='Voorkeuren',default_width=420,default_height=800)
         window.add_css_class('preferences-surface')
         if not hasattr(self,'preferences_windows'):self.preferences_windows=weakref.WeakSet()
         self.preferences_windows.add(window)
