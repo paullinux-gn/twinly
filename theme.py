@@ -3,12 +3,19 @@ import logging
 from gi.repository import Gtk
 
 BASE_CSS = r"""
- .blur-sidebar headerbar, .blur-sidebar headerbar:backdrop {
-                background:transparent;}
+            .blur-sidebar headerbar, .blur-sidebar headerbar:backdrop {
+                background:transparent;
+                }
             .blur-sidebar toolbarview > .top-bar {
-                background:transparent;box-shadow:none;}
-            .sidebar-divider {background:transparent;}
-            .photo-selection-outline {color:@accent_color;}            .floating-toolbar .format-toolbar {
+                background:transparent;box-shadow:none;
+                }
+            .sidebar-divider {
+                background:transparent;
+                }
+            .photo-selection-outline {
+                color:@accent_color;
+                }
+            .floating-toolbar .format-toolbar {
                 background:@view_bg_color;border-radius:999px;
                 padding:4px 8px;border:1px solid alpha(currentColor,.10);
                 box-shadow:0 3px 8px alpha(black,.15);
