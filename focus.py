@@ -1,5 +1,6 @@
 """Shared floating formatting toolbar and window-wide focus mode."""
 from gi.repository import Gtk,GLib
+import math
 from settings import read_settings
 
 class FocusRevealer(Gtk.Revealer):
@@ -103,6 +104,11 @@ class FocusMixin:
                 if action:action.set_state(GLib.Variant.new_boolean(enabled))
         if self.focus_revealer:
             header_height=max(self.document_header.get_height(),self.document_header.measure(Gtk.Orientation.VERTICAL,-1)[1])
+            found,header_bounds=self.document_header.compute_bounds(self.workspace_overlay)
+            if found:
+                # Use the rendered extent, including theme borders and any
+                # fractional allocation, rather than only the requested height.
+                header_height=max(header_height,math.ceil(header_bounds.get_y()+header_bounds.get_height()))
             self.focus_revealer.set_margin_top(header_height+8)
             width=max(p.toolbar.measure(Gtk.Orientation.HORIZONTAL,-1)[1] for p in (self,self.peer) if p)
             width+=self.focus_revealer.get_margin_start()+self.focus_revealer.get_margin_end()+2
@@ -120,7 +126,7 @@ class FocusMixin:
             if self.search_controls_open():inset=0
             for pane in (self,self.peer):
                 if pane:
-                    pane.search_bar.set_margin_top(header_height if pane.search_bar.get_search_mode() else 0)
+                    pane.search_bar.set_margin_top(header_height+4 if pane.search_bar.get_search_mode() else 0)
                     pane.documents_page.set_margin_top(header_height)
                     pane.trash_page.set_margin_top(header_height)
                     if not hasattr(pane,'document_top_margin'):pane.document_top_margin=pane.view.get_top_margin()

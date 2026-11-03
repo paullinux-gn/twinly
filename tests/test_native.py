@@ -794,6 +794,18 @@ class Native(unittest.TestCase):
         found,bounds=self.w.search_entry.compute_bounds(self.w)
         self.assertTrue(found)
         self.assertGreaterEqual(bounds.get_y(),header.get_y()+header.get_height())
+        # GTK themes can report a smaller request than the rendered header.
+        # Keep search clear even when those measurements disagree.
+        from unittest.mock import patch
+        height=self.w.document_header.get_height()
+        with patch.object(self.w.document_header,'get_height',return_value=height-8), \
+             patch.object(self.w.document_header,'measure',return_value=(height-8,height-8,-1,-1)):
+            self.w.refresh_focus_layout()
+            for _ in range(15):pump();time.sleep(.01)
+            found,bounds=self.w.search_entry.compute_bounds(self.w)
+            ok,header=self.w.document_header.compute_bounds(self.w)
+            self.assertTrue(found and ok)
+            self.assertGreaterEqual(bounds.get_y(),header.get_y()+header.get_height())
 
     def test_header_rename_stays_visible_after_pointer_leaves(self):
         path=self.root/'Before.html';path.write_text('<p>Body</p>');self.w.open_path(path)
