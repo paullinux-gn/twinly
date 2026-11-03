@@ -48,6 +48,27 @@ def read_bytes(path,limit,*,with_stamp=False):
             return (data,signature(before)) if with_stamp else data
         finally:os.close(fd)
 
+def read_import_bytes(path,limit):
+    """Read a user-selected external file, including portal directory aliases.
+
+    Only read-only imports use this path: ancestor links are allowed, but the
+    final file must remain a bounded, unchanged regular file, never a symlink.
+    Library reads and all writes retain descriptor-by-descriptor traversal.
+    """
+    path=_absolute(path)
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+    try:
+        before=os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):raise ValueError('Only regular files are supported.')
+        if before.st_size>limit:raise ValueError('The file exceeds the size limit.')
+        with os.fdopen(fd,'rb',closefd=False) as stream:data=stream.read(limit+1)
+        if len(data)>limit:raise ValueError('The file exceeds the size limit.')
+        if signature(os.fstat(fd))!=signature(before):raise ValueError('The file changed while being read.')
+        current=os.stat(path,follow_symlinks=False)
+        if signature(current)!=signature(before):raise ValueError('The file was replaced while being read.')
+        return data
+    finally:os.close(fd)
+
 def read_text(path,limit,*,with_stamp=False):
     result=read_bytes(path,limit,with_stamp=with_stamp)
     return (result[0].decode('utf-8'),result[1]) if with_stamp else result.decode('utf-8')

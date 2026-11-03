@@ -1959,6 +1959,22 @@ class Native(unittest.TestCase):
         self.assertFalse(self.w.peer.dirty())
         self.assertEqual(self.w.saved_stamp,__import__('model').stamp(first))
 
+    def test_photo_insertion_through_portal_directory_link(self):
+        from unittest.mock import patch
+        grant=self.root/'portal-grant';grant.mkdir()
+        source=grant/'photo.jpg';source.write_bytes((Path(__file__).parent/'fixtures/tiny.jpg').read_bytes())
+        portal=self.root/'doc';portal.symlink_to(grant,target_is_directory=True)
+        selected=portal/'photo.jpg'
+        self.w.buffer.set_text('Before ')
+        self.w.buffer.place_cursor(self.w.buffer.get_end_iter())
+        with patch.object(self.w,'file_chooser') as chooser,patch.object(self.w,'error') as error:
+            self.w.insert_photo();chooser.call_args.args[2](selected)
+            error.assert_not_called()
+        self.assertEqual(1,len(self.w.snapshot()['images']))
+        self.assertTrue(self.w.snapshot()['text'].startswith('Before '))
+        self.w.write(self.root/'With photo.html')
+        self.assertIn('data:image/jpeg;base64,',(self.root/'With photo.html').read_text())
+
     def test_photo_chooser_uses_image_filter_independent_of_title(self):
         from unittest.mock import patch,Mock
         with patch.object(self.w,'file_chooser') as choose:

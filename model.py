@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import re
 import struct
-from filesystem import read_bytes
+from filesystem import read_bytes,read_import_bytes
 import filesystem
 
 # Retain existing callers of these two compatibility exports.
@@ -176,7 +176,7 @@ def image_data(path):
     path = Path(path)
     if path.stat().st_size > MAX_IMAGE:
         raise ValueError('A photo must be no larger than 20 MB.')
-    raw = read_bytes(path,MAX_IMAGE)
+    raw = read_import_bytes(path,MAX_IMAGE)
     if raw.startswith(b'\x89PNG\r\n\x1a\n'):
         mime = 'image/png'
     elif raw.startswith(b'\xff\xd8\xff'):

@@ -70,6 +70,32 @@ class Security(unittest.TestCase):
             self.assertFalse(private_trash.items(root))
             self.assertTrue(item['payload'].exists())
 
+    def test_import_reads_allow_directory_aliases_but_remain_bounded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);grant=root/'grant';grant.mkdir()
+            source=grant/'photo';source.write_bytes(b'photo bytes')
+            portal=root/'doc';portal.symlink_to(grant,target_is_directory=True)
+            self.assertEqual(b'photo bytes',filesystem.read_import_bytes(portal/'photo',20))
+            with self.assertRaises(OSError):filesystem.read_bytes(portal/'photo',20)
+            with self.assertRaises(OSError):filesystem.atomic_write(portal/'photo',b'changed')
+            self.assertEqual(b'photo bytes',source.read_bytes())
+            with self.assertRaises(ValueError):filesystem.read_import_bytes(portal/'photo',5)
+            (grant/'link').symlink_to(source)
+            with self.assertRaises(OSError):filesystem.read_import_bytes(portal/'link',20)
+            os.mkfifo(grant/'pipe')
+            with self.assertRaises(ValueError):filesystem.read_import_bytes(portal/'pipe',20)
+
+    def test_import_read_rejects_file_replacement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/'photo';source.write_bytes(b'photo bytes')
+            real_stat=filesystem.os.stat
+            def replaced(path,*args,**kwargs):
+                if Path(path)==source and kwargs.get('follow_symlinks') is False:
+                    source.unlink();source.write_bytes(b'a replacement with a different length')
+                return real_stat(path,*args,**kwargs)
+            with patch('filesystem.os.stat',side_effect=replaced):
+                with self.assertRaises(ValueError):filesystem.read_import_bytes(source,20)
+
     def test_reads_are_bounded_and_refuse_symlinks_and_fifos(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);file=root/'document';file.write_bytes(b'x'*20)

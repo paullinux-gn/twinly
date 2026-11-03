@@ -37,8 +37,11 @@ unchanged. Limits apply per document, not to the process's total resident memory
 
 ## Files and concurrent changes
 
-On Linux, reads and writes use directory descriptors opened without following
-symlinks. Reads are bounded, reject special files/FIFOs, and return the identity of
+On Linux, library reads and writes use directory descriptors opened without following
+symlinks. Explicitly selected photo imports use a separate bounded, read-only reader
+that permits parent-directory aliases, including Flatpak file-portal paths. It still
+rejects final-file symlinks and special files, and checks that the selected file
+has not changed while reading. This import reader is never used for saving. Reads are bounded, reject special files/FIFOs, and return the identity of
 the file that was actually read. Save conflict checks use that identity. New files
 and moves use atomic no-replacement operations; existing saves use temporary files,
 fsync, identity rechecks and atomic replacement. PDFs use the same safe writer.
