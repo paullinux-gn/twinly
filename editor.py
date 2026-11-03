@@ -125,7 +125,7 @@ class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,Workspa
             [('Save','save'),('Save as…','save-as'),('Make a copy','duplicate')],
             [('Find…','find'),('Insert link…','link'),('Insert photo…','photo')],
             [('Print preview…','print'),('Print…','print-direct')],
-            [('Focus mode','focus-mode'),('Page view','page-view')],
+            [('Focus mode','focus-mode'),('Page view','page-view'),('Fit window to page','fit-window-to-page')],
             [('Open beside current document…','open-beside'),('Swap panes','swap-panes'),('Pin as reference','pin-pane'),('Close pane','close')],
         ]:
             section=Gio.Menu()
@@ -1363,6 +1363,7 @@ class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,Workspa
     def cleanup(self,*_):
         if self.closed:return
         self.clear_recovery()
+        self.cancel_page_fit()
         self.closed=True
         self.cancel_focus_hide()
         self.cancel_deferred()

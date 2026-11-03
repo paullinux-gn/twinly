@@ -1,5 +1,6 @@
 """Document rendering and responsive embedded-object sizing."""
 from gi.repository import Gtk,Gdk,Graphene,GObject,Pango,GLib
+import math
 from model import DOCUMENT_DPI,PARAGRAPH_SPACING_PX,RULE_PADDING_PX,fit_image_dimensions
 
 class FontButton(Gtk.Button):
@@ -137,6 +138,69 @@ class PageViewMixin:
                 pane.apply_page_view()
         owner.queue_preferences(page_view=enabled)
         owner.refresh_focus_layout()
+
+    def page_fit_bounds(self):
+        display=self.get_display();surface=self.get_surface()
+        monitor=display.get_monitor_at_surface(surface) if surface else None
+        if monitor is None:monitor=display.get_monitors().get_item(0)
+        if monitor is None:return 1600,1000
+        # Wayland exposes monitor geometry, not the compositor's work area.
+        # Leave room for shell panels and outer window decorations.
+        area=monitor.get_geometry()
+        return max(320,area.width-32),max(360,area.height-64)
+
+    def cancel_page_fit(self):
+        owner=self.workspace_owner or self
+        pending=getattr(owner,'page_fit_pending',0)
+        if pending:owner.remove_tick_callback(pending)
+        owner.page_fit_pending=0
+        balance=getattr(owner,'page_fit_balance',None)
+        if balance:balance[0].remove_tick_callback(balance[1])
+        owner.page_fit_balance=None
+
+    def fit_window_to_page(self,*_):
+        owner=self.workspace_owner or self
+        if not owner.page_view:owner.toggle_page_view()
+        owner.cancel_page_fit()
+        owner.unmaximize();owner.unfullscreen()
+        frames=[0]
+        def resize(widget,clock):
+            frames[0]+=1
+            if owner.closed:owner.page_fit_pending=0;return False
+            if frames[0]<2 or ((owner.is_maximized() or owner.is_fullscreen()) and frames[0]<12):return True
+            owner.page_fit_pending=0
+            owner.refresh_focus_layout()
+            panes=[pane for pane in (owner,owner.peer) if pane]
+            # Current allocations capture sidebar, pane divider, search and save
+            # banners without guessing their theme-dependent dimensions.
+            found,bounds=owner.compute_bounds(owner)
+            outer_width=math.ceil(bounds.get_width()) if found else owner.get_width()
+            outer_height=math.ceil(bounds.get_height()) if found else owner.get_height()
+            chrome=max(0,outer_width-sum(p.document_scroll.get_width() for p in panes))
+            width=chrome+sum(p.view.page_width+p.page_canvas.get_margin_start()+p.page_canvas.get_margin_end() for p in panes)
+            height=max(p.view.get_size_request()[1]+p.page_canvas.get_margin_top()+p.page_canvas.get_margin_bottom()
+                       +max(0,outer_height-p.document_scroll.get_height()) for p in panes)
+            minimum_width,minimum_height=owner.get_size_request()
+            limit_width,limit_height=owner.page_fit_bounds()
+            owner.set_default_size(min(limit_width,max(minimum_width,width)),
+                                   min(limit_height,max(minimum_height,height)))
+            if owner.peer:
+                allocation_frames=[0]
+                def balance(paned,clock):
+                    allocation_frames[0]+=1
+                    if owner.closed or not owner.peer or owner.panes is not paned:
+                        owner.page_fit_balance=None;return False
+                    if allocation_frames[0]<2:return True
+                    owner.page_fit_balance=None
+                    left=owner if paned.get_start_child() is owner.editor_toolbar_view else owner.peer
+                    widths={pane:pane.view.page_width+pane.page_canvas.get_margin_start()+pane.page_canvas.get_margin_end()
+                            for pane in (owner,owner.peer)}
+                    available=paned.get_start_child().get_width()+paned.get_end_child().get_width()
+                    paned.set_position(round(available*widths[left]/sum(widths.values())))
+                    return False
+                owner.page_fit_balance=(owner.panes,owner.panes.add_tick_callback(balance))
+            return False
+        owner.page_fit_pending=owner.add_tick_callback(resize)
 
     def set_page_setup(self,value):
         from printing import normalized_page_setup

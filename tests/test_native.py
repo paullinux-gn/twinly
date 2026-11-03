@@ -2133,7 +2133,7 @@ class Native(unittest.TestCase):
             return result
         document_labels=labels(self.w.document_menu_button.get_menu_model())
         for label in ('New document','Open…','Import…','Save','Save as…',
-                      'Find…','Insert link…','Print preview…','Export as…'):
+                      'Find…','Insert link…','Print preview…','Export as…','Fit window to page'):
             self.assertIn(label,document_labels)
         sidebar_labels=labels(self.w.sidebar.menu_button.get_menu_model())
         for label in ('New document','New folder','Preferences…','About Twinly'):

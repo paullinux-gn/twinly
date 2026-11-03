@@ -131,3 +131,43 @@ class PageView(unittest.TestCase):
         available=self.w.view.get_width()-self.w.view.get_left_margin()-self.w.view.get_right_margin()
         self.assertLessEqual(entry['picture'].get_size_request()[0],available)
         self.assertEqual(before,self.w.snapshot())
+
+    def test_fit_window_enables_page_view_and_preserves_document_and_zoom(self):
+        self.w.buffer.set_text('Selected text');self.w.capture()
+        self.w.buffer.select_range(*self.w.buffer.get_bounds())
+        before=self.w.snapshot();zoom=self.w.zoom
+        self.w.set_default_size(1500,1000);settle()
+        self.w.lookup_action('fit-window-to-page').activate(None);settle()
+        self.assertTrue(self.w.page_view)
+        self.assertEqual(zoom,self.w.zoom);self.assertEqual(before,self.w.snapshot())
+        self.assertEqual((0,13),tuple(i.get_offset() for i in self.w.buffer.get_selection_bounds()))
+        self.assertGreaterEqual(self.w.document_scroll.get_width(),self.w.view.page_width+48)
+        self.assertLess(self.w.get_width(),1500)
+
+    def test_fit_window_limits_size_without_changing_zoom(self):
+        self.w.change_zoom(1.5);zoom=self.w.zoom
+        with patch.object(self.w,'page_fit_bounds',return_value=(1200,700)):
+            self.w.fit_window_to_page();settle()
+        width,height=self.w.get_default_size()
+        self.assertLessEqual(width,1200);self.assertLessEqual(height,700)
+        self.assertEqual(zoom,self.w.zoom)
+        adjustment=self.w.document_scroll.get_hadjustment()
+        self.assertGreater(adjustment.get_upper(),adjustment.get_page_size())
+
+    def test_fit_window_reserves_space_for_both_panes_at_different_zooms(self):
+        self.w.set_page_setup({'paper':'A5','landscape':False,'margin_mm':15})
+        target=self.root/'Other.html';target.write_text('<p>Other</p>')
+        self.w.open_beside(target);peer=self.w.peer;peer.change_zoom(-.5)
+        self.w.swap_panes();settle()
+        peer.lookup_action('fit-window-to-page').activate(None);settle();settle()
+        self.assertTrue(self.w.page_view);self.assertTrue(peer.page_view)
+        for pane in (self.w,peer):
+            self.assertGreaterEqual(pane.document_scroll.get_width()+2,pane.view.page_width+48)
+        self.assertEqual(1,self.w.zoom);self.assertEqual(.5,peer.zoom)
+
+    def test_pending_fit_is_cancelled_when_window_closes(self):
+        self.w.fit_window_to_page()
+        self.assertTrue(self.w.page_fit_pending)
+        self.w.saved_doc=self.w.snapshot();self.w.destroy();settle()
+        self.assertEqual(0,self.w.page_fit_pending)
+        self.assertIsNone(self.w.page_fit_balance)

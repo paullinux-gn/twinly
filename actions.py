@@ -42,6 +42,7 @@ class ActionsMixin:
             'manage-styles':(self.manage_custom_styles,[]),
             'focus-mode':(self.toggle_focus,['F9']),
             'page-view':(self.toggle_page_view,[]),
+            'fit-window-to-page':(self.fit_window_to_page,[]),
             'find-next':(lambda *_:self.step_search(1),['<Primary>g']),
             'find-previous':(lambda *_:self.step_search(-1),['<Primary><Shift>g']),
             'back':(lambda *_:self.navigate(-1),['<Alt>Left']),
