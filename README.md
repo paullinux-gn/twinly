@@ -196,6 +196,10 @@ Change paper size (A4, A5 or Letter), orientation and margins in **Print preview
 those settings also update Page view. The view choice and paper settings are
 remembered, apply to both panes, and work inside vaults. This is a continuous
 sheet that grows with the text; exact page breaks remain in Print preview.
+The editor and printer share font sizing, pixel-to-point conversion, paragraph
+spacing and photo fitting. At 100% zoom, ordinary text and photo-only paragraphs
+closely match the preview. Some font/rendering differences and mixed inline
+text/photo layouts can still differ; this is not a fully paginated layout editor.
 Switching views does not change document content or its saved HTML.
 
 ### Reading and editing

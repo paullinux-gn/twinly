@@ -5,7 +5,8 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('PangoCairo', '1.0')
 from gi.repository import Gtk, Pango, PangoCairo, GdkPixbuf, Gdk, GLib, Gio
-from model import blank,decode_image,validate_document,MAX_IMAGE_PIXELS,ResourceLimitError,resolved_style
+from model import (blank,decode_image,validate_document,MAX_IMAGE_PIXELS,ResourceLimitError,resolved_style,
+                   DOCUMENT_DPI,POINTS_PER_PIXEL,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_HEIGHT_PX,fit_image_dimensions)
 from filesystem import atomic_write
 import io
 from settings import finite_number
@@ -61,7 +62,11 @@ class Pages:
         self.span_cursor=0;self.active_spans=[];self.last_span_start=-1
         self.pages = [[]]
         self.y = margin
-        self.content_width = width - 2 * margin
+        # Round the paper and margins separately, just as the GTK sheet does
+        # at 100% zoom, before converting back to printer points.
+        self.content_width_pixels=max(1,round(width/POINTS_PER_PIXEL)-2*round(margin/POINTS_PER_PIXEL))
+        self.content_height_pixels=max(1,round(height/POINTS_PER_PIXEL)-2*round(margin/POINTS_PER_PIXEL))
+        self.content_width=self.content_width_pixels*POINTS_PER_PIXEL
         self.context = cairo.Context(cairo.ImageSurface(cairo.FORMAT_ARGB32, 1, 1))
         self.paginate()
 
@@ -87,11 +92,16 @@ class Pages:
         for span in self.spans_for(offset,offset+1):style.update(span['style'])
         return style
 
-    def text(self, text, offset):
+    def text_layout(self, text, offset):
         layout = PangoCairo.create_layout(self.context)
-        PangoCairo.context_set_resolution(layout.get_context(), 72)
-        layout.set_font_description(Pango.FontDescription('Sans 12'))
-        layout.set_width(int(self.content_width * Pango.SCALE))
+        PangoCairo.context_set_resolution(layout.get_context(), DOCUMENT_DPI)
+        # GTK text layout uses fractional vertical font metrics. Avoid rounding
+        # every printed line to whole device pixels before converting to points.
+        options=cairo.FontOptions();options.set_hint_metrics(cairo.HINT_METRICS_OFF)
+        PangoCairo.context_set_font_options(layout.get_context(),options)
+        layout.get_context().set_round_glyph_positions(False)
+        layout.set_font_description(Pango.FontDescription(DOCUMENT_FONT+' '+str(DOCUMENT_FONT_SIZE)))
+        layout.set_width(self.content_width_pixels * Pango.SCALE)
         layout.set_wrap(Pango.WrapMode.WORD_CHAR)
         align = self.style_at(offset).get('align', 'left')
         layout.set_alignment({'left': Pango.Alignment.LEFT, 'center': Pango.Alignment.CENTER,
@@ -139,38 +149,42 @@ class Pages:
                 attr.end_index = byte_offsets[end-offset]
                 attrs.insert(attr)
         layout.set_attributes(attrs)
+        return layout
+
+    def text(self,text,offset):
+        layout=self.text_layout(text,offset)
         iterator = layout.get_iter()
         while True:
             line = iterator.get_line_readonly()
             _, logical = iterator.get_line_extents()
-            baseline = iterator.get_baseline() / Pango.SCALE
-            h = logical.height / Pango.SCALE + 3
+            baseline = iterator.get_baseline() / Pango.SCALE * POINTS_PER_PIXEL
+            h = logical.height / Pango.SCALE * POINTS_PER_PIXEL
             self.reserve(h)
-            self.pages[-1].append(('line', layout, line, self.y + baseline - logical.y / Pango.SCALE))
+            self.pages[-1].append(('line', layout, line, self.y + baseline - logical.y / Pango.SCALE * POINTS_PER_PIXEL))
             self.y += h
             if not iterator.next_line(): break
-        self.y += 5
+        self.y += PARAGRAPH_SPACING_PX*POINTS_PER_PIXEL
 
     def image_rows(self,images):
         row=[];width=0
         def flush():
             if not row:return
             height=max(item[2] for item in row)
-            self.reserve(height+8)
+            self.reserve(height+PARAGRAPH_SPACING_PX*POINTS_PER_PIXEL)
             align=self.style_at(row[0][4]).get('align','left')
             x=self.margin+(self.content_width-width)*{'center':.5,'right':1}.get(align,0)
             for pix,w,h,gap,_offset in row:
                 x+=gap
                 self.pages[-1].append(('image',pix,x,self.y+height-h,w,h))
                 x+=w
-            self.y+=height+8
+            self.y+=height+PARAGRAPH_SPACING_PX*POINTS_PER_PIXEL
         for img,gap in images:
             src=img['src']
             pix=self.pixbufs.get(src)
             if pix is None:pix=self.pixbufs[src]=pixbuf_for(src)
-            w,h=img['width']*.75,img['height']*.75
-            factor=min(1,self.content_width/w,(self.height-2*self.margin-8)/h)
-            w,h=w*factor,h*factor
+            w,h=fit_image_dimensions(img['width'],img['height'],self.content_width_pixels,
+                                     max(1,self.content_height_pixels-PARAGRAPH_SPACING_PX))
+            w,h=w*POINTS_PER_PIXEL,h*POINTS_PER_PIXEL
             if row and width+gap+w>self.content_width:
                 flush();row=[];width=0
             if not row:gap=0
@@ -192,14 +206,15 @@ class Pages:
                 gap=0
                 if segment:
                     if pending and segment.isspace() and absolute in images:
-                        gap=len(segment.expandtabs(4))*4
+                        gap=self.text_layout(segment,offset+pos).get_size()[0]/Pango.SCALE*POINTS_PER_PIXEL
                     else:
                         flush_images();self.text(segment,offset+pos)
                 if absolute in rules:
                     flush_images()
-                    self.reserve(20)
-                    self.pages[-1].append(('rule',self.margin,self.y+10,self.content_width))
-                    self.y+=20
+                    height=RULE_HEIGHT_PX*POINTS_PER_PIXEL
+                    self.reserve(height+PARAGRAPH_SPACING_PX*POINTS_PER_PIXEL)
+                    self.pages[-1].append(('rule',self.margin,self.y+height/2,self.content_width))
+                    self.y+=height+PARAGRAPH_SPACING_PX*POINTS_PER_PIXEL
                 else:pending.append((images[absolute],gap))
                 pos=index+1
             flush_images()
@@ -217,10 +232,14 @@ class Pages:
                 # LayoutLine drawing uses its baseline as origin; honor alignment via line extents.
                 _, logical = line.get_extents()
                 alignment = layout.get_alignment()
-                width = logical.width / Pango.SCALE
+                width = logical.width / Pango.SCALE * POINTS_PER_PIXEL
                 x = self.margin + (self.content_width-width) * ({Pango.Alignment.CENTER:.5, Pango.Alignment.RIGHT:1}.get(alignment,0))
-                cr.move_to(x, y)
+                cr.save()
+                cr.translate(x,y)
+                cr.scale(POINTS_PER_PIXEL,POINTS_PER_PIXEL)
+                cr.move_to(0,0)
                 PangoCairo.show_layout_line(cr, line)
+                cr.restore()
             elif item[0]=='rule':
                 _,x,y,width=item
                 cr.save()

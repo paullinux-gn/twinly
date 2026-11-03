@@ -1,5 +1,6 @@
 """Document rendering and responsive embedded-object sizing."""
 from gi.repository import Gtk,Gdk,Graphene,GObject,Pango,GLib
+from model import DOCUMENT_DPI,PARAGRAPH_SPACING_PX,RULE_PADDING_PX,fit_image_dimensions
 
 class FontButton(Gtk.Button):
     """Font control with an explicitly owned asynchronous chooser."""
@@ -83,12 +84,17 @@ class DocumentView(Gtk.TextView):
         available=max(40,width-self.get_left_margin()-self.get_right_margin())
         child=self.get_first_child()
         while child:
-            if isinstance(child,Gtk.Separator) and child.get_size_request()[0]!=available:
-                child.set_size_request(available,1)
+            if isinstance(child,Gtk.Separator):
+                zoom=self.editor.zoom if getattr(self,'page_width',None) else 1
+                padding=round(RULE_PADDING_PX*zoom)
+                child.set_margin_top(padding);child.set_margin_bottom(padding)
+                size=(available,max(1,round(zoom)))
+                if child.get_size_request()!=size:child.set_size_request(*size)
             if hasattr(child,'photo_entry'):
                 entry=child.photo_entry
-                requested=min(round(entry['data']['width']*entry.get('display_zoom',1)),available)
-                height=max(1,round(requested*entry['data']['height']/entry['data']['width']))
+                zoom=entry.get('display_zoom',1)
+                requested,height=fit_image_dimensions(entry['data']['width']*zoom,entry['data']['height']*zoom,
+                                                     available,getattr(self,'page_image_height',None))
                 if entry['picture'].get_size_request()!=(requested,height):
                     entry['picture'].set_size_request(requested,height)
             if isinstance(child,Gtk.Popover):child.present()
@@ -189,12 +195,14 @@ class PageViewMixin:
         if self.page_view:
             width,height=PAPER_SIZES_MM[self.page_setup['paper']]
             if self.page_setup['landscape']:width,height=height,width
-            scale=96/25.4*self.zoom
+            scale=DOCUMENT_DPI/25.4*self.zoom
+            content_height=round(height*DOCUMENT_DPI/25.4)-2*round(self.page_setup['margin_mm']*DOCUMENT_DPI/25.4)
+            self.view.page_image_height=max(1,content_height-PARAGRAPH_SPACING_PX)*self.zoom
             self.view.page_width=round(width*scale)
             self.view.page_margin=round(self.page_setup['margin_mm']*scale)
             self.view.set_size_request(self.view.page_width,round(height*scale))
         else:
-            self.view.page_width=None;self.view.page_margin=None
+            self.view.page_width=None;self.view.page_margin=None;self.view.page_image_height=None
             self.view.set_size_request(-1,-1)
         self.update_document_inset(self.document_inset)
         self.view.queue_resize()

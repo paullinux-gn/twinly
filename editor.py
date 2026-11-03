@@ -15,7 +15,7 @@ gi.require_version('Adw','1')
 gi.require_version('GdkPixbuf','2.0')
 from gi.repository import Gtk, Adw, Gio, GLib, Gdk, Pango
 from model import (blank, to_html, from_html, image_data, stamp, atomic_write,
-                   safe_name, COLORS, MAX_DOCUMENT, valid_link, relocated_href, relocate_html_links, validate_document,validate_image_budget,PARAGRAPH_STYLES,resolved_style)
+                   safe_name, COLORS, MAX_DOCUMENT, valid_link, relocated_href, relocate_html_links, validate_document,validate_image_budget,PARAGRAPH_STYLES,resolved_style,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_PADDING_PX,fit_image_dimensions)
 from printing import pixbuf_for, PrintPreview,clear_image_cache
 from sidebar import Sidebar
 from settings import finite_number,read_settings
@@ -295,7 +295,7 @@ class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,Workspa
         self.photo_bar.set_visible(False)
         self.view=DocumentView(buffer=self.buffer,wrap_mode=Gtk.WrapMode.WORD_CHAR,
                                left_margin=32,right_margin=32,top_margin=28,bottom_margin=40,
-                               pixels_below_lines=8,vexpand=True)
+                               pixels_below_lines=PARAGRAPH_SPACING_PX,vexpand=True)
         self.view.add_css_class('document')
         link_click=Gtk.GestureClick(button=1)
         link_click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -1220,7 +1220,8 @@ class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,Workspa
 
     def change_zoom(self,step):
         self.zoom=finite_number(round(self.zoom+step,2),1,.5,2.5)
-        self.css_provider.load_from_string(f'textview#{self.view.get_name()} {{font-family:Sans;font-size:{12*self.zoom}pt;}}')
+        self.css_provider.load_from_string(f'textview#{self.view.get_name()} {{font-family:{DOCUMENT_FONT};font-size:{DOCUMENT_FONT_SIZE*self.zoom}pt;}}')
+        self.view.set_pixels_below_lines(round(PARAGRAPH_SPACING_PX*self.zoom))
         was_loading=self.loading
         self.loading=True
         try:
@@ -1914,15 +1915,14 @@ class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,Workspa
     def set_picture_size(self,entry):
         entry['display_zoom']=self.zoom
         available=self.view.get_width()-self.view.get_left_margin()-self.view.get_right_margin()
-        width=round(entry['data']['width']*self.zoom)
-        if available>24:width=min(width,available)
-        height=max(1,round(width*entry['data']['height']/entry['data']['width']))
+        width,height=fit_image_dimensions(entry['data']['width']*self.zoom,entry['data']['height']*self.zoom,
+            available if available>24 else None,getattr(self.view,'page_image_height',None))
         entry['picture'].set_size_request(width,height)
         if 'outline' in entry:entry['outline'].queue_draw()
 
     def attach_rule(self,where):
         anchor=self.buffer.create_child_anchor(where)
-        separator=Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL,margin_top=10,margin_bottom=10)
+        separator=Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL,margin_top=RULE_PADDING_PX,margin_bottom=RULE_PADDING_PX)
         separator.set_size_request(max(40,self.view.get_width()-64),1)
         self.view.add_child_at_anchor(separator,anchor)
         self.anchors.append({'anchor':anchor,'kind':'rule'})

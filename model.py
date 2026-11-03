@@ -18,6 +18,20 @@ import filesystem
 atomic_write=filesystem.atomic_write
 move_path=filesystem.move_path
 
+# Shared editor/print metrics. Stored image dimensions use CSS pixels.
+DOCUMENT_DPI=96
+POINTS_PER_PIXEL=72/DOCUMENT_DPI
+DOCUMENT_FONT='Sans'
+DOCUMENT_FONT_SIZE=12
+PARAGRAPH_SPACING_PX=8
+RULE_PADDING_PX=10
+RULE_HEIGHT_PX=2*RULE_PADDING_PX+1
+
+def fit_image_dimensions(width,height,available_width=None,available_height=None):
+    factor=min(1,available_width/width if available_width is not None else 1,
+               available_height/height if available_height is not None else 1)
+    return max(1,round(width*factor)),max(1,round(height*factor))
+
 COLORS = {'Yellow': '#fff099', 'Green': '#b9efb2', 'Blue': '#b8ddff',
           'Pink': '#ffc5df', 'Orange': '#ffd0a0', 'Purple': '#dcc5f5', 'Turquoise': '#a8e6df'}
 MAX_IMAGE = 20 * 1024 * 1024
