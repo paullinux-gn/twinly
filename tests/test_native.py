@@ -90,14 +90,14 @@ class Native(unittest.TestCase):
         self.w.new(folder=self.root);settle()
         entry=getattr(self.w.sidebar,'active_rename_entry',None)
         self.assertIsNotNone(entry)
-        self.assertEqual('nieuw document',entry.get_text())
+        self.assertEqual('new document',entry.get_text())
         entry.set_text('My document');entry.emit('activate');settle()
         self.assertTrue((self.root/'My document.html').exists())
         self.assertEqual(self.root/'My document.html',self.w.path)
         self.w.new_folder(folder=self.root);settle()
         entry=self.w.sidebar.active_rename_entry;self.assertIsNotNone(entry)
         entry.set_text('');entry.emit('activate');settle()
-        self.assertTrue((self.root/'nieuwe map').is_dir())
+        self.assertTrue((self.root/'new folder').is_dir())
         self.w.new_folder(folder=self.root);settle()
         entry=self.w.sidebar.active_rename_entry;entry.set_text('My folder');entry.emit('activate');settle()
         self.assertTrue((self.root/'My folder').is_dir())
@@ -108,7 +108,7 @@ class Native(unittest.TestCase):
         for i in range(controls.get_n_items()):
             control=controls.get_item(i)
             if isinstance(control,Gtk.EventControllerKey):control.emit('key-pressed',Gdk.KEY_Escape,0,Gdk.ModifierType(0))
-        settle();self.assertTrue((self.root/'nieuw document.html').exists())
+        settle();self.assertTrue((self.root/'new document.html').exists())
         self.assertFalse((self.root/'Ignored.html').exists())
         self.w.new_folder(folder=self.root);settle()
         self.w.sidebar.active_rename_entry.set_text('Named by focus change')
@@ -121,14 +121,14 @@ class Native(unittest.TestCase):
         self.w.sidebar.refresh()
         self.w.sidebar.select_path(folder)
         self.w.lookup_action('new').activate(None)
-        path=folder/'nieuw document.html'
+        path=folder/'new document.html'
         # Assert synchronously: no monitor timer or name dialog is required.
         self.assertTrue(path.exists())
         self.assertEqual(path,self.w.path)
         self.assertEqual(path,self.w.sidebar.selected())
         self.assertEqual('',from_html(path.read_text())[0]['text'])
         self.w.lookup_action('new').activate(None)
-        self.assertEqual(folder/'nieuw document 2.html',self.w.path)
+        self.assertEqual(folder/'new document 2.html',self.w.path)
         self.assertTrue(self.w.path.exists())
 
     def test_context_actions_keep_clicked_folder(self):
@@ -141,12 +141,12 @@ class Native(unittest.TestCase):
         self.w.sidebar.select_path(other)
         self.assertTrue(pop.activate_action('context.new-folder',None))
         pump()
-        newfolder=folder/'nieuwe map'
+        newfolder=folder/'new folder'
         self.assertTrue(newfolder.is_dir())
         self.assertEqual(newfolder,self.w.sidebar.selected())
         self.assertTrue(pop.activate_action('context.new',None))
         pump()
-        path=folder/'nieuw document.html'
+        path=folder/'new document.html'
         self.assertTrue(path.exists())
         self.assertEqual(path,self.w.sidebar.selected())
         # A document menu contains no creation or root actions.
@@ -154,10 +154,10 @@ class Native(unittest.TestCase):
         self.assertFalse(pop2.activate_action('context.new',None))
         self.assertFalse(pop2.activate_action('context.new-folder',None))
         self.assertFalse(pop2.activate_action('context.root',None))
-        self.assertFalse((folder/'nieuw document 2.html').exists())
+        self.assertFalse((folder/'new document 2.html').exists())
         self.assertTrue(pop.activate_action('context.new-folder',None))
         pump()
-        self.assertTrue((folder/'nieuwe map 2').is_dir())
+        self.assertTrue((folder/'new folder 2').is_dir())
 
     def test_visible_context_menu_survives_tree_refresh(self):
         folder=self.root/'Zichtbare map'
@@ -186,8 +186,8 @@ class Native(unittest.TestCase):
             expander=widget.get_first_child()
             row=expander.get_list_row()
             self.w.sidebar.select_path(folder)
-        self.assertTrue((folder/'nieuwe map').is_dir())
-        self.assertTrue((folder/'nieuw document.html').is_file())
+        self.assertTrue((folder/'new folder').is_dir())
+        self.assertTrue((folder/'new document.html').is_file())
         self.assertTrue(self.w.get_visible())
 
     def test_document_context_contains_only_document_actions(self):
@@ -228,13 +228,13 @@ class Native(unittest.TestCase):
         self.w.lookup_action('new-root').activate(None)
         pump()
         dialogs=[w for w in Gtk.Window.list_toplevels() if isinstance(w,Adw.MessageDialog)
-                 and w.get_transient_for()==self.w and w.get_heading()=='Nieuwe hoofdmap']
+                 and w.get_transient_for()==self.w and w.get_heading()=='New library']
         self.assertEqual(1,len(dialogs))
         dialog=dialogs[0]
         entry=dialog.get_extra_child().get_first_child()
-        newroot=self.root/'Nieuwe hoofdmap'
+        newroot=self.root/'New library'
         entry.set_text(str(newroot))
-        self.assertEqual('Map maken en gebruiken',dialog.get_response_label('use'))
+        self.assertEqual('Create and use folder',dialog.get_response_label('use'))
         dialog.response('use');dialog.destroy();pump()
         self.assertTrue(newroot.is_dir())
         self.assertEqual(newroot,self.w.sidebar.root)
@@ -246,7 +246,7 @@ class Native(unittest.TestCase):
         self.assertTrue(pop.activate_action('context.root',None))
         pump()
         dialogs=[w for w in Gtk.Window.list_toplevels() if isinstance(w,Adw.MessageDialog)
-                 and w.get_transient_for()==self.w and w.get_heading()=='Hoofdmap kiezen']
+                 and w.get_transient_for()==self.w and w.get_heading()=='Choose library']
         self.assertEqual(1,len(dialogs))
         dialog=dialogs[0]
         entry=dialog.get_extra_child().get_first_child()
@@ -321,16 +321,16 @@ class Native(unittest.TestCase):
         pop=self.w.sidebar.context_menu()
         self.assertTrue(pop.activate_action('context.new',None))
         pump()
-        self.assertTrue((self.root/'nieuw document.html').exists())
-        self.assertFalse((nested/'nieuw document.html').exists())
+        self.assertTrue((self.root/'new document.html').exists())
+        self.assertFalse((nested/'new document.html').exists())
 
     def test_new_document_preserves_existing_file(self):
-        path=self.root/'nieuw document.html'
+        path=self.root/'new document.html'
         path.write_text('Bewaren')
         self.w.new(folder=self.root)
         self.assertEqual('Bewaren',path.read_text())
-        self.assertEqual(self.root/'nieuw document 2.html',self.w.path)
-        with self.assertRaises(ValueError):self.w.create_document(self.root,'nieuw document')
+        self.assertEqual(self.root/'new document 2.html',self.w.path)
+        with self.assertRaises(ValueError):self.w.create_document(self.root,'new document')
         self.assertEqual('Bewaren',path.read_text())
 
     def test_new_document_keeps_unsaved_work_on_cancel(self):
@@ -340,7 +340,7 @@ class Native(unittest.TestCase):
             responses.append(callback)
         self.w.ask=ask
         self.w.new(folder=self.root)
-        self.assertTrue((self.root/'nieuw document.html').exists())
+        self.assertTrue((self.root/'new document.html').exists())
         self.assertEqual('Nog niet opgeslagen',self.w.snapshot()['text'])
         self.assertEqual(1,len(responses))
         responses[0]('cancel')
@@ -580,7 +580,7 @@ class Native(unittest.TestCase):
         with patch.object(self.w,'ask') as ask,patch.object(self.w,'convert_office') as convert:
             self.w.confirm_office_import(source)
             self.assertIn('HTML',ask.call_args.args[0])
-            self.assertIn('afwijken',ask.call_args.args[1])
+            self.assertIn('different result',ask.call_args.args[1])
             callback=ask.call_args.args[3]
             callback('cancel');convert.assert_not_called()
             callback('import');convert.assert_called_once_with(source)
@@ -595,7 +595,7 @@ class Native(unittest.TestCase):
         with patch('editor.Thread') as thread,patch.object(self.w,'file_chooser') as chooser,patch.object(self.w,'error') as error:
             self.w.convert_office(source)
             thread.call_args.kwargs['target']();pump()
-            self.assertEqual('HTML-kopie opslaan',chooser.call_args.args[0])
+            self.assertEqual('Save HTML copy',chooser.call_args.args[0])
             chooser.call_args.args[2](destination)
             error.assert_not_called()
         self.assertEqual(destination,self.w.path)
@@ -641,8 +641,8 @@ class Native(unittest.TestCase):
         with patch.object(self.w,'ask') as ask,patch.object(self.w,'convert_office') as convert:
             self.w.confirm_office_import(self.root/'source.pdf')
             self.assertIn('PDF',ask.call_args.args[0])
-            self.assertIn('geen OCR',ask.call_args.args[1])
-            self.assertIn('Foto’s',ask.call_args.args[1])
+            self.assertIn('no OCR',ask.call_args.args[1])
+            self.assertIn('Photos',ask.call_args.args[1])
             ask.call_args.args[3]('cancel');convert.assert_not_called()
 
     def test_pdf_import_saves_text_html_and_rejects_scan_without_replacing_edits(self):
@@ -660,7 +660,7 @@ class Native(unittest.TestCase):
         source.write_bytes(pdf_bytes([None]))
         with patch('editor.Thread') as thread,patch.object(self.w,'error') as error,patch.object(self.w,'file_chooser') as chooser:
             self.w.convert_office(source);thread.call_args.kwargs['target']();pump()
-            self.assertIn('geen selecteerbare tekst',error.call_args.args[0]);chooser.assert_not_called()
+            self.assertIn('no selectable text',error.call_args.args[0]);chooser.assert_not_called()
         self.assertEqual(before,self.w.snapshot())
 
     def test_focus_mode_hides_sidebar_and_toolbar_then_restores(self):
@@ -1096,11 +1096,11 @@ class Native(unittest.TestCase):
         self.w.buffer.set_text('Sample');self.select(0,6)
         self.w.create_custom_style_dialog();pump()
         dialogs=[window for window in Gtk.Window.get_toplevels() if window is not self.w]
-        self.assertTrue(any(window.get_title()=='Eigen alineastijl' for window in dialogs))
+        self.assertTrue(any(window.get_title()=='Custom paragraph style' for window in dialogs))
         for window in dialogs:window.close()
         self.w.manage_custom_styles();pump()
         dialogs=[window for window in Gtk.Window.get_toplevels() if window is not self.w]
-        self.assertTrue(any(window.get_title()=='Eigen stijlen beheren' for window in dialogs))
+        self.assertTrue(any(window.get_title()=='Manage custom styles' for window in dialogs))
         for window in dialogs:window.close()
 
     def test_custom_style_dialog_preserves_numeric_font_weights(self):
@@ -1115,7 +1115,7 @@ class Native(unittest.TestCase):
         for weight in (400,450,700):
             definition={'id':'a'*32,'name':'Weight test','base':'body','format':{'family':'Sans','size':14,'font_weight':weight}}
             self.w.create_custom_style_dialog(definition=definition);pump()
-            dialog=next(w for w in Gtk.Window.get_toplevels() if w.get_title()=='Eigen alineastijl')
+            dialog=next(w for w in Gtk.Window.get_toplevels() if w.get_title()=='Custom paragraph style')
             desc=find(dialog).get_font_desc()
             self.assertEqual(weight,int(desc.get_weight()))
             self.assertEqual(14*Pango.SCALE,desc.get_size())
@@ -1146,16 +1146,16 @@ class Native(unittest.TestCase):
         from gi.repository import Pango
         self.w.buffer.set_text('Custom');self.select(0,6)
         self.w.create_custom_style_dialog();pump()
-        dialog=next(window for window in Gtk.Window.get_toplevels() if window is not self.w and window.get_title()=='Eigen alineastijl')
+        dialog=next(window for window in Gtk.Window.get_toplevels() if window is not self.w and window.get_title()=='Custom paragraph style')
         widgets=[]
         def walk(widget):
             widgets.append(widget);child=widget.get_first_child()
             while child:walk(child);child=child.get_next_sibling()
         walk(dialog)
-        name=next(widget for widget in widgets if isinstance(widget,Gtk.Entry) and widget.get_placeholder_text()=='Naam van de stijl')
+        name=next(widget for widget in widgets if isinstance(widget,Gtk.Entry) and widget.get_placeholder_text()=='Style name')
         chooser=next(widget for widget in widgets if isinstance(widget,Gtk.FontDialogButton))
         name.set_text('My typeface');chooser.set_font_desc(Pango.FontDescription('Serif 18'))
-        save=next(widget for widget in widgets if isinstance(widget,Gtk.Button) and widget.get_label()=='Stijl bewaren')
+        save=next(widget for widget in widgets if isinstance(widget,Gtk.Button) and widget.get_label()=='Save style')
         save.emit('clicked');pump()
         definition=next(iter(self.w.custom_style_library().values()))
         self.assertEqual('My typeface',definition['name']);self.assertEqual(18,definition['format']['size'])
@@ -1299,7 +1299,7 @@ class Native(unittest.TestCase):
     def test_empty_trash_button_disabled_when_empty(self):
         self.w.load_trash_items=lambda:[]
         self.w.show_trash()
-        self.assertEqual('Prullenbak leegmaken',self.w.empty_trash_button.get_label())
+        self.assertEqual('Empty trash',self.w.empty_trash_button.get_label())
         self.assertFalse(self.w.empty_trash_button.get_sensitive())
 
     def test_selected_text_context_highlight_submenu(self):
@@ -1315,13 +1315,13 @@ class Native(unittest.TestCase):
         self.assertIsNone(self.w.view.get_extra_menu())
         self.assertFalse(any(isinstance(w,Gtk.ToggleButton) for w in descendants(pop)))
         buttons=[w for w in descendants(pop) if isinstance(w,Gtk.Button)
-                 and w.get_tooltip_text() in ['Geel','Groen','Blauw','Roze','Oranje','Paars','Turquoise']]
+                 and w.get_tooltip_text() in ['Yellow','Green','Blue','Pink','Orange','Purple','Turquoise']]
         self.assertEqual(7,len(buttons))
         self.assertTrue(all(b.is_sensitive() for b in buttons))
         grid=buttons[0].get_parent()
         self.assertEqual([(0,0),(1,0),(2,0),(3,0),(0,1),(1,1),(2,1)],
                          [grid.query_child(b)[:2] for b in buttons])
-        self.assertEqual(['Geel','Groen','Blauw','Roze','Oranje','Paars','Turquoise'],[b.get_tooltip_text() for b in buttons])
+        self.assertEqual(['Yellow','Green','Blue','Pink','Orange','Purple','Turquoise'],[b.get_tooltip_text() for b in buttons])
         buttons[1].emit('clicked');pump()
         self.assertEqual((0,9),tuple(i.get_offset() for i in self.w.buffer.get_selection_bounds()))
         self.assertTrue(any(s['style'].get('background')=='#b9efb2' for s in self.w.snapshot()['spans']))
@@ -1339,7 +1339,7 @@ class Native(unittest.TestCase):
             while child:
                 yield from descendants(child);child=child.get_next_sibling()
         clear=next(w for w in descendants(box) if isinstance(w,Gtk.Button)
-                   and w.get_tooltip_text()=='Arcering verwijderen')
+                   and w.get_tooltip_text()=='Clear highlight')
         self.assertIsNone(clear.get_label())
         self.assertIsInstance(clear.get_child(),Gtk.DrawingArea)
         clear.emit('clicked');pump()
@@ -1359,16 +1359,16 @@ class Native(unittest.TestCase):
             self.fail('Menu item missing: '+label)
         self.w.buffer.set_text('Eerste tweede')
         self.select(0,6)
-        choose('Kopiëren')
-        choose('Knippen')
+        choose('Copy')
+        choose('Cut')
         self.assertEqual(' tweede',self.w.snapshot()['text'])
         self.select(1,7)
-        choose('Plakken')
+        choose('Paste')
         import time
         for _ in range(10):time.sleep(0.01);pump()
         self.assertEqual(' Eerste',self.w.snapshot()['text'])
         self.select(1,3)
-        choose('Alles selecteren')
+        choose('Select all')
         self.assertEqual((0,7),tuple(i.get_offset() for i in self.w.buffer.get_selection_bounds()))
 
     def test_selection_context_keyboard_shortcut(self):
@@ -1440,16 +1440,16 @@ class Native(unittest.TestCase):
         self.w.open_search()
         self.w.search_entry.set_text('foto')
         self.assertEqual(3,len(self.w.search_matches))
-        self.assertEqual('1 van 3',self.w.search_count.get_label())
+        self.assertEqual('1 of 3',self.w.search_count.get_label())
         self.w.step_search(1)
-        self.assertEqual('2 van 3',self.w.search_count.get_label())
+        self.assertEqual('2 of 3',self.w.search_count.get_label())
         self.w.step_search(-1);self.w.step_search(-1)
-        self.assertEqual('3 van 3',self.w.search_count.get_label())
+        self.assertEqual('3 of 3',self.w.search_count.get_label())
         self.assertEqual(before,self.w.snapshot())
         self.assertEqual(history,len(self.w.history))
         self.w.search_entry.set_text('onbestaand')
         self.assertFalse(self.w.search_next.get_sensitive())
-        self.assertEqual('0 resultaten',self.w.search_count.get_label())
+        self.assertEqual('0 results',self.w.search_count.get_label())
         self.w.search_entry.set_text('foto')
         self.assertTrue(self.w.search_key_pressed(None,Gdk.KEY_Escape,0,0))
         self.assertFalse(self.w.search_bar.get_search_mode())
@@ -1489,7 +1489,7 @@ class Native(unittest.TestCase):
         self.w.buffer.insert_at_cursor(' gewijzigd')
         doc=self.w.snapshot()
         self.w.lookup_action('duplicate').activate(None)
-        copied=self.root/'Origineel – kopie.html'
+        copied=self.root/'Origineel – copy.html'
         self.assertEqual(copied,self.w.path)
         self.assertEqual(doc,self.w.snapshot())
         self.assertEqual(original,source.read_bytes())
@@ -1500,11 +1500,11 @@ class Native(unittest.TestCase):
         source=self.root/'Ander.html'
         raw=b'<!doctype html><html><body><p>Ander document</p></body></html>'
         source.write_bytes(raw)
-        existing=self.root/'Ander – kopie.html';existing.write_text('Behouden')
+        existing=self.root/'Ander – copy.html';existing.write_text('Behouden')
         pop=self.w.sidebar.context_menu(source)
         pop.set_parent(self.w.sidebar.list)
         self.assertTrue(pop.activate_action('context.duplicate',None));pump()
-        copied=self.root/'Ander – kopie 2.html'
+        copied=self.root/'Ander – copy 2.html'
         self.assertEqual(copied,self.w.path)
         self.assertEqual(raw,copied.read_bytes())
         self.assertEqual('Behouden',existing.read_text())
@@ -1515,7 +1515,7 @@ class Native(unittest.TestCase):
         doc['spans']=[{'start':2,'end':6,'style':{'weight':True}}]
         self.w.restore(doc,reset=True)
         self.w.duplicate_document()
-        self.assertEqual(self.root/'Nieuw document – kopie.html',self.w.path)
+        self.assertEqual(self.root/'New document – copy.html',self.w.path)
         self.assertEqual(doc,self.w.snapshot())
         loaded=from_html(self.w.path.read_text())[0]
         self.assertEqual(doc['text'],loaded['text'])
@@ -1586,8 +1586,8 @@ class Native(unittest.TestCase):
         link={'kind':'document','href':'Two.html'}
         pop=self.w.show_link_choices(link,20,20)
         box=pop.get_child();here=box.get_first_child();beside=here.get_next_sibling()
-        self.assertEqual('Hier openen',here.get_label())
-        self.assertEqual('Hiernaast openen',beside.get_label())
+        self.assertEqual('Open here',here.get_label())
+        self.assertEqual('Open beside',beside.get_label())
         self.assertEqual(paths[0],self.w.path)
         self.assertIsNone(self.w.peer)
         beside.emit('clicked');pump()
@@ -1701,13 +1701,13 @@ class Native(unittest.TestCase):
                 yield from descendants(child)
                 child=child.get_next_sibling()
         choices={widget.get_tooltip_text():widget for widget in descendants(window)
-                 if isinstance(widget,Gtk.ToggleButton) and widget.get_tooltip_text() in ('Systeem','Licht','Donker','Donkere interface, licht document')}
+                 if isinstance(widget,Gtk.ToggleButton) and widget.get_tooltip_text() in ('System','Light','Dark','Dark interface, light document')}
         self.assertEqual(4,len(choices))
-        choices['Donker'].set_active(True)
+        choices['Dark'].set_active(True)
         self.assertEqual('dark',self.w.appearance_mode)
-        choices['Licht'].set_active(True)
+        choices['Light'].set_active(True)
         self.assertEqual('light',self.w.appearance_mode)
-        self.assertFalse(choices['Donker'].get_active())
+        self.assertFalse(choices['Dark'].get_active())
         self.w.appearance_mode='dark';self.w.apply_appearance()
         self.w.save_preferences(appearance='dark',blur=True)
         self.w.load_appearance()
@@ -1954,7 +1954,7 @@ class Native(unittest.TestCase):
         with patch('editor.Gtk.FileDialog') as factory:
             dialog=factory.return_value
             dialog.open_finish.return_value=Gio.File.new_for_path(str(target))
-            self.w.file_chooser('Document openen',Gtk.FileChooserAction.OPEN,callback,folder=self.root)
+            self.w.file_chooser('Open document',Gtk.FileChooserAction.OPEN,callback,folder=self.root)
             parent,cancellable,finished=dialog.open.call_args.args
             self.assertIs(self.w,parent)
             finished(dialog,None)
@@ -1962,7 +1962,7 @@ class Native(unittest.TestCase):
             self.assertFalse(self.w.file_dialogs)
             callback.reset_mock()
             dialog.open_finish.side_effect=GLib.Error.new_literal(Gtk.dialog_error_quark(),'Dismissed',Gtk.DialogError.DISMISSED)
-            self.w.file_chooser('Document openen',Gtk.FileChooserAction.OPEN,callback)
+            self.w.file_chooser('Open document',Gtk.FileChooserAction.OPEN,callback)
             dialog.open.call_args.args[2](dialog,None)
             callback.assert_not_called()
             self.assertFalse(self.w.file_dialogs)
@@ -2042,6 +2042,42 @@ class Native(unittest.TestCase):
         self.w.buffer.select_range(*self.w.buffer.get_bounds())
         bold.emit('clicked');pump()
         self.assertTrue(any(span['style'].get('weight') for span in self.w.snapshot()['spans']))
+
+    def test_english_menus_preferences_and_new_documents(self):
+        from model import PARAGRAPH_STYLES,COLORS
+        def labels(menu):
+            result=[]
+            for index in range(menu.get_n_items()):
+                label=menu.get_item_attribute_value(index,'label',None)
+                if label:result.append(label.get_string())
+                for link in ('section','submenu'):
+                    child=menu.get_item_link(index,link)
+                    if child:result.extend(labels(child))
+            return result
+        document_labels=labels(self.w.document_menu_button.get_menu_model())
+        for label in ('New document','Open…','Import…','Save','Save as…',
+                      'Find…','Insert link…','Print preview…','Export as…'):
+            self.assertIn(label,document_labels)
+        sidebar_labels=labels(self.w.sidebar.menu_button.get_menu_model())
+        for label in ('New document','New folder','Preferences…','About Twinly'):
+            self.assertIn(label,sidebar_labels)
+        window=self.w.show_preferences()
+        try:
+            self.assertEqual('Preferences',window.get_title())
+            def descendants(widget):
+                yield widget
+                child=widget.get_first_child()
+                while child:
+                    yield from descendants(child);child=child.get_next_sibling()
+            text=[w.get_text() for w in descendants(window) if isinstance(w,Gtk.Label)]
+            for label in ('System','Light','Dark','Dark + Light','Blur strength','Background opacity'):
+                self.assertIn(label,text)
+        finally:window.close()
+        self.assertEqual('Body',PARAGRAPH_STYLES['body'][0])
+        self.assertEqual('Yellow',next(iter(COLORS)))
+        self.w.new(folder=self.root);pump()
+        self.assertEqual('new document.html',self.w.path.name)
+        self.assertIn('lang="en"',to_html(self.w.snapshot()))
 
     def test_packaged_first_start_auto_opens_guide(self):
         import os

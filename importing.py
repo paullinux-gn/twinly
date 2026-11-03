@@ -39,28 +39,28 @@ class Package:
     def __init__(self,raw):
         self.zip=ZipFile(io.BytesIO(raw));self.entries={};total=0
         infos=self.zip.infolist()
-        if len(infos)>4096:raise ResourceLimitError('Te veel onderdelen in het Office-bestand.')
+        if len(infos)>4096:raise ResourceLimitError('Too many parts in the Office file.')
         for info in infos:
             path=info.filename
             if path.startswith('/') or '\\' in path or any(p in ('.','..') for p in path.rstrip('/').split('/')):
-                raise ValueError('Onveilig pad in het Office-bestand.')
-            if path in self.entries:raise ValueError('Dubbel onderdeel in het Office-bestand.')
-            if info.flag_bits&1:raise ValueError('Versleutelde Office-bestanden worden niet ondersteund.')
+                raise ValueError('Unsafe path in the Office file.')
+            if path in self.entries:raise ValueError('Duplicate part in the Office file.')
+            if info.flag_bits&1:raise ValueError('Encrypted Office files are not supported.')
             total+=info.file_size
-            if total>MAX_UNPACKED:raise ResourceLimitError('Het uitgepakte Office-bestand is te groot.')
+            if total>MAX_UNPACKED:raise ResourceLimitError('The unpacked Office file is too large.')
             self.entries[path]=info
     def read(self,path,limit=MAX_XML):
-        if path not in self.entries:raise ValueError('Ontbrekend documentonderdeel: '+path)
-        if self.entries[path].file_size>limit:raise ResourceLimitError('Documentonderdeel te groot: '+path)
+        if path not in self.entries:raise ValueError('Missing document part: '+path)
+        if self.entries[path].file_size>limit:raise ResourceLimitError('Document part is too large: '+path)
         with self.zip.open(path) as stream:data=stream.read(limit+1)
-        if len(data)>limit:raise ResourceLimitError('Documentonderdeel te groot.')
+        if len(data)>limit:raise ResourceLimitError('Document part is too large.')
         return data
     def xml(self,path,optional=False):
         if optional and path not in self.entries:return None
         raw=self.read(path)
         try:text=raw.decode('utf-8-sig')
-        except UnicodeError:raise ValueError('Alleen UTF-8 Office-XML wordt ondersteund.')
-        if '\x00' in text or re.search(r'<!\s*(DOCTYPE|ENTITY)',text,re.I):raise ValueError('Onveilige XML-definitie in het Office-bestand.')
+        except UnicodeError:raise ValueError('Only UTF-8 Office XML is supported.')
+        if '\x00' in text or re.search(r'<!\s*(DOCTYPE|ENTITY)',text,re.I):raise ValueError('Unsafe XML declaration in the Office file.')
         depth=count=0
         try:
             parser=ET.iterparse(io.StringIO(text),events=('start','end'))
@@ -68,15 +68,15 @@ class Package:
                 if event=='start':
                     depth+=1;count+=1
                     if depth>MAX_NESTING or count>MAX_NODES or len(element.attrib)>MAX_ATTRIBUTES:
-                        raise ResourceLimitError('De Office-XML is te complex.')
+                        raise ResourceLimitError('The Office XML is too complex.')
                 else:depth-=1
             return parser.root
-        except ET.ParseError as exc:raise ValueError('Beschadigde Office-XML: '+str(exc)) from exc
+        except ET.ParseError as exc:raise ValueError('Damaged Office XML: '+str(exc)) from exc
     def target(self,base,target):
-        if not target or target.startswith(('/','\\')) or ':' in target or '\\' in target:raise ValueError('Onveilig afbeeldingspad.')
+        if not target or target.startswith(('/','\\')) or ':' in target or '\\' in target:raise ValueError('Unsafe image path.')
         from urllib.parse import unquote
         target=posixpath.normpath(posixpath.join(base,unquote(target)))
-        if target=='..' or target.startswith('../'):raise ValueError('Afbeeldingspad valt buiten het Office-bestand.')
+        if target=='..' or target.startswith('../'):raise ValueError('Image path is outside the Office file.')
         return target
 
 class Builder:
@@ -89,13 +89,13 @@ class Builder:
         if not text:return
         if style:style={key:value for key,value in style.items() if value is not False}
         self.bytes+=len(text.encode('utf-8'));self.paragraphs+=text.count('\n')
-        if self.bytes>MAX_TEXT or self.paragraphs>MAX_PARAGRAPHS:raise ResourceLimitError('Te veel tekst in het Office-bestand.')
+        if self.bytes>MAX_TEXT or self.paragraphs>MAX_PARAGRAPHS:raise ResourceLimitError('Too much text in the Office file.')
         start=self.offset;self.parts.append(text);self.offset+=len(text)
         if style:
             spans=self.doc['spans']
             if spans and spans[-1]['end']==start and spans[-1]['style']==style:spans[-1]['end']=self.offset
             else:spans.append({'start':start,'end':self.offset,'style':dict(style)})
-            if len(spans)>MAX_SPANS:raise ResourceLimitError('Te veel tekstopmaak in het Office-bestand.')
+            if len(spans)>MAX_SPANS:raise ResourceLimitError('Too much text formatting in the Office file.')
     def paragraph(self):
         if self.parts:self.add('\n')
     def image(self,path,width=None,height=None,alt='Photo',style=None):
@@ -106,19 +106,19 @@ class Builder:
             decode_image(uri);w,h=image_dimensions(raw)
         except ResourceLimitError:raise
         except (ValueError,KeyError):
-            self.warn('Een niet-ondersteunde afbeelding is overgeslagen (alleen PNG/JPEG).')
+            self.warn('An unsupported image was skipped (PNG/JPEG only).')
             self.add('[Image omitted]',style);return
         self.image_bytes+=len(raw);self.pixels+=w*h
         if len(self.doc['images'])>=MAX_IMAGES or self.image_bytes>MAX_TOTAL_IMAGE_BYTES or self.pixels>MAX_TOTAL_PIXELS:
-            raise ResourceLimitError('Het Office-bestand overschrijdt het afbeeldingsbudget.')
+            raise ResourceLimitError('The Office file exceeds the image budget.')
         if width is None:width=w
         if height is None:height=width*h/w
-        if not 1<=width<=10000 or not 1<=height<=10000:raise ValueError('Ongeldige afbeeldingsafmetingen.')
+        if not 1<=width<=10000 or not 1<=height<=10000:raise ValueError('Invalid image dimensions.')
         self.doc['images'].append({'offset':self.offset,'src':uri,'width':width,'height':height,'alt':alt})
         self.add('\ufffc',style)
     def link(self,href):
         if valid_link(href):return {'href':href,'kind':'external' if href.lower().startswith(('https:','http:')) else 'document'}
-        self.warn('Een niet-ondersteunde link is als gewone tekst geïmporteerd.');return None
+        self.warn('An unsupported link was imported as plain text.');return None
     def finish(self):
         self.doc['text']=''.join(self.parts)
         return validate_document(self.doc),self.warnings
@@ -150,7 +150,7 @@ def word_properties(properties):
 
 def import_docx(package):
     b=Builder(package);root=package.xml('word/document.xml')
-    if local(root.tag)!='document':raise ValueError('Geen geldig Word-document.')
+    if local(root.tag)!='document':raise ValueError('Not a valid Word document.')
     relationships={}
     rels=package.xml('word/_rels/document.xml.rels',True)
     if rels is not None:
@@ -164,7 +164,7 @@ def import_docx(package):
     def resolve(name,seen=None):
         seen=set() if seen is None else seen
         if not name or name in seen or name not in styles:return {}
-        if len(seen)>32:raise ResourceLimitError('Te veel overervende Word-stijlen.')
+        if len(seen)>32:raise ResourceLimitError('Too many inherited Word styles.')
         seen.add(name);element=styles[name];result=resolve(val(child(element,'basedOn')),seen)
         result.update(word_properties(child(element,'pPr')));result.update(word_properties(child(element,'rPr')))
         if str(name).lower().startswith('heading'):
@@ -190,8 +190,8 @@ def import_docx(package):
     def inline(element,style):
         name=local(element.tag)
         if name in ('del','moveFrom','commentRangeStart','commentRangeEnd','footnoteReference','endnoteReference','instrText'):
-            if name in ('footnoteReference','endnoteReference'):b.warn('Voetnoten en eindnoten zijn weggelaten.')
-            if name in ('del','moveFrom'):b.warn('Wijzigingsregistratie is vereenvoudigd tot de huidige tekst.')
+            if name in ('footnoteReference','endnoteReference'):b.warn('Footnotes and endnotes were omitted.')
+            if name in ('del','moveFrom'):b.warn('Tracked changes were simplified to the current text.')
             return
         if name=='r':
             style=dict(style);rp=child(element,'rPr');style.update(resolve(val(child(rp,'rStyle'))));style.update(word_properties(rp))
@@ -210,10 +210,10 @@ def import_docx(package):
             for item in element.iter():
                 if local(item.tag) not in ('blip','imagedata'):continue
                 rel=relationships.get(attr(item,'embed') or attr(item,'id'),{})
-                if rel.get('TargetMode')=='External':b.warn('Een externe afbeelding is niet opgehaald.');continue
+                if rel.get('TargetMode')=='External':b.warn('An external image was not fetched.');continue
                 if rel.get('Target'):
                     path=package.target('word',rel['Target']);b.image(path,width,height,style=style);found=True
-            if not found:b.warn('Een niet-ondersteund tekenobject is overgeslagen.')
+            if not found:b.warn('An unsupported drawing object was skipped.')
             return
         if name in ('rPr','pPr','sdtPr'):return
         for item in element:inline(item,style)
@@ -234,10 +234,10 @@ def import_docx(package):
                 b.paragraph();b.doc['rules'].append(b.offset);b.add('\ufffc')
         elif name in ('sectPr','del','moveFrom','altChunk'):return
         else:
-            if name=='tbl':b.warn('Tabellen zijn vereenvoudigd tot tekst per cel.')
+            if name=='tbl':b.warn('Tables were simplified to text per cell.')
             for item in element:block(item)
     body=child(root,'body')
-    if body is None:raise ValueError('Word-document bevat geen hoofdtekst.')
+    if body is None:raise ValueError('The Word document has no body text.')
     for item in body:block(item)
     return b.finish()
 
@@ -263,7 +263,7 @@ def odf_properties(properties):
 
 def import_odt(package):
     b=Builder(package);content=package.xml('content.xml')
-    if local(content.tag)!='document-content':raise ValueError('Geen geldig OpenDocument-tekstbestand.')
+    if local(content.tag)!='document-content':raise ValueError('Not a valid OpenDocument text file.')
     styles={};defaults={};fonts={};list_styles={}
     roots=[package.xml('styles.xml',True),content]
     for root in roots:
@@ -281,7 +281,7 @@ def import_odt(package):
     def resolve(name,seen=None):
         seen=set() if seen is None else seen
         if not name or name in seen or name not in styles:return {}
-        if len(seen)>32:raise ResourceLimitError('Te veel overervende ODT-stijlen.')
+        if len(seen)>32:raise ResourceLimitError('Too many inherited ODT styles.')
         seen.add(name);e=styles[name];result=resolve(attr(e,'parent-style-name'),seen)
         for p in e:
             result.update(odf_properties(p));font=attr(p,'font-name')
@@ -294,24 +294,24 @@ def import_odt(package):
             if link:style['link']=link
         if name=='s':
             count=number(attr(element,'c'),1)
-            if count<1 or count>MAX_TEXT:raise ResourceLimitError('Te veel spaties in het ODT-bestand.')
+            if count<1 or count>MAX_TEXT:raise ResourceLimitError('Too many spaces in the ODT file.')
             b.add(' '*int(count),style);return
         if name=='tab':b.add('\t',style);return
         if name=='line-break':b.add('\n',style);return
         if name in ('note','annotation','tracked-changes','change-start','change-end'):
-            if name=='note':b.warn('Voetnoten en eindnoten zijn weggelaten.')
-            if name=='tracked-changes':b.warn('Wijzigingsregistratie is vereenvoudigd tot de huidige tekst.')
+            if name=='note':b.warn('Footnotes and endnotes were omitted.')
+            if name=='tracked-changes':b.warn('Tracked changes were simplified to the current text.')
             return
         if name=='frame':
             image=child(element,'image')
             if image is not None:
                 href=attr(image,'href','')
                 try:path=package.target('',href)
-                except ValueError:b.warn('Een externe afbeelding is niet opgehaald.');return
+                except ValueError:b.warn('An external image was not fetched.');return
                 desc=child(element,'desc')
                 b.image(path,length(attr(element,'width')),length(attr(element,'height')),
                         desc.text if desc is not None and desc.text else 'Photo',style)
-            else:b.warn('Een niet-ondersteund tekenobject is overgeslagen.')
+            else:b.warn('An unsupported drawing object was skipped.')
             return
         b.add(element.text or '',style)
         for item in element:
@@ -345,10 +345,10 @@ def import_odt(package):
                         first=False
         elif name in ('tracked-changes','annotation','note','sequence-decls','forms'):return
         else:
-            if name=='table':b.warn('Tabellen zijn vereenvoudigd tot tekst per cel.')
+            if name=='table':b.warn('Tables were simplified to text per cell.')
             for item in element:block(item,list_style,level)
     body=child(content,'body');text=child(body,'text')
-    if text is None:raise ValueError('ODT-bestand bevat geen teksthoofdtekst.')
+    if text is None:raise ValueError('The ODT file has no body text.')
     for item in text:block(item)
     return b.finish()
 
@@ -358,9 +358,9 @@ def import_document(path):
     if path.suffix.lower()=='.pdf':
         from pdf_import import import_pdf
         return import_pdf(path)
-    if path.suffix.lower() not in ('.odt','.docx'):raise ValueError('Kies een ODT-, DOCX- of PDF-bestand; het oude .doc-formaat wordt niet ondersteund.')
+    if path.suffix.lower() not in ('.odt','.docx'):raise ValueError('Choose an ODT, DOCX or PDF file; the legacy .doc format is not supported.')
     try:
         package=Package(read_bytes(path,MAX_DOCUMENT))
         try:return import_docx(package) if path.suffix.lower()=='.docx' else import_odt(package)
         finally:package.zip.close()
-    except (BadZipFile,RuntimeError,NotImplementedError) as exc:raise ValueError('Het Office-bestand is beschadigd, versleuteld of niet ondersteund.') from exc
+    except (BadZipFile,RuntimeError,NotImplementedError) as exc:raise ValueError('The Office file is damaged, encrypted or unsupported.') from exc

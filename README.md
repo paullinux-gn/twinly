@@ -3,7 +3,7 @@
 A calm native GTK4/libadwaita writing application for Linux and GNOME. Write rich
 text, embed photos, connect HTML documents and keep a reference beside your work.
 Documents are standalone editable HTML files. No server, account or cloud service
-is required. The current interface is Dutch; the bundled Getting Started guide is
+is required. The interface and bundled Getting Started guide are in
 English and includes an embedded sample photo and a working internal link.
 
 This repository is prepared as a **0.4.0 preview**, not a published Flathub release.
@@ -128,7 +128,7 @@ automatically. The app ID remains provisional until publication is configured.
 
 ### Export
 
-Use the document menu → **Exporteren als…** → PDF, OpenDocument (`.odt`) or
+Use the document menu → **Export as…** → PDF, OpenDocument (`.odt`) or
 Word (`.docx`). PDF uses the print preview and its paper/margin controls.
 Office formats save a separate editable file with text, supported formatting,
 links and embedded photos; the original HTML and unsaved edits are preserved.
@@ -136,11 +136,11 @@ Font variants may be approximated as regular, bold or italic. Simple list and
 checkbox prefixes remain text. Internal links continue to reference the HTML
 library and are rebased to the export folder. Layout depends on the receiving
 program and available fonts. No LibreOffice installation or network access is
-required for export. ODT and DOCX import is available separately through Importeren….
+required for export. ODT and DOCX import is available separately through Import….
 
 ### Import ODT and Word
 
-Document menu → **Importeren…** accepts `.odt` and `.docx` (not legacy `.doc`).
+Document menu → **Import…** accepts `.odt` and `.docx` (not legacy `.doc`).
 The confirmation explains conversion to HTML and potential changes on subsequent
 export. Choose a new HTML destination after conversion. The source is never
 modified, existing HTML is never overwritten, and unsaved editor changes are
@@ -152,7 +152,7 @@ Encrypted files and oversized or overly complex packages are rejected.
 
 ### Import PDF text
 
-Document menu → **Importeren…** also accepts PDFs with an existing text layer.
+Document menu → **Import…** also accepts PDFs with an existing text layer.
 A separate notice explains that only text is converted to an HTML copy: photos,
 links, fonts and page geometry are not retained, and reading order may change.
 No OCR is performed. Image-only PDFs and encrypted PDFs are rejected. In mixed
@@ -169,13 +169,13 @@ controls. It sits below the shared headerbar and uses the blur settings when
 supported. Appearance is instant, without animation. The minimum content width
 keeps the toolbar on one row. Menus and font dialogs remain usable.
 
-Use document menu → **Focusmodus**, its persistent header icon, or **F9** to hide
+Use document menu → **Focus mode**, its persistent header icon, or **F9** to hide
 the sidebar. Leaving focus mode restores the previous sidebar visibility; the
 floating toolbar behaves the same in both modes and across both document panes.
 
 ### Dark interface with a light document
 
-Preferences has a fourth circular theme choice: **Donker + licht** (Dark + Light).
+Preferences has a fourth circular theme choice: **Dark + Light**.
 Its dark circle contains a small white rounded document. The sidebar, floating
 toolbar and menus use the dark theme; the shared document headerbar stays light,
 and both writing panes stay white with

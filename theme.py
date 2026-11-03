@@ -98,7 +98,7 @@ BASE_CSS = r"""
 def watch_css(provider):
     def error(_,section,error):
         location=section.get_start_location()
-        logging.getLogger('twinly.css').warning('CSS regel %s, kolom %s: %s',location.lines+1,location.line_chars+1,error)
+        logging.getLogger('twinly.css').warning('CSS line %s, column %s: %s',location.lines+1,location.line_chars+1,error)
     provider.connect('parsing-error',error)
 
 class Theme:

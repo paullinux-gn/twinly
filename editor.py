@@ -3,6 +3,8 @@
 from __future__ import annotations
 import copy
 import os
+# Twinly currently ships an English-only interface, including GTK dialogs.
+os.environ['LANGUAGE']='en'
 import re
 from pathlib import Path
 import sys
@@ -84,47 +86,47 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         header.add_css_class('document-header')
         self.title_stack=Gtk.Stack()
         self.title_button=Gtk.Button(child=self.title_widget,css_classes=['flat'],
-                                     tooltip_text='Klik om de documentnaam te wijzigen')
+                                     tooltip_text='Click to rename the document')
         self.title_button.connect('clicked',self.start_title_edit)
         self.title_stack.add_named(self.title_button,'title')
-        self.title_entry=Gtk.Entry(placeholder_text='Documentnaam',width_chars=22,max_width_chars=35)
-        self.title_entry.set_tooltip_text('Enter om te bevestigen · Escape om te annuleren')
+        self.title_entry=Gtk.Entry(placeholder_text='Document name',width_chars=22,max_width_chars=35)
+        self.title_entry.set_tooltip_text('Enter to confirm · Escape to cancel')
         self.title_entry.connect('activate',self.commit_title_edit)
         title_keys=Gtk.EventControllerKey()
         title_keys.connect('key-pressed',self.title_key_pressed)
         self.title_entry.add_controller(title_keys)
         self.title_stack.add_named(self.title_entry,'edit')
         header.set_title_widget(Gtk.Label())
-        self.header_back=self.button('go-previous-symbolic','Terug · Alt+←','win.back')
-        self.header_forward=self.button('go-next-symbolic','Vooruit · Alt+→','win.forward')
+        self.header_back=self.button('go-previous-symbolic','Back · Alt+←','win.back')
+        self.header_forward=self.button('go-next-symbolic','Forward · Alt+→','win.forward')
         for button,step in ((self.header_back,-1),(self.header_forward,1)):
             button.set_action_name(None)
             button.connect('clicked',lambda _,step=step:(self.workspace_owner or self).active_editor.navigate(step))
         header.pack_start(self.header_back);header.pack_start(self.header_forward)
         sidebar_toggle=Gtk.ToggleButton(icon_name='sidebar-show-symbolic',active=True,
-                                        tooltip_text='Mappen tonen of verbergen')
+                                        tooltip_text='Show or hide folders')
         self.sidebar_toggle=sidebar_toggle
         header.pack_start(sidebar_toggle)
         self.focus_button=Gtk.ToggleButton(icon_name='view-fullscreen-symbolic',
-                                           tooltip_text='Focusmodus aan/uit · F9',
+                                           tooltip_text='Toggle focus mode · F9',
                                            action_name='win.focus-mode')
-        self.focus_button.update_property([Gtk.AccessibleProperty.LABEL],['Focusmodus'])
+        self.focus_button.update_property([Gtk.AccessibleProperty.LABEL],['Focus mode'])
         header.pack_end(self.focus_button)
         self.toolbar_pin_button=Gtk.ToggleButton(icon_name='view-reveal-symbolic',
-                                                 tooltip_text='Werkbalk altijd tonen',focus_on_click=False)
-        self.toolbar_pin_button.update_property([Gtk.AccessibleProperty.LABEL],['Werkbalk altijd tonen'])
+                                                 tooltip_text='Always show toolbar',focus_on_click=False)
+        self.toolbar_pin_button.update_property([Gtk.AccessibleProperty.LABEL],['Always show toolbar'])
         header.pack_end(self.toolbar_pin_button)
         save=Gtk.Button(icon_name='media-floppy-symbolic',action_name='win.save',
-                        tooltip_text='Opslaan · Ctrl+S')
-        save.update_property([Gtk.AccessibleProperty.LABEL],['Opslaan'])
+                        tooltip_text='Save · Ctrl+S')
+        save.update_property([Gtk.AccessibleProperty.LABEL],['Save'])
         document_menu=Gio.Menu()
         for items in [
-            [('Nieuw document','new'),('Openen…','open'),('Importeren…','import-office')],
-            [('Opslaan','save'),('Opslaan als…','save-as'),('Kopie maken','duplicate')],
-            [('Zoeken…','find'),('Link invoegen…','link'),('Foto invoegen…','photo')],
-            [('Afdrukvoorbeeld…','print'),('Afdrukken…','print-direct')],
-            [('Focusmodus','focus-mode')],
-            [('Naast huidig document openen…','open-beside'),('Deelvensters verwisselen','swap-panes'),('Vastzetten als referentie','pin-pane'),('Deelvenster sluiten','close')],
+            [('New document','new'),('Open…','open'),('Import…','import-office')],
+            [('Save','save'),('Save as…','save-as'),('Make a copy','duplicate')],
+            [('Find…','find'),('Insert link…','link'),('Insert photo…','photo')],
+            [('Print preview…','print'),('Print…','print-direct')],
+            [('Focus mode','focus-mode')],
+            [('Open beside current document…','open-beside'),('Swap panes','swap-panes'),('Pin as reference','pin-pane'),('Close pane','close')],
         ]:
             section=Gio.Menu()
             for label,action in items:section.append(label,'win.'+action)
@@ -132,14 +134,14 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         exports=Gio.Menu()
         for label,action in [('PDF…','export-pdf'),('OpenDocument (.odt)…','export-odt'),('Word (.docx)…','export-docx')]:
             exports.append(label,'win.'+action)
-        document_menu.append_submenu('Exporteren als…',exports)
-        document_menu.append('Documentstructuur · Ctrl+Shift+L','win.outline')
-        document_menu.append('Zoeken en vervangen · Ctrl+H','win.replace')
-        self.document_menu_button=Gtk.MenuButton(menu_model=document_menu,tooltip_text='Documentmenu')
+        document_menu.append_submenu('Export as…',exports)
+        document_menu.append('Document outline · Ctrl+Shift+L','win.outline')
+        document_menu.append('Find and replace · Ctrl+H','win.replace')
+        self.document_menu_button=Gtk.MenuButton(menu_model=document_menu,tooltip_text='Document menu')
         self.document_menu_button.set_child(Gtk.Image.new_from_icon_name('open-menu-symbolic'))
         header.pack_end(self.document_menu_button)
         header.pack_end(save)
-        header.pack_end(self.button('system-search-symbolic','Zoeken in document · Ctrl+F','win.find'))
+        header.pack_end(self.button('system-search-symbolic','Find in document · Ctrl+F','win.find'))
         self.toolbar=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=10)
         self.toolbar.add_css_class('format-toolbar')
         self.format_controls=Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,max_children_per_line=20,
@@ -155,51 +157,51 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.format_controls.insert(self.font_button,-1)
         self.format_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.format_group.add_css_class('linked')
-        for icon,label,action in [('format-text-bold-symbolic','Vet','bold'),
-                                  ('format-text-italic-symbolic','Cursief','italic'),
-                                  ('format-text-underline-symbolic','Onderstrepen','underline'),
-                                  ('format-text-strikethrough-symbolic','Doorhalen','strike')]:
+        for icon,label,action in [('format-text-bold-symbolic','Bold','bold'),
+                                  ('format-text-italic-symbolic','Italic','italic'),
+                                  ('format-text-underline-symbolic','Underline','underline'),
+                                  ('format-text-strikethrough-symbolic','Strikethrough','strike')]:
             self.format_group.append(self.button(icon,label,'win.'+action))
         self.format_controls.insert(self.format_group,-1)
-        palette_button=Gtk.MenuButton(icon_name='document-edit-symbolic',tooltip_text='Tekst arceren')
+        palette_button=Gtk.MenuButton(icon_name='document-edit-symbolic',tooltip_text='Highlight text')
         self.palette=Gtk.Popover()
         self.palette.set_child(self.palette_grid())
         palette_button.set_popover(self.palette)
         self.insert_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.insert_group.add_css_class('linked')
-        colour_button=Gtk.MenuButton(icon_name='color-select-symbolic',tooltip_text='Tekstkleur')
+        colour_button=Gtk.MenuButton(icon_name='color-select-symbolic',tooltip_text='Text color')
         self.text_color_popover=Gtk.Popover()
         self.text_color_popover.set_child(self.text_color_palette())
         colour_button.set_popover(self.text_color_popover)
         self.format_controls.insert(colour_button,-1)
         self.format_controls.insert(palette_button,-1)
-        self.format_controls.insert(self.button('edit-clear-symbolic','Opmaak verwijderen','win.clear'),-1)
+        self.format_controls.insert(self.button('edit-clear-symbolic','Clear formatting','win.clear'),-1)
         self.paragraph_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.paragraph_group.add_css_class('linked')
         alignment=Gio.Menu()
-        for label,action in [('Links','left'),('Midden','center'),('Rechts','right'),('Uitgevuld','justify')]:
+        for label,action in [('Left','left'),('Center','center'),('Right','right'),('Justified','justify')]:
             alignment.append(label,'win.'+action)
         self.paragraph_group.append(Gtk.MenuButton(icon_name='format-justify-left-symbolic',menu_model=alignment,
-                                               tooltip_text='Alinea-uitlijning'))
+                                               tooltip_text='Paragraph alignment'))
         self.format_controls.insert(self.paragraph_group,-1)
         self.list_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,css_classes=['linked'])
-        for icon,label,action in [('view-list-bullet-symbolic','Opsommingstekens','list-bullet'),
-                                  ('view-list-ordered-symbolic','Genummerde lijst','list-number'),
-                                  ('checkbox-checked-symbolic','Afvinklijst','list-check'),
-                                  ('edit-delete-symbolic','Lijst verwijderen','list-remove')]:
+        for icon,label,action in [('view-list-bullet-symbolic','Bullets','list-bullet'),
+                                  ('view-list-ordered-symbolic','Numbered list','list-number'),
+                                  ('checkbox-checked-symbolic','Checklist','list-check'),
+                                  ('edit-delete-symbolic','Remove list','list-remove')]:
             self.list_group.append(self.button(icon,label,'win.'+action))
         self.format_controls.insert(self.list_group,-1)
-        self.insert_group.append(self.button('insert-link-symbolic','Link invoegen · Ctrl+K','win.link'))
-        self.insert_group.append(self.button('insert-image-symbolic','Foto invoegen','win.photo'))
-        self.insert_group.append(self.button('list-remove-symbolic','Horizontale lijn invoegen','win.horizontal-rule'))
+        self.insert_group.append(self.button('insert-link-symbolic','Insert link · Ctrl+K','win.link'))
+        self.insert_group.append(self.button('insert-image-symbolic','Insert photo','win.photo'))
+        self.insert_group.append(self.button('list-remove-symbolic','Insert horizontal rule','win.horizontal-rule'))
         self.format_controls.insert(self.insert_group,-1)
         self.undo_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,halign=Gtk.Align.END,valign=Gtk.Align.START)
         self.undo_group.add_css_class('linked')
-        self.undo_group.append(self.button('edit-undo-symbolic','Ongedaan maken','win.undo'))
-        self.undo_group.append(self.button('edit-redo-symbolic','Opnieuw','win.redo'))
+        self.undo_group.append(self.button('edit-undo-symbolic','Undo','win.undo'))
+        self.undo_group.append(self.button('edit-redo-symbolic','Redo','win.redo'))
         self.right_controls=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=6,
                                     halign=Gtk.Align.END,valign=Gtk.Align.START,margin_top=3,margin_start=12)
-        self.right_controls.append(self.button('document-print-symbolic','Afdrukvoorbeeld','win.print'))
+        self.right_controls.append(self.button('document-print-symbolic','Print preview','win.print'))
         self.right_controls.append(self.undo_group)
         self.toolbar.append(self.right_controls)
         self.split=Adw.OverlaySplitView()
@@ -246,7 +248,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         editor_box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.editor_box=editor_box
         editor_box.append(self.toolbar)
-        self.save_warning=Adw.Banner(title='Opslaan mislukt',button_label='Opnieuw proberen')
+        self.save_warning=Adw.Banner(title='Save failed',button_label='Retry')
         self.save_warning.connect('button-clicked',lambda *_:self.save())
         editor_box.append(self.save_warning)
         self.search_matches=[]
@@ -256,14 +258,14 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.search_tag=self.buffer.create_tag('search-result',background='#fff099',foreground='#202020')
         self.search_bar=Gtk.SearchBar(show_close_button=True)
         search_box=Gtk.Box(spacing=6)
-        self.search_entry=Gtk.SearchEntry(placeholder_text='Zoeken in document…',hexpand=True)
+        self.search_entry=Gtk.SearchEntry(placeholder_text='Find in document…',hexpand=True)
         self.search_entry.connect('changed',self.refresh_search)
         self.search_entry.connect('activate',lambda *_:self.step_search(1))
         search_box.append(self.search_entry)
-        self.search_count=Gtk.Label(label='0 resultaten')
+        self.search_count=Gtk.Label(label='0 results')
         search_box.append(self.search_count)
-        self.search_previous=self.button('go-up-symbolic','Vorige resultaat · Shift+Enter','win.find-previous')
-        self.search_next=self.button('go-down-symbolic','Volgende resultaat · Enter','win.find-next')
+        self.search_previous=self.button('go-up-symbolic','Previous result · Shift+Enter','win.find-previous')
+        self.search_next=self.button('go-down-symbolic','Next result · Enter','win.find-next')
         search_box.append(self.search_previous);search_box.append(self.search_next)
         self.search_bar.set_child(search_box)
         self.search_bar.connect_entry(self.search_entry)
@@ -282,14 +284,14 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.photo_bar.set_margin_end(8)
         self.photo_bar.set_margin_top(8)
         self.photo_bar.set_margin_bottom(16)
-        self.photo_bar.append(Gtk.Label(label='Breedte (px)'))
+        self.photo_bar.append(Gtk.Label(label='Width (px)'))
         self.photo_width=Gtk.SpinButton.new_with_range(24,1600,10)
         self.photo_width.set_value(480)
         self.photo_width.connect('value-changed',self.resize_photo)
         self.photo_width.connect('changed',self.photo_width_changed)
         self.photo_bar.append(self.photo_width)
-        self.photo_bar.set_tooltip_text('Sleep een fotohoek of wijzig de breedte · Verhoudingen blijven behouden')
-        self.photo_bar.append(self.button('edit-delete-symbolic','Foto verwijderen','win.delete-photo'))
+        self.photo_bar.set_tooltip_text('Drag a photo corner or change the width · Aspect ratio is preserved')
+        self.photo_bar.append(self.button('edit-delete-symbolic','Delete photo','win.delete-photo'))
         self.photo_bar.set_visible(False)
         self.view=DocumentView(buffer=self.buffer,wrap_mode=Gtk.WrapMode.WORD_CHAR,
                                left_margin=32,right_margin=32,top_margin=28,bottom_margin=40,
@@ -325,7 +327,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.title_row=Gtk.Box(spacing=0,halign=Gtk.Align.CENTER,css_classes=['pane-title'],margin_start=4,margin_end=4)
         title_center=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,halign=Gtk.Align.CENTER)
         title_center.append(self.title_stack)
-        self.pin_button=Gtk.ToggleButton(icon_name='view-pin-symbolic',tooltip_text='Referentie losmaken',css_classes=['flat'])
+        self.pin_button=Gtk.ToggleButton(icon_name='view-pin-symbolic',tooltip_text='Unpin reference',css_classes=['flat'])
         self.pin_button.set_visible(False)
         self.pin_button.connect('toggled',lambda b:self.set_pinned(b.get_active()))
         self.title_details=Gtk.Box(spacing=0)
@@ -335,7 +337,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.edit_button=Gtk.Button(icon_name='document-edit-symbolic',css_classes=['flat'],focus_on_click=False)
         self.edit_button.connect('clicked',self.toggle_editing)
         self.title_row.append(self.edit_button)
-        self.pane_close=Gtk.Button(icon_name='window-close-symbolic',tooltip_text='Deelvenster sluiten · Ctrl+W',css_classes=['flat'],focusable=False)
+        self.pane_close=Gtk.Button(icon_name='window-close-symbolic',tooltip_text='Close pane · Ctrl+W',css_classes=['flat'],focusable=False)
         self.pane_close.set_visible(True)
         self.pane_close.connect('clicked',lambda _:
             (self.workspace_owner or self).close_pane(self) if (self.workspace_owner or self).peer
@@ -367,12 +369,12 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.split.set_vexpand(True)
         content.append(self.split)
         self.zoom_label=Gtk.MenuButton(label='100%',halign=Gtk.Align.END,valign=Gtk.Align.END,
-                                       margin_end=16,margin_bottom=16,tooltip_text='Schaal van de editor')
+                                       margin_end=16,margin_bottom=16,tooltip_text='Editor zoom')
         self.zoom_label.add_css_class('zoom-pill')
         zoom_popover=Gtk.Popover()
         zoom_controls=Gtk.Box(spacing=6)
         for label,step in [('−',-.1),('100%',None),('+',.1)]:
-            button=Gtk.Button(label=label,tooltip_text='Schaal herstellen' if step is None else ('Verkleinen' if step<0 else 'Vergroten'))
+            button=Gtk.Button(label=label,tooltip_text='Reset zoom' if step is None else ('Zoom out' if step<0 else 'Zoom in'))
             button.connect('clicked',lambda _,v=step:self.change_zoom(1-self.zoom if v is None else v))
             zoom_controls.append(button)
         zoom_popover.set_child(zoom_controls)
@@ -439,7 +441,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.editing=bool(enabled)
         self.view.set_editable(self.editing)
         self.view.set_cursor_visible(self.editing)
-        label='Opslaan en lezen' if self.editing else 'Document bewerken'
+        label='Save and read' if self.editing else 'Edit document'
         self.edit_button.set_icon_name('emblem-ok-symbolic' if self.editing else 'document-edit-symbolic')
         self.edit_button.set_tooltip_text(label)
         self.edit_button.update_property([Gtk.AccessibleProperty.LABEL],[label])
@@ -616,7 +618,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
 
     def update_search_count(self):
         count=len(self.search_matches)
-        self.search_count.set_label(f'{self.search_index+1} van {count}' if count else '0 resultaten')
+        self.search_count.set_label(f'{self.search_index+1} of {count}' if count else '0 results')
         self.search_previous.set_sensitive(bool(count))
         self.search_next.set_sensitive(bool(count))
 
@@ -677,7 +679,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         rectangle.width=1;rectangle.height=1
         pop.set_pointing_to(rectangle);pop.set_position(Gtk.PositionType.BOTTOM)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        for label,beside in [('Hier openen',False),('Hiernaast openen',True)]:
+        for label,beside in [('Open here',False),('Open beside',True)]:
             button=Gtk.Button(label=label,css_classes=['flat'],focus_on_click=False)
             button.get_child().set_xalign(0)
             def activate(_,beside=beside):
@@ -701,20 +703,20 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def open_document_link(self,link,beside=False,approved_target=None):
         from urllib.parse import unquote,urlsplit
         try:
-            if not valid_link(link['href']):raise ValueError('Ongeldige link.')
+            if not valid_link(link['href']):raise ValueError('Invalid link.')
             if link['kind']=='external':
                 Gio.AppInfo.launch_default_for_uri(link['href'],None)
             else:
-                if not self.path:raise ValueError('Sla het document eerst op.')
+                if not self.path:raise ValueError('Save the document first.')
                 target=(self.path.parent/unquote(urlsplit(link['href']).path)).resolve()
                 library=self.sidebar.root.resolve()
                 if target!=library and library not in target.parents and target!=approved_target:
-                    self.ask('Link buiten de hoofdmap',
-                             'Deze link opent een bestand buiten je documentbibliotheek:\n'+str(target)+'\nAlleen doorgaan als je dit bestand vertrouwt.',
-                             [('cancel','Annuleren'),('open','Bestand openen')],
+                    self.ask('Link outside the library',
+                             'This link opens a file outside your document library:\n'+str(target)+'\nContinue only if you trust this file.',
+                             [('cancel','Cancel'),('open','Open file')],
                              lambda response:self.open_document_link(link,beside,approved_target=target) if response=='open' else None)
                     return
-                if not target.is_file():raise ValueError('Het gekoppelde document is niet gevonden: '+str(target))
+                if not target.is_file():raise ValueError('The linked document was not found: '+str(target))
                 owner=self.workspace_owner or self
                 for editor in (owner,owner.peer):
                     if editor and editor.path and editor.path.resolve()==target:
@@ -732,7 +734,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
 
     def insert_document_link(self,text,link,start,end):
         if not self.editing:return
-        if not text.strip() or '\n' in text or not valid_link(link['href']):raise ValueError('Vul een geldige link en weergavetekst in.')
+        if not text.strip() or '\n' in text or not valid_link(link['href']):raise ValueError('Enter a valid link and display text.')
         self.capture()
         was_loading=self.loading;self.loading=True
         try:
@@ -758,35 +760,35 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         elif selected:start,end=(i.get_offset() for i in selected)
         else:start=end=self.buffer.get_iter_at_mark(self.buffer.get_insert()).get_offset()
         text=self.buffer.get_text(self.buffer.get_iter_at_offset(start),self.buffer.get_iter_at_offset(end),True)
-        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='Link bewerken' if link else 'Link invoegen')
+        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='Edit link' if link else 'Insert link')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10)
-        mode=Gtk.DropDown.new_from_strings(['Documentlink','Externe link'])
+        mode=Gtk.DropDown.new_from_strings(['Document link','External link'])
         mode.set_selected(1 if link and link[2]['kind']=='external' else 0)
-        box.append(Gtk.Label(label='Soort link',xalign=0));box.append(mode)
-        label=Gtk.Entry(text=text,placeholder_text='Weergavetekst')
-        box.append(Gtk.Label(label='Weergavetekst',xalign=0));box.append(label)
+        box.append(Gtk.Label(label='Link type',xalign=0));box.append(mode)
+        label=Gtk.Entry(text=text,placeholder_text='Display text')
+        box.append(Gtk.Label(label='Display text',xalign=0));box.append(label)
         targets=[]
         for folder,dirs,files in os.walk(self.sidebar.root,followlinks=False):
             dirs[:]=sorted(d for d in dirs if not d.startswith('.') and not (Path(folder)/d).is_symlink())
             targets.extend(Path(folder)/f for f in sorted(files) if Path(f).suffix.lower() in ('.html','.htm') and not (Path(folder)/f).is_symlink())
-        picker=Gtk.DropDown.new_from_strings([str(p.relative_to(self.sidebar.root)) for p in targets] or ['Geen documenten beschikbaar'])
+        picker=Gtk.DropDown.new_from_strings([str(p.relative_to(self.sidebar.root)) for p in targets] or ['No documents available'])
         picker.set_enable_search(True)
         if link and self.path and link[2]['kind']=='document':
             from urllib.parse import unquote
             target=(self.path.parent/unquote(link[2]['href'])).resolve()
             if target in targets:picker.set_selected(targets.index(target))
-        address=Gtk.Entry(placeholder_text='https://voorbeeld.be',text=link[2]['href'] if link and link[2]['kind']=='external' else '')
+        address=Gtk.Entry(placeholder_text='https://example.com',text=link[2]['href'] if link and link[2]['kind']=='external' else '')
         target_label=Gtk.Label(label='Document',xalign=0)
         box.append(target_label);box.append(picker);box.append(address)
-        hint=Gtk.Label(label='Documentlinks zijn purper · Weblinks zijn blauw.\nKlik op een documentlink om te openen.\nWeblinks: Ctrl+klik. Bewerken: rechtsklik.',wrap=True,xalign=0,css_classes=['dim-label'])
+        hint=Gtk.Label(label='Document links are purple · Web links are blue.\nClick a document link to open it.\nWeb links: click while reading, Ctrl+click while editing. Right-click to edit.',wrap=True,xalign=0,css_classes=['dim-label'])
         box.append(hint)
         dialog.set_extra_child(box)
-        dialog.add_response('cancel','Annuleren');dialog.add_response('ok','Toepassen')
+        dialog.add_response('cancel','Cancel');dialog.add_response('ok','Apply')
         dialog.set_response_appearance('ok',Adw.ResponseAppearance.SUGGESTED)
         def update(*_):
             internal=mode.get_selected()==0
             picker.set_visible(internal);address.set_visible(not internal)
-            target_label.set_label('Document' if internal else 'Webadres')
+            target_label.set_label('Document' if internal else 'Web address')
             valid=bool(targets) if internal else address.get_text().startswith(('https://','http://')) and valid_link(address.get_text())
             dialog.set_response_enabled('ok',bool(label.get_text().strip()) and '\n' not in label.get_text() and valid)
         mode.connect('notify::selected',update);label.connect('changed',update);address.connect('changed',update)
@@ -840,23 +842,23 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             callback()
             pop.popdown()
         def menu_button(label,callback):
-            accelerators={'Knippen':'Ctrl+X','Kopiëren':'Ctrl+C','Plakken':'Ctrl+V','Alles selecteren':'Ctrl+A','Link invoegen…':'Ctrl+K','Link bewerken…':'Ctrl+K'}
+            accelerators={'Cut':'Ctrl+X','Copy':'Ctrl+C','Paste':'Ctrl+V','Select all':'Ctrl+A','Insert link…':'Ctrl+K','Edit link…':'Ctrl+K'}
             shown=label+('    '+accelerators[label] if label in accelerators else '')
             button=Gtk.Button(label=shown,focus_on_click=False)
-            button.set_sensitive(self.editing or label in ('Kopiëren','Alles selecteren','Link openen','Link hiernaast openen'))
+            button.set_sensitive(self.editing or label in ('Copy','Select all','Open link','Open link beside'))
             button.add_css_class('flat')
             button.get_child().set_xalign(0)
             button.connect('clicked',lambda *_:run(callback))
             box.append(button)
         link=self.current_link()
         if link:
-            menu_button('Link openen',lambda:self.open_document_link(link[2]))
-            if link[2]['kind']=='document':menu_button('Link hiernaast openen',lambda:self.open_document_link(link[2],beside=True))
-            menu_button('Link bewerken…',self.link_dialog)
-            menu_button('Link verwijderen',self.remove_link)
+            menu_button('Open link',lambda:self.open_document_link(link[2]))
+            if link[2]['kind']=='document':menu_button('Open link beside',lambda:self.open_document_link(link[2],beside=True))
+            menu_button('Edit link…',self.link_dialog)
+            menu_button('Remove link',self.remove_link)
             box.append(Gtk.Separator())
-        else:menu_button('Link invoegen…',self.link_dialog)
-        for label,signal in [('Knippen','cut-clipboard'),('Kopiëren','copy-clipboard'),('Plakken','paste-clipboard')]:
+        else:menu_button('Insert link…',self.link_dialog)
+        for label,signal in [('Cut','cut-clipboard'),('Copy','copy-clipboard'),('Paste','paste-clipboard')]:
             menu_button(label,lambda signal=signal:self.view.emit(signal))
         box.append(Gtk.Separator())
         palette=self.palette_grid(columns=4)
@@ -875,7 +877,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         bind_colors(palette)
         box.set_size_request(palette.measure(Gtk.Orientation.HORIZONTAL,-1)[1],-1)
         box.append(Gtk.Separator())
-        menu_button('Alles selecteren',lambda:self.view.emit('select-all',True))
+        menu_button('Select all',lambda:self.view.emit('select-all',True))
         pop.set_child(box)
         start=self.buffer.get_iter_at_offset(selected[0])
         end=self.buffer.get_iter_at_offset(selected[1])
@@ -921,15 +923,15 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8,
                     margin_start=12,margin_end=12,margin_top=12,margin_bottom=12)
         grid=Gtk.Grid(column_spacing=6,row_spacing=6)
-        colours=[('Zwart','#202020'),('Grijs','#77767b'),('Rood','#c01c28'),('Oranje','#c64600'),
-                 ('Groen','#268034'),('Blauw','#1c71d8'),('Paars','#9141ac'),('Wit','#ffffff')]
+        colours=[('Black','#202020'),('Gray','#77767b'),('Red','#c01c28'),('Orange','#c64600'),
+                 ('Green','#268034'),('Blue','#1c71d8'),('Purple','#9141ac'),('White','#ffffff')]
         for i,(name,value) in enumerate(colours):grid.attach(self.text_color_swatch(name,value),i%4,i//4,1,1)
         box.append(grid)
         self.recent_text_color_row=Gtk.Box(spacing=6,visible=False)
         box.append(self.recent_text_color_row)
-        custom=Gtk.Button(label='Eigen kleur…',focus_on_click=False)
+        custom=Gtk.Button(label='Custom color…',focus_on_click=False)
         custom.connect('clicked',self.choose_text_color);box.append(custom)
-        reset=Gtk.Button(label='Standaard tekstkleur',focus_on_click=False)
+        reset=Gtk.Button(label='Default text color',focus_on_click=False)
         reset.connect('clicked',lambda _:self.set_text_color(None));box.append(reset)
         self.text_color_popover.connect('show',lambda _:self.refresh_recent_text_colors())
         return box
@@ -971,7 +973,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         original=self.snapshot();path=self.path
         colours=self.text_color_history()
         initial=Gdk.RGBA();initial.parse(colours[0] if colours else '#202020')
-        dialog=Gtk.ColorDialog(title='Tekstkleur kiezen',modal=True,with_alpha=False)
+        dialog=Gtk.ColorDialog(title='Choose text color',modal=True,with_alpha=False)
         cancellable=Gio.Cancellable()
         if not hasattr(self,'file_dialogs'):self.file_dialogs=[]
         self.file_dialogs.append(cancellable)
@@ -1020,9 +1022,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             swatch.set_draw_func(draw_color)
             b.set_child(swatch)
             row.attach(b,i%(columns or (len(COLORS)+1)),i//(columns or (len(COLORS)+1)),1,1)
-        remove=Gtk.Button(tooltip_text='Arcering verwijderen',action_name='win.unhighlight',focus_on_click=False)
+        remove=Gtk.Button(tooltip_text='Clear highlight',action_name='win.unhighlight',focus_on_click=False)
         remove.add_css_class('highlight-swatch')
-        remove.update_property([Gtk.AccessibleProperty.LABEL],['Arcering verwijderen'])
+        remove.update_property([Gtk.AccessibleProperty.LABEL],['Clear highlight'])
         swatch=Gtk.DrawingArea(content_width=32,content_height=32)
         def draw_clear(area,cr,width,height):
             radius=6
@@ -1078,7 +1080,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def bounds(self):
         bounds=self.buffer.get_selection_bounds()
         if not bounds:
-            self.message('Selecteer eerst tekst om die op te maken.')
+            self.message('Select text before applying formatting.')
             return None
         return bounds
 
@@ -1143,7 +1145,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             bounds=(cursor,cursor)
         selection=tuple(it.get_offset() for it in bounds)
         original=self.snapshot();path=self.path
-        dialog=Gtk.FontDialog(title='Lettertype, variant en grootte kiezen',modal=True)
+        dialog=Gtk.FontDialog(title='Choose font, style and size',modal=True)
         cancellable=Gio.Cancellable()
         if not hasattr(self,'file_dialogs'):self.file_dialogs=[]
         self.file_dialogs.append(cancellable)
@@ -1345,12 +1347,12 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.autosave_pending=0
         if self.loading or not self.dirty():return False
         if self.path is None:
-            self.message('Kies eerst Opslaan om dit document automatisch te kunnen bewaren.')
+            self.message('Save this document first to enable autosave.')
             return False
         if self.external_dialog or stamp(self.path)!=self.saved_stamp:
-            self.save_problem='Opslaan gepauzeerd'
+            self.save_problem='Saving paused'
             self.update_title()
-            self.message('Automatisch opslaan gepauzeerd: bestand extern gewijzigd. Gebruik Opslaan om te kiezen.')
+            self.message('Autosave paused: file changed externally. Use Save to choose what to keep.')
             return False
         self.write(self.path,automatic=True)
         return False
@@ -1406,7 +1408,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def start_title_edit(self,*_):
         (self.workspace_owner or self).activate_pane(self)
         self.show_editor()
-        self.title_entry.set_text(self.path.stem if self.path else 'Nieuw document')
+        self.title_entry.set_text(self.path.stem if self.path else 'New document')
         self.title_stack.set_visible_child_name('edit')
         (self.workspace_owner or self).update_header_title()
         self.title_entry.grab_focus()
@@ -1435,12 +1437,12 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.save_as(suggested_name=name)
             return
         source=self.path
-        if source.is_symlink():raise ValueError('Een symbolische link kan hier niet worden hernoemd.')
+        if source.is_symlink():raise ValueError('A symbolic link cannot be renamed here.')
         if Path(name).suffix.lower() not in ('.html','.htm'):name+=source.suffix
         destination=source.with_name(name)
         if destination==source:return
         if destination.exists() or destination.is_symlink():
-            raise ValueError('Die naam bestaat al. Kies een andere documentnaam.')
+            raise ValueError('That name already exists. Choose another document name.')
         move_path(source,destination,source.parent)
         self.path_moved(source,destination)
         # Renaming must not acknowledge an unrelated external content change.
@@ -1449,21 +1451,21 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.sidebar.select_path(destination)
         self.refresh_documents()
         self.update_title()
-        self.message('Document hernoemd · '+destination.name)
+        self.message('Document renamed · '+destination.name)
 
     def update_title(self,modified=None):
         if not hasattr(self,'title_widget'):return
         dirty=self.dirty() if modified is None else modified
-        self.title_widget.set_title(('● ' if dirty else '')+(self.path.stem if self.path else 'Nieuw document'))
+        self.title_widget.set_title(('● ' if dirty else '')+(self.path.stem if self.path else 'New document'))
         self.title_widget.set_subtitle('')
         (self.workspace_owner or self).update_header_title()
         if hasattr(self,'save_warning'):
-            failed=self.save_problem in ('Opslaan mislukt','Opslaan gepauzeerd')
+            failed=self.save_problem in ('Save failed','Saving paused')
             self.save_warning.set_title(self.save_problem or '')
             self.save_warning.set_revealed(failed)
         self.update_format_state()
         if (self.workspace_owner or self).active_editor is self:
-            self.set_title((self.path.stem if self.path else 'Nieuw document')+' — Twinly Preview')
+            self.set_title((self.path.stem if self.path else 'New document')+' — Twinly Preview')
 
     def update_format_state(self):
         if not hasattr(self,'format_group'):return
@@ -1485,7 +1487,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
 
     def message(self,message):
         logger=logging.getLogger('twinly')
-        important=any(word in message.lower() for word in ('mislukt','gepauzeerd','niet bewaard','maximum','maximaal','overgeslagen'))
+        important=any(word in message.lower() for word in ('failed','gepauzeerd','not saved','maximum','maximaal','overgeslagen'))
         if important:
             logger.warning('%s',message)
             owner=self.workspace_owner or self
@@ -1495,8 +1497,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         else:logger.debug('%s',message)
 
     def error(self,message):
-        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='Dat is niet gelukt',body=str(message))
-        dialog.add_response('ok','Sluiten')
+        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='Something went wrong',body=str(message))
+        dialog.add_response('ok','Close')
         dialog.present()
 
     def ask(self,heading,body,choices,callback,default='cancel'):
@@ -1514,8 +1516,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         def respond(choice):
             if choice=='discard':callback()
             elif choice=='save':self.save(after=callback)
-        self.ask('Wijzigingen bewaren?','Dit document bevat niet-opgeslagen wijzigingen.',
-                 [('cancel','Annuleren'),('discard','Verwerpen'),('save','Opslaan')],respond,'save')
+        self.ask('Save changes?','This document has unsaved changes.',
+                 [('cancel','Cancel'),('discard','Discard'),('save','Save')],respond,'save')
 
     def available_name(self,folder,base,suffix=''):
         number=1
@@ -1529,21 +1531,21 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         entry=getattr(self.sidebar,'active_rename_entry',None)
         if entry:entry.emit('activate')
         folder=Path(folder) if folder is not None else self.sidebar.folder()
-        try:self.create_document(folder,self.available_name(folder,'nieuw document','.html'))
+        try:self.create_document(folder,self.available_name(folder,'new document','.html'))
         except (OSError,ValueError) as exc:self.error(str(exc))
 
     def create_document(self,folder,name):
-        if vault_container(folder):raise ValueError('Gebruik Kluis openen om in een versleutelde kluis te werken.')
+        if vault_container(folder):raise ValueError('Use Open vault to work in an encrypted vault.')
         name=safe_name(name)
         if Path(name).suffix.lower() not in ('.html','.htm'):name+='.html'
         path=Path(folder)/name
         doc=blank()
         try:atomic_write(path,to_html(doc,path.stem),overwrite=False)
         except FileExistsError:
-            raise ValueError('Er bestaat al een document of map met die naam. Kies een andere naam.')
+            raise ValueError('A document or folder with that name already exists. Choose another name.')
         self.sidebar.refresh(self.sidebar.expanded() | {Path(folder)})
         self.sidebar.select_path(path)
-        self.message('Document aangemaakt · '+path.name)
+        self.message('Document created · '+path.name)
         def activate():
             self.path=path
             self.saved_stamp=stamp(path)
@@ -1563,17 +1565,17 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if folder:dialog.set_initial_folder(Gio.File.new_for_path(str(folder)))
         if import_office:
             filters=Gio.ListStore.new(Gtk.FileFilter)
-            office_filter=Gtk.FileFilter(name='Documenten (.odt, .docx, .pdf)')
+            office_filter=Gtk.FileFilter(name='Documents (.odt, .docx, .pdf)')
             for pattern in ('*.odt','*.docx','*.pdf','*.ODT','*.DOCX','*.PDF'):office_filter.add_pattern(pattern)
             filters.append(office_filter);dialog.set_filters(filters)
         elif export_format:
             filters=Gio.ListStore.new(Gtk.FileFilter)
-            export_filter=Gtk.FileFilter(name={'odt':'OpenDocument-tekst (.odt)','docx':'Word-document (.docx)'}[export_format])
+            export_filter=Gtk.FileFilter(name={'odt':'OpenDocument text (.odt)','docx':'Word document (.docx)'}[export_format])
             export_filter.add_pattern('*.'+export_format)
             filters.append(export_filter);dialog.set_filters(filters)
-        elif action in (Gtk.FileChooserAction.OPEN,Gtk.FileChooserAction.SAVE) and 'Foto' not in title:
+        elif action in (Gtk.FileChooserAction.OPEN,Gtk.FileChooserAction.SAVE) and 'Photo' not in title:
             filters=Gio.ListStore.new(Gtk.FileFilter)
-            html_filter=Gtk.FileFilter(name='HTML-documenten')
+            html_filter=Gtk.FileFilter(name='HTML documents')
             html_filter.add_pattern('*.html');html_filter.add_pattern('*.htm')
             filters.append(html_filter);dialog.set_filters(filters)
         method={Gtk.FileChooserAction.OPEN:'open',Gtk.FileChooserAction.SAVE:'save',
@@ -1588,7 +1590,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 if file and file.get_path() and not self.closed:
                     selected=Path(file.get_path())
                     if action==Gtk.FileChooserAction.SAVE and vault_container(selected):
-                        self.error('Kies een locatie buiten een versleutelde kluis.');return
+                        self.error('Choose a location outside an encrypted vault.');return
                     callback(selected)
             except GLib.Error as exc:
                 cancelled=(exc.matches(Gtk.dialog_error_quark(),Gtk.DialogError.DISMISSED) or
@@ -1598,29 +1600,29 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         getattr(dialog,method)(self.workspace_owner or self,cancellable,finished)
 
     def open(self,*_):
-        self.file_chooser('Document openen',Gtk.FileChooserAction.OPEN,self.open_path,folder=self.sidebar.root)
+        self.file_chooser('Open document',Gtk.FileChooserAction.OPEN,self.open_path,folder=self.sidebar.root)
 
     def import_office(self,*_):
-        self.file_chooser('Document importeren',Gtk.FileChooserAction.OPEN,self.confirm_office_import,
+        self.file_chooser('Import document',Gtk.FileChooserAction.OPEN,self.confirm_office_import,
                           folder=self.sidebar.folder(),import_office=True)
 
     def confirm_office_import(self,path):
         path=Path(path)
         if path.suffix.lower() not in ('.odt','.docx','.pdf'):
-            self.error('Kies een ODT-, DOCX- of PDF-bestand.');return
+            self.error('Choose an ODT, DOCX or PDF file.');return
         if path.suffix.lower()=='.pdf':
-            self.ask('PDF-tekst importeren als HTML?',
-                     'Twinly maakt een nieuwe HTML-kopie van de selecteerbare tekst in '+path.name+'. De oorspronkelijke PDF blijft ongewijzigd. '
-                     'Foto’s, lettertypes, links en de vaste pagina-indeling worden niet overgenomen. Kolommen, tabellen en de leesvolgorde kunnen afwijken. '
-                     'Gescande pagina’s zonder tekstlaag worden niet herkend: er wordt geen OCR gebruikt. Bij opnieuw exporteren zal de opmaak afwijken van de originele PDF.',
-                     [('cancel','Annuleren'),('import','Tekst importeren en converteren')],
+            self.ask('Import PDF text as HTML?',
+                     'Twinly creates a new HTML copy of the selectable text in '+path.name+'. The original PDF remains unchanged. '
+                     'Photos, fonts, links and fixed page layout are not retained. Columns, tables and reading order may differ. '
+                     'Scanned pages without a text layer cannot be recognized: no OCR is performed. Exported formatting will differ from the original PDF.',
+                     [('cancel','Cancel'),('import','Import and convert text')],
                      lambda choice:self.convert_office(path) if choice=='import' else None)
             return
-        self.ask('Importeren als HTML?',
-                 'Twinly maakt een nieuwe HTML-kopie van '+path.name+'. Het oorspronkelijke bestand blijft ongewijzigd. '
-                 'Indeling en niet-ondersteunde onderdelen, zoals tabellen, voetnoten en wijzigingsregistratie, kunnen worden vereenvoudigd of weggelaten. '
-                 'Bij opnieuw exporteren naar ODT of Word kan het resultaat dus afwijken van het origineel.',
-                 [('cancel','Annuleren'),('import','Importeren en converteren')],
+        self.ask('Import as HTML?',
+                 'Twinly creates a new HTML copy of '+path.name+'. The original file remains unchanged. '
+                 'Layout and unsupported content, such as tables, footnotes and tracked changes, may be simplified or omitted. '
+                 'Exporting back to ODT or Word may produce a different result from the original.',
+                 [('cancel','Cancel'),('import','Import and convert')],
                  lambda choice:self.convert_office(path) if choice=='import' else None)
 
     def convert_office(self,path):
@@ -1647,11 +1649,11 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                         self.restore(imported,reset=True);self.set_editing(True);self.record_navigation()
                         self.sidebar.refresh();self.sidebar.select_path(destination)
                         self.view.grab_focus()
-                        if warnings:self.ask('Importeren voltooid','\n'.join(warnings),[('cancel','Sluiten')],lambda _:None)
+                        if warnings:self.ask('Import complete','\n'.join(warnings),[('cancel','Close')],lambda _:None)
                     except (OSError,ValueError) as exc:self.error(str(exc))
                 # Guard the document that is active now; conversion never discards edits.
                 self.guard(commit)
-            self.file_chooser('HTML-kopie opslaan',Gtk.FileChooserAction.SAVE,destination_chosen,
+            self.file_chooser('Save HTML copy',Gtk.FileChooserAction.SAVE,destination_chosen,
                               name=self.available_name(self.sidebar.folder(),Path(path).stem,'.html'),
                               folder=self.sidebar.folder())
         def work():
@@ -1662,14 +1664,14 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         Thread(target=work,daemon=True).start()
 
     def open_path(self,path):
-        if vault_container(path):self.error('Gebruik Kluis openen voor versleutelde documenten.');return
+        if vault_container(path):self.error('Use Open vault for encrypted documents.');return
         owner=self.workspace_owner or self
         other=owner if self.workspace_owner else self.peer
         if other and other.path and Path(path).resolve()==other.path.resolve():
             owner.activate_pane(other);other.view.grab_focus();return
         def run():
             try:
-                if path.stat().st_size>MAX_DOCUMENT:raise ValueError('Het document is groter dan 64 MB.')
+                if path.stat().st_size>MAX_DOCUMENT:raise ValueError('The document is larger than 64 MB.')
                 content,loaded_stamp=read_text(path,MAX_DOCUMENT,with_stamp=True)
                 doc,warnings=from_html(content)
                 # Decode before replacing any unsaved content.
@@ -1680,7 +1682,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 self.set_editing(False)
                 self.record_navigation()
                 self.sidebar.select_path(path)
-                self.message(' · '.join(warnings) if warnings else 'Document geopend · '+str(path))
+                self.message(' · '.join(warnings) if warnings else 'Document opened · '+str(path))
                 if self.split.get_collapsed():self.split.set_show_sidebar(False)
             except Exception as exc:self.error(str(exc))
         self.guard(run)
@@ -1692,20 +1694,20 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             destination=None
             try:
                 folder=source.parent if source else self.sidebar.folder()
-                stem=source.stem if source else 'Nieuw document'
+                stem=source.stem if source else 'New document'
                 suffix=source.suffix if source else '.html'
                 if current:
                     doc=self.snapshot()
                     raw=None
                 else:
-                    if source.stat().st_size>MAX_DOCUMENT:raise ValueError('Het document is groter dan 64 MB.')
+                    if source.stat().st_size>MAX_DOCUMENT:raise ValueError('The document is larger than 64 MB.')
                     raw=read_bytes(source,MAX_DOCUMENT)
                     doc,warnings=from_html(raw.decode('utf-8'))
                 for img in doc['images']:pixbuf_for(img['src'])
                 payload=raw if raw is not None else to_html(doc,stem)
                 number=1
                 while True:
-                    name=stem+' – kopie'+(f' {number}' if number>1 else '')+suffix
+                    name=stem+' – copy'+(f' {number}' if number>1 else '')+suffix
                     destination=folder/name
                     try:
                         atomic_write(destination,payload,overwrite=False)
@@ -1718,7 +1720,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 self.record_navigation()
                 self.sidebar.refresh()
                 self.sidebar.select_path(destination)
-                self.message('Kopie gemaakt · '+destination.name)
+                self.message('Copy created · '+destination.name)
                 if self.split.get_collapsed():self.split.set_show_sidebar(False)
             except Exception as exc:self.error(str(exc))
         if current:duplicate()
@@ -1727,8 +1729,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def save(self,*_,after=None):
         if not self.path:self.save_as(after=after);return
         if stamp(self.path)!=self.saved_stamp:
-            self.ask('Bestand extern gewijzigd','Overschrijven vervangt de versie op de schijf door jouw huidige document.',
-                     [('cancel','Annuleren'),('overwrite','Overschrijven')],
+            self.ask('File changed externally','Overwriting replaces the version on disk with your current document.',
+                     [('cancel','Cancel'),('overwrite','Overwrite')],
                      lambda r:self.write(self.path,after,allow_external=True) if r=='overwrite' else None)
         else:self.write(self.path,after)
 
@@ -1736,22 +1738,22 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         def picked(path):
             if path.suffix.lower() not in ('.html','.htm'):path=path.with_name(path.name+'.html')
             if path.exists():
-                self.ask('Bestaand bestand vervangen?',str(path),[('cancel','Annuleren'),('replace','Vervangen')],
+                self.ask('Replace existing file?',str(path),[('cancel','Cancel'),('replace','Replace')],
                          lambda r:self.write(path,after) if r=='replace' else None)
             else:self.write(path,after)
-        self.file_chooser('Document opslaan',Gtk.FileChooserAction.SAVE,picked,
-                          suggested_name if suggested_name else (self.path.name if self.path else 'Nieuw document.html'),
+        self.file_chooser('Save document',Gtk.FileChooserAction.SAVE,picked,
+                          suggested_name if suggested_name else (self.path.name if self.path else 'New document.html'),
                           self.path.parent if self.path else self.sidebar.folder())
 
     def write(self,path,after=None,automatic=False,allow_external=False):
-        if vault_container(path):self.error('Onversleuteld opslaan in een kluis is niet toegestaan.');return
-        self.save_problem='Bezig met opslaan…'
+        if vault_container(path):self.error('Saving unencrypted files in a vault is not allowed.');return
+        self.save_problem='Saving…'
         self.update_title()
         try:
             owner=self.workspace_owner or self
             other=owner if self.workspace_owner else self.peer
             if other and other.path and Path(other.path).resolve()==Path(path).resolve():
-                raise ValueError('Dit bestand wordt al in het andere deelvenster bewerkt. Kies een andere bestandsnaam.')
+                raise ValueError('This file is already open in the other pane. Choose another filename.')
             doc=self.snapshot()
             expected=self.saved_stamp if self.path==path and not allow_external else stamp(path)
             atomic_write(path,to_html(doc,path.stem),expected=expected)
@@ -1768,15 +1770,15 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                         location['path']=path
             self.capture()
             self.update_title()
-            self.message('Automatisch opgeslagen.' if automatic else 'Opgeslagen als zelfstandig HTML-bestand.')
+            self.message('Autosaved.' if automatic else 'Saved as a standalone HTML file.')
             if not automatic:
                 self.sidebar.refresh()
                 self.sidebar.select_path(path)
             if after:after()
         except Exception as exc:
-            self.save_problem='Opslaan mislukt'
+            self.save_problem='Save failed'
             self.update_title()
-            if automatic:self.message('Automatisch opslaan mislukt: '+str(exc)+' · Gebruik Ctrl+S om opnieuw te proberen.')
+            if automatic:self.message('Autosave failed: '+str(exc)+' · Use Ctrl+S to retry.')
             else:self.error(str(exc))
 
     def path_moved(self,old,new,_rewrites=None):
@@ -1807,12 +1809,12 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                     if destination.suffix.lower() not in ('.html','.htm') or destination.is_symlink():continue
                     source=old/destination.relative_to(new) if destination==new or new in destination.parents else destination
                     try:
-                        if destination.stat().st_size>MAX_DOCUMENT:raise ValueError('groter dan 64 MB')
+                        if destination.stat().st_size>MAX_DOCUMENT:raise ValueError('larger than 64 MB')
                         observed=stamp(destination)
                         content=read_text(destination,MAX_DOCUMENT)
                         rewritten=relocate_html_links(content,source,destination,old,new)
                         if rewritten!=content:
-                            if stamp(destination)!=observed:raise ValueError('bestand werd intussen gewijzigd')
+                            if stamp(destination)!=observed:raise ValueError('file has changed')
                             atomic_write(destination,rewritten,expected=observed)
                             rewrites[destination]=observed
                             if destination==active_destination and observed==expected:updated_active=True
@@ -1836,7 +1838,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                     if selection:self.buffer.select_range(*(self.buffer.get_iter_at_offset(i) for i in selection))
                     else:self.buffer.place_cursor(self.buffer.get_iter_at_offset(cursor))
                 if updated_active:self.saved_stamp=stamp(active_destination)
-            if failures:self.error('Verplaatsing voltooid, maar sommige links konden niet worden bijgewerkt:\n'+'\n'.join(failures[:8]))
+            if failures:self.error('Move completed, but some links could not be updated:\n'+'\n'.join(failures[:8]))
         for location in self.navigation:
             path=location['path']
             if path is not None and (path==old or old in path.parents):location['path']=new/path.relative_to(old)
@@ -1871,11 +1873,11 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 self.saved_doc=self.snapshot()
                 self.open_path(path)
             elif choice=='keep':
-                self.message('Externe wijziging genegeerd. Opslaan vraagt eerst om bevestiging.')
-        choices=[('cancel','Annuleren'),('keep','Mijn versie behouden')]
-        if path.exists():choices.append(('reload','Vanaf schijf herladen'))
-        self.ask('Document buiten de app gewijzigd',
-                 'Herladen vervangt de tekst in de editor. Bij behouden worden wijzigingen pas na bevestiging overschreven.',
+                self.message('External change ignored. Saving will ask for confirmation.')
+        choices=[('cancel','Cancel'),('keep','Keep my version')]
+        if path.exists():choices.append(('reload','Reload from disk'))
+        self.ask('Document changed outside the app',
+                 'Reloading replaces the text in the editor. If you keep your version, overwriting requires confirmation.',
                  choices,response)
 
     def mark_set(self,buffer,location,mark):
@@ -2055,7 +2057,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 self.select_photo(entry)
                 self.capture()
             except Exception as exc:self.error(str(exc))
-        self.file_chooser('Foto invoegen · PNG of JPEG',Gtk.FileChooserAction.OPEN,picked,folder=self.sidebar.root)
+        self.file_chooser('Insert photo · PNG or JPEG',Gtk.FileChooserAction.OPEN,picked,folder=self.sidebar.root)
 
     def photo_width_changed(self,widget):
         # GtkSpinButton normally commits typed text only on Enter/focus loss.
@@ -2091,8 +2093,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading=heading)
         entry=Gtk.Entry(text=initial,activates_default=True)
         dialog.set_extra_child(entry)
-        dialog.add_response('cancel','Annuleren')
-        dialog.add_response('ok','Bevestigen')
+        dialog.add_response('cancel','Cancel')
+        dialog.add_response('ok','Confirm')
         dialog.set_default_response('ok')
         dialog.set_close_response('cancel')
         def response(d,result):
@@ -2108,29 +2110,29 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if entry:entry.emit('activate')
         folder=Path(folder) if folder is not None else self.sidebar.folder()
         try:
-            if vault_container(folder):raise ValueError('Gebruik Kluis openen om in deze map te werken.')
-            path=folder/self.available_name(folder,'nieuwe map')
+            if vault_container(folder):raise ValueError('Use Open vault to work in this folder.')
+            path=folder/self.available_name(folder,'new folder')
             create_directory(path)
             self.sidebar.refresh(self.sidebar.expanded()|{folder})
             self.sidebar.select_path(path)
             self.sidebar.watch()
-            self.message('Map aangemaakt · '+path.name)
+            self.message('Folder created · '+path.name)
             (self.workspace_owner or self).split.set_show_sidebar(True)
             self.sidebar.rename_created(path)
         except (OSError,ValueError) as exc:self.error(str(exc))
 
     def rename(self,*_):
         src=self.sidebar.selected()
-        if not src:self.message('Selecteer eerst een map of document.');return
+        if not src:self.message('Select a folder or document first.');return
         def renamed(name):
             if src.is_file() and Path(name).suffix.lower() not in ('.html','.htm'):name+='.html'
             self.sidebar.perform_move(src,src.with_name(name))
-        self.name_dialog('Hernoemen',src.name,renamed)
+        self.name_dialog('Rename',src.name,renamed)
 
     def move(self,*_):
         src=self.sidebar.selected()
-        if not src:self.message('Selecteer eerst een map of document.');return
-        self.file_chooser('Doelmap binnen de hoofdmap kiezen',Gtk.FileChooserAction.SELECT_FOLDER,
+        if not src:self.message('Select a folder or document first.');return
+        self.file_chooser('Choose a destination folder within the library',Gtk.FileChooserAction.SELECT_FOLDER,
                           lambda folder:self.sidebar.perform_move(src,folder/src.name),folder=self.sidebar.root)
 
     def trash(self,*_):
@@ -2139,7 +2141,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         owner=self.workspace_owner or self
         affected=[editor for editor in (owner,owner.peer) if editor and editor.path and (editor.path==path or path in editor.path.parents)]
         def perform():
-            self.ask('Naar de prullenbak?',str(path),[('cancel','Annuleren'),('trash','Naar prullenbak')],confirmed)
+            self.ask('Move to trash?',str(path),[('cancel','Cancel'),('trash','Move to trash')],confirmed)
         def confirmed(choice):
             if choice!='trash':return
             try:
@@ -2156,12 +2158,12 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         check()
 
     def apply_root(self,path,create=False):
-        if vault_container(path):self.error('Gebruik Kluis openen om deze map te openen.');return
+        if vault_container(path):self.error('Use Open vault to open this folder.');return
         path=Path(path).expanduser()
-        if not path.is_absolute():raise ValueError('Vul een volledig mappad in, bijvoorbeeld /home/paul/Documenten/Schrijfwerk.')
+        if not path.is_absolute():raise ValueError('Enter a full folder path, for example /home/user/Documents/Writing.')
         if create:
             private_directory(path.parent);create_directory(path)
-        if not path.is_dir():raise ValueError('Kies een map, geen bestand.')
+        if not path.is_dir():raise ValueError('Choose a folder, not a file.')
         path=path.resolve()
         self.sidebar.set_root(path)
         self.refresh_documents()
@@ -2169,7 +2171,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         try:
             private_directory(self.config.parent)
             self.save_preferences(root=str(path))
-        except OSError as exc:self.message('Hoofdmap gekozen, voorkeur niet bewaard: '+str(exc))
+        except OSError as exc:self.message('Library selected, but preference not saved: '+str(exc))
 
     def search_documents(self,*_):
         self.show_documents()
@@ -2185,7 +2187,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=16)
         for margin in ('start','end','top','bottom'):getattr(box,'set_margin_'+margin)(24)
-        title=Gtk.Label(label='Documenten',xalign=0,css_classes=['title-1'])
+        title=Gtk.Label(label='Documents',xalign=0,css_classes=['title-1'])
         box.append(title)
         box.append(Gtk.Label(label=str(self.sidebar.root),xalign=0,ellipsize=Pango.EllipsizeMode.MIDDLE,
                              css_classes=['dim-label']))
@@ -2198,7 +2200,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                          and not (Path(folder)/name).is_symlink())
         self.documents_list=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.documents_list.add_css_class('boxed-list')
-        self.document_search_entry=Gtk.SearchEntry(placeholder_text='Documenten zoeken…',visible=False)
+        self.document_search_entry=Gtk.SearchEntry(placeholder_text='Search documents…',visible=False)
         self.document_search_entry.connect('changed',lambda entry:self.documents_list.invalidate_filter())
         self.documents_list.set_filter_func(lambda row:self.document_search_entry.get_text().casefold() in str(row.document_path.relative_to(self.sidebar.root)).casefold())
         box.append(self.document_search_entry)
@@ -2212,14 +2214,14 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.documents_list.connect('row-activated',lambda _,row:self.open_path(row.document_path))
         if paths:box.append(self.documents_list)
         else:
-            box.append(Gtk.Label(label='Nog geen HTML-documenten. Maak een document aan via het contextmenu van een map.',
+            box.append(Gtk.Label(label='No HTML documents yet. Create a document from a folder’s context menu.',
                                  wrap=True,xalign=0))
         clamp=Adw.Clamp(maximum_size=900,child=box)
         scroll.set_child(clamp)
         self.documents_page.append(scroll)
         self.document_stack.set_visible_child_name('documents')
         self.record_navigation()
-        self.message(f'{len(paths)} HTML-documenten · Klik op een document om het in Twinly te openen.')
+        self.message(f'{len(paths)} HTML documents · Click a document to open it in Twinly.')
         if self.split.get_collapsed():self.split.set_show_sidebar(False)
 
     def load_trash_items(self):
@@ -2250,14 +2252,14 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=16)
         for margin in ('start','end','top','bottom'):getattr(box,'set_margin_'+margin)(24)
         heading=Gtk.Box(spacing=12)
-        heading.append(Gtk.Label(label='Prullenbak',xalign=0,hexpand=True,css_classes=['title-1']))
-        refresh=Gtk.Button(icon_name='view-refresh-symbolic',tooltip_text='Prullenbak vernieuwen')
+        heading.append(Gtk.Label(label='Trash',xalign=0,hexpand=True,css_classes=['title-1']))
+        refresh=Gtk.Button(icon_name='view-refresh-symbolic',tooltip_text='Refresh trash')
         refresh.connect('clicked',self.show_trash);heading.append(refresh)
-        self.empty_trash_button=Gtk.Button(label='Prullenbak leegmaken',sensitive=False)
+        self.empty_trash_button=Gtk.Button(label='Empty trash',sensitive=False)
         self.empty_trash_button.add_css_class('destructive-action')
         self.empty_trash_button.connect('clicked',self.empty_trash)
         heading.append(self.empty_trash_button);box.append(heading)
-        box.append(Gtk.Label(label='Verwijderde documenten en mappen uit '+self.sidebar.root.name,
+        box.append(Gtk.Label(label='Deleted documents and folders in '+self.sidebar.root.name,
                              xalign=0,wrap=True,css_classes=['dim-label']))
         self.trash_list=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,css_classes=['boxed-list'])
         try:
@@ -2270,24 +2272,24 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 row=Adw.ActionRow(title=path.name if item['directory'] else path.stem,subtitle=subtitle)
                 row.set_use_markup(False)
                 row.add_prefix(Gtk.Image(icon_name='folder-symbolic' if item['directory'] else 'text-x-generic-symbolic'))
-                restore=Gtk.Button(icon_name='edit-undo-symbolic',tooltip_text='Terugzetten',valign=Gtk.Align.CENTER)
+                restore=Gtk.Button(icon_name='edit-undo-symbolic',tooltip_text='Restore',valign=Gtk.Align.CENTER)
                 restore.connect('clicked',lambda _,value=item:self.restore_trash_item(value))
                 row.add_suffix(restore);self.trash_list.append(row)
             if items:box.append(self.trash_list)
-            else:box.append(Gtk.Label(label='De prullenbak voor deze hoofdmap is leeg.',xalign=0))
+            else:box.append(Gtk.Label(label='The trash for this library is empty.',xalign=0))
         except (GLib.Error,OSError):
-            problem=('De privéprullenbak kon niet worden gelezen. Controleer de toegang tot deze hoofdmap.' if os.environ.get('FLATPAK_ID') else 'De prullenbak kon niet worden gelezen. Controleer of GNOME’s prullenbakdienst (GVfs) beschikbaar is.')
+            problem=('Could not read the private trash. Check access to this library.' if os.environ.get('FLATPAK_ID') else 'Could not read the trash. Check that GNOME’s trash service (GVfs) is available.')
             box.append(Gtk.Label(label=problem,
                                  wrap=True,xalign=0))
         scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
         scroll.set_child(Adw.Clamp(maximum_size=900,child=box));self.trash_page.append(scroll)
         self.document_stack.set_visible_child_name('trash');self.record_navigation()
-        self.message('Prullenbak · Terugzetten herstelt een item op zijn oorspronkelijke plaats.')
+        self.message('Trash · Restore returns an item to its original location.')
         if self.split.get_collapsed():self.split.set_show_sidebar(False)
 
     def delete_trash_file(self,file):
         # Stay within the virtual trash and never follow symbolic links.
-        if not file.get_uri().startswith('trash:///'):raise ValueError('Dit item staat niet in de prullenbak.')
+        if not file.get_uri().startswith('trash:///'):raise ValueError('This item is not in the trash.')
         info=file.query_info('standard::type',Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,None)
         if info.get_file_type()==Gio.FileType.DIRECTORY:
             enumerator=file.enumerate_children('standard::name',Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,None)
@@ -2309,12 +2311,12 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             if choice!='empty':return
             self.emptying_trash=True
             if hasattr(self,'empty_trash_button'):self.empty_trash_button.set_sensitive(False)
-            self.message('Prullenbak wordt leeggemaakt…')
+            self.message('Emptying trash…')
             def work():
                 errors=[]
                 for item in items:
                     try:
-                        if root not in item['path'].parents:raise ValueError('Item hoort niet bij deze hoofdmap.')
+                        if root not in item['path'].parents:raise ValueError('Item does not belong to this library.')
                         if item.get('managed'):private_trash.delete(item,root)
                         else:self.delete_trash_file(item['file'])
                     except (GLib.Error,OSError,ValueError) as exc:errors.append(str(exc))
@@ -2322,27 +2324,27 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                     self.emptying_trash=False
                     if not self.get_visible():return False
                     self.refresh_documents()
-                    if errors:self.error('Niet alle items konden worden verwijderd.\n'+'\n'.join(errors[:3]))
-                    else:self.message('Prullenbak voor '+root.name+' leeggemaakt.')
+                    if errors:self.error('Some items could not be deleted.\n'+'\n'.join(errors[:3]))
+                    else:self.message('Trash for '+root.name+' emptied.')
                     return False
                 self.defer(finished)
             Thread(target=work,daemon=True).start()
-        self.ask('Prullenbak leegmaken?',
-                 'De verwijderde documenten en mappen uit '+root.name+' worden definitief verwijderd. '
-                 'Dit kan niet ongedaan worden gemaakt. Items van andere hoofdmappen blijven behouden.',
-                 [('cancel','Annuleren'),('empty','Definitief verwijderen')],confirmed)
+        self.ask('Empty trash?',
+                 'The deleted documents and folders in '+root.name+' will be permanently deleted. '
+                 'This cannot be undone. Items from other libraries will be kept.',
+                 [('cancel','Cancel'),('empty','Delete permanently')],confirmed)
 
     def restore_trash_item(self,item):
         try:
             destination=item['path']
-            if self.sidebar.root not in destination.parents:raise ValueError('Dit item hoort niet bij de huidige hoofdmap.')
-            if destination.exists() or destination.is_symlink():raise ValueError('Die naam bestaat al. Hernoem of verplaats eerst het bestaande item.')
+            if self.sidebar.root not in destination.parents:raise ValueError('This item does not belong to the current library.')
+            if destination.exists() or destination.is_symlink():raise ValueError('That name already exists. Rename or move the existing item first.')
             if item.get('managed'):private_trash.restore(item,self.sidebar.root)
             else:
                 private_directory(destination.parent)
                 item['file'].move(Gio.File.new_for_path(str(destination)),Gio.FileCopyFlags.NONE,None,None,None)
             self.sidebar.refresh();self.sidebar.watch();self.show_trash()
-            self.message('Teruggezet · '+destination.name)
+            self.message('Restored · '+destination.name)
         except (GLib.Error,OSError,ValueError) as exc:self.error(str(exc))
 
     def show_editor(self):
@@ -2378,14 +2380,14 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         def perform():
             self.navigation_replaying=True
             try:
-                if not target['root'].is_dir():raise ValueError('De map uit de navigatiegeschiedenis bestaat niet meer.')
+                if not target['root'].is_dir():raise ValueError('The folder in the navigation history no longer exists.')
                 doc=None
                 different_document=target['kind']=='editor' and target['path']!=self.path
                 if different_document:
                     if target['path'] is None:doc=blank()
                     else:
                         path=target['path']
-                        if path.stat().st_size>MAX_DOCUMENT:raise ValueError('Het document is groter dan 64 MB.')
+                        if path.stat().st_size>MAX_DOCUMENT:raise ValueError('The document is larger than 64 MB.')
                         content,loaded_stamp=read_text(path,MAX_DOCUMENT,with_stamp=True)
                         doc,_=from_html(content)
                         for image in doc['images']:pixbuf_for(image['src'])
@@ -2424,20 +2426,20 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         return self.root_dialog(create=True)
 
     def root_dialog(self,create=False):
-        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='Nieuwe hoofdmap' if create else 'Hoofdmap kiezen',
-            body='Vul het volledige pad voor de nieuwe hoofdmap in.' if create else 'Kies een bestaande map om als hoofdmap te gebruiken.')
+        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='New library' if create else 'Choose library',
+            body='Enter the full path for the new library.' if create else 'Choose an existing folder to use as your library.')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12)
-        initial=self.sidebar.root.parent/'nieuwe hoofdmap' if create else self.sidebar.root
+        initial=self.sidebar.root.parent/'new library' if create else self.sidebar.root
         entry=Gtk.Entry(text=str(initial),activates_default=True,hexpand=True)
-        entry.set_tooltip_text('Volledig pad van de hoofdmap')
+        entry.set_tooltip_text('Full library path')
         box.append(entry)
-        browse=Gtk.Button(label='Bestaande map zoeken…')
-        browse.connect('clicked',lambda *_:self.file_chooser('Bestaande hoofdmap kiezen',
+        browse=Gtk.Button(label='Browse for existing folder…')
+        browse.connect('clicked',lambda *_:self.file_chooser('Choose existing library',
             Gtk.FileChooserAction.SELECT_FOLDER,lambda path:entry.set_text(str(path)),folder=self.sidebar.root))
         box.append(browse)
         dialog.set_extra_child(box)
-        dialog.add_response('cancel','Annuleren')
-        dialog.add_response('use','Map gebruiken')
+        dialog.add_response('cancel','Cancel')
+        dialog.add_response('use','Use folder')
         dialog.set_response_appearance('use',Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response('use')
         dialog.set_close_response('cancel')
@@ -2445,7 +2447,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             text=entry.get_text().strip()
             path=Path(text).expanduser() if text else None
             valid=bool(path and path.is_absolute() and ((not path.exists() and not path.is_symlink()) if create else path.is_dir()))
-            dialog.set_response_label('use','Map maken en gebruiken' if create else 'Map gebruiken')
+            dialog.set_response_label('use','Create and use folder' if create else 'Use folder')
             dialog.set_response_enabled('use',valid)
         entry.connect('changed',update)
         update()
@@ -2464,7 +2466,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def document_for_print(self,path=None):
         if path is None or Path(path)==self.path:return self.snapshot()
         path=Path(path)
-        if path.stat().st_size>MAX_DOCUMENT:raise ValueError('Het document is groter dan 64 MB.')
+        if path.stat().st_size>MAX_DOCUMENT:raise ValueError('The document is larger than 64 MB.')
         doc,warnings=from_html(read_text(path,MAX_DOCUMENT))
         if warnings:self.message(' · '.join(warnings))
         return doc
@@ -2480,29 +2482,29 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             if path.suffix.lower()!='.'+format:
                 target=path.with_suffix('.'+format)
                 if target.exists() or target.is_symlink():
-                    self.ask('Exportbestand vervangen?',str(target),
-                             [('cancel','Annuleren'),('replace','Vervangen')],
+                    self.ask('Replace export file?',str(target),
+                             [('cancel','Cancel'),('replace','Replace')],
                              lambda choice:save_export(target) if choice=='replace' else None)
                     return
                 path=target
             try:
-                if source and path.resolve()==source.resolve():raise ValueError('Kies een apart bestand voor de export.')
+                if source and path.resolve()==source.resolve():raise ValueError('Choose a separate file for the export.')
                 # Keep links pointing at the original HTML library after export elsewhere.
                 if source:
                     for span in document['spans']:
                         link=span['style'].get('link')
                         if link:span['style']['link']={**link,'href':relocated_href(link['href'],source,path,source,source)}
                 export_document(document,path,format)
-                self.message('Document geëxporteerd · '+path.name)
+                self.message('Document exported · '+path.name)
             except (OSError,ValueError) as exc:self.error(str(exc))
-        self.file_chooser('Exporteren als '+format.upper(),Gtk.FileChooserAction.SAVE,save_export,
+        self.file_chooser('Export as '+format.upper(),Gtk.FileChooserAction.SAVE,save_export,
                           name=(source.stem if source else 'document')+'.'+format,
                           folder=source.parent if source else self.sidebar.root,export_format=format)
 
     def print_preview(self,*_,path=None):
         try:
             preview=PrintPreview(self.workspace_owner or self,self.document_for_print(path))
-            if path:preview.set_title('Afdrukvoorbeeld · '+Path(path).stem)
+            if path:preview.set_title('Print preview · '+Path(path).stem)
             preview.present()
         except Exception as exc:self.error(str(exc))
 
@@ -2516,17 +2518,17 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             if preview:preview.destroy()
 
     def about(self,*_):
-        self.ask(f'Twinly · lokale preview {VERSION}',
-                 'Native GTK4/libadwaita. Zelfstandige HTML-documenten met ingebedde foto’s. '
-                 'Geen tabellen of vaste paginaopmaak in de editor. Alleen PNG/JPEG-foto’s. '
-                 'Externe HTML wordt beperkt ingelezen; complexe webpagina’s worden niet volledig behouden.',
-                 [('cancel','Sluiten')],lambda _:None)
+        self.ask(f'Twinly · local preview {VERSION}',
+                 'Native GTK4/libadwaita. Standalone HTML documents with embedded photos. '
+                 'No tables or fixed page layouts in the editor. PNG/JPEG photos only. '
+                 'External HTML support is limited; complex web pages are not fully preserved.',
+                 [('cancel','Close')],lambda _:None)
 
     def close_requested(self,*_):
         if getattr(self,'closing_ready',False):return False
         launcher=getattr(self,'vault_launch',None)
         if launcher and any(launcher.pending.values()):
-            self.error('Een vergrendelde kluis heeft nog versleutelde wijzigingen in het geheugen. Ontgrendel en sla ze op voordat je Twinly afsluit.');return True
+            self.error('A locked vault still has encrypted changes in memory. Unlock it and save before closing Twinly.');return True
         if launcher:
             for window in list(launcher.windows):window.lock_vault()
             if any(launcher.pending.values()) or any(not window.closed for window in launcher.windows):return True
@@ -2596,10 +2598,10 @@ class App(Adw.Application):
 
 if __name__=='__main__':
     import argparse
-    parser=argparse.ArgumentParser(description='Twinly — lokale richtexteditor')
-    parser.add_argument('--root',type=Path,help='Hoofdmap voor de documentenboom')
+    parser=argparse.ArgumentParser(description='Twinly — local rich text editor')
+    parser.add_argument('--root',type=Path,help='Library folder for the document tree')
     parser.add_argument('--version',action='version',version=VERSION)
     parser.add_argument('files',nargs='*',help='HTML documents to open')
     args=parser.parse_args()
-    if args.root and not args.root.is_dir():parser.error('--root moet een bestaande map zijn')
+    if args.root and not args.root.is_dir():parser.error('--root must be an existing folder')
     sys.exit(App(args.root).run([sys.argv[0]]+args.files))

@@ -196,5 +196,5 @@ def odt_bytes(doc):
     return output.getvalue()
 
 def export_document(doc,path,format):
-    if format not in ('odt','docx'):raise ValueError('Onbekend exportformaat.')
+    if format not in ('odt','docx'):raise ValueError('Unknown export format.')
     atomic_write(Path(path),odt_bytes(doc) if format=='odt' else docx_bytes(doc))

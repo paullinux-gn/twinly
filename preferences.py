@@ -21,8 +21,8 @@ class PreferencesMixin:
         if updates:
             try:self.save_preferences(**updates);self.preference_updates={}
             except (OSError,ValueError) as exc:
-                logging.getLogger('twinly').exception('Voorkeuren opslaan mislukt')
-                if not self.closed:self.error('Voorkeuren opslaan mislukt: '+str(exc))
+                logging.getLogger('twinly').exception('Failed to save preferences')
+                if not self.closed:self.error('Failed to save preferences: '+str(exc))
         return False
     def load_appearance(self):
         settings=read_settings(self.config)
@@ -101,16 +101,16 @@ class PreferencesMixin:
         self.appearance_provider.load_from_string(css)
 
     def show_preferences(self,*_):
-        window=Adw.PreferencesWindow(transient_for=(self.workspace_owner or self),modal=True,title='Voorkeuren',default_width=420,default_height=800)
+        window=Adw.PreferencesWindow(transient_for=(self.workspace_owner or self),modal=True,title='Preferences',default_width=420,default_height=800)
         window.add_css_class('preferences-surface')
         if not hasattr(self,'preferences_windows'):self.preferences_windows=weakref.WeakSet()
         self.preferences_windows.add(window)
         window.connect('unrealize',lambda widget:self.preferences_windows.discard(widget))
         if self.blur_requested and self.blur_available:window.add_css_class('twinly-blur')
-        page=Adw.PreferencesPage();group=Adw.PreferencesGroup(title='Uiterlijk')
-        theme=Adw.PreferencesRow(title='Kleurenschema')
+        page=Adw.PreferencesPage();group=Adw.PreferencesGroup(title='Appearance')
+        theme=Adw.PreferencesRow(title='Color scheme')
         theme_box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10,margin_top=12,margin_bottom=12)
-        theme_box.append(Gtk.Label(label='Kleurenschema',xalign=0,margin_start=16))
+        theme_box.append(Gtk.Label(label='Color scheme',xalign=0,margin_start=16))
         choices=Gtk.Box(spacing=12,halign=Gtk.Align.CENTER)
         theme_buttons={}
         def draw_theme(area,cr,width,height,mode,button):
@@ -137,8 +137,8 @@ class PreferencesMixin:
                 cr.arc(x,y,9,0,2*math.pi);cr.set_source_rgb(.18,.51,.92);cr.fill()
                 cr.set_source_rgb(1,1,1);cr.set_line_width(1.8)
                 cr.move_to(x-4,y);cr.line_to(x-1,y+3);cr.line_to(x+4,y-3);cr.stroke()
-        for mode,label in [('system','Systeem'),('light','Licht'),('dark','Donker'),('dark-light','Donker + licht')]:
-            button=Gtk.ToggleButton(css_classes=['flat','theme-choice'],tooltip_text='Donkere interface, licht document' if mode=='dark-light' else label)
+        for mode,label in [('system','System'),('light','Light'),('dark','Dark'),('dark-light','Dark + Light')]:
+            button=Gtk.ToggleButton(css_classes=['flat','theme-choice'],tooltip_text='Dark interface, light document' if mode=='dark-light' else label)
             if theme_buttons:button.set_group(next(iter(theme_buttons.values())))
             content=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4)
             preview=Gtk.DrawingArea(content_width=60,content_height=60)
@@ -149,7 +149,7 @@ class PreferencesMixin:
             button.connect('toggled',lambda b,p=preview:p.queue_draw())
             choices.append(button);theme_buttons[mode]=button
         theme_box.append(choices);theme.set_child(theme_box)
-        blur=Adw.SwitchRow(title='Blur',subtitle='Zijbalk, menu’s, voorkeuren en focusbalk. Vereist een compatibele Wayland-compositor.' if self.blur_available else 'Niet beschikbaar met deze GTK-versie of beeldschermsessie. De weergave blijft ondoorzichtig.')
+        blur=Adw.SwitchRow(title='Blur',subtitle='Sidebar, menus, preferences and focus toolbar. Requires a compatible Wayland compositor.' if self.blur_available else 'Not available with this GTK version or display session. The interface remains opaque.')
         blur.set_active(self.blur_requested);blur.set_sensitive(self.blur_available)
         radius=Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL,0,40,1)
         radius.set_value(self.blur_radius);radius.set_digits(0);radius.set_draw_value(True)
@@ -157,7 +157,7 @@ class PreferencesMixin:
         tint.set_value(self.blur_tint);tint.set_digits(0);tint.set_draw_value(True)
         radius_row=Adw.PreferencesRow()
         tint_row=Adw.PreferencesRow()
-        for row,slider,title,description in [(radius_row,radius,'Blursterkte','0–40 px · Zijbalk, menu’s en focusbalk'),(tint_row,tint,'Achtergronddekking','10–100% · Lager toont meer van de achtergrond')]:
+        for row,slider,title,description in [(radius_row,radius,'Blur strength','0–40 px · Sidebar, menus and focus toolbar'),(tint_row,tint,'Background opacity','10–100% · Lower values reveal more of the background')]:
             box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4,margin_start=16,margin_end=16,margin_top=12,margin_bottom=12)
             box.append(Gtk.Label(label=title,xalign=0))
             box.append(Gtk.Label(label=description,xalign=0,wrap=True,max_width_chars=32,css_classes=['dim-label']))
@@ -183,13 +183,13 @@ class PreferencesMixin:
         return window
 
     def show_shortcuts(self,*_):
-        window=Adw.Window(transient_for=(self.workspace_owner or self),modal=True,title='Sneltoetsen',default_width=580,default_height=640)
+        window=Adw.Window(transient_for=(self.workspace_owner or self),modal=True,title='Keyboard shortcuts',default_width=580,default_height=640)
         toolbar=Adw.ToolbarView();toolbar.add_top_bar(Adw.HeaderBar())
         scroll=Gtk.ScrolledWindow(vexpand=True)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=18,margin_top=18,margin_bottom=24,margin_start=24,margin_end=24)
-        groups=[('Documenten en navigatie',{'new':'Nieuw document','open':'Openen','save':'Opslaan','save-as':'Opslaan als','duplicate':'Kopie maken','new-folder':'Nieuwe map','rename':'Hernoemen in sidebar','search-documents':'Documenten zoeken','back':'Terug','forward':'Vooruit','print':'Afdrukvoorbeeld','print-direct':'Afdrukken','close':'Actief deelvenster sluiten','quit':'App afsluiten','switch-pane':'Ander deelvenster'}),
-                ('Tekst en opmaak',{'list-bullet':'Opsommingstekens','list-number':'Genummerde lijst','list-check':'Afvinklijst','undo':'Ongedaan maken','redo':'Opnieuw','bold':'Vet','italic':'Cursief','underline':'Onderstrepen','strike':'Doorstrepen','clear':'Opmaak wissen','link':'Link invoegen/bewerken','left':'Links uitlijnen','center':'Centreren','right':'Rechts uitlijnen','justify':'Uitvullen','palette':'Arceerpalet'}),
-                ('Zoeken en weergave',{'focus-mode':'Focusmodus','find':'Zoeken','replace':'Zoeken en vervangen','outline':'Documentstructuur','find-next':'Volgende resultaat','find-previous':'Vorige resultaat','zoom-in':'Vergroten','zoom-out':'Verkleinen','zoom-reset':'Schaal 100%','shortcuts':'Sneltoetsen'})]
+        groups=[('Documents and navigation',{'new':'New document','open':'Open','save':'Save','save-as':'Save as','duplicate':'Make a copy','new-folder':'New folder','rename':'Rename in sidebar','search-documents':'Search documents','back':'Back','forward':'Forward','print':'Print preview','print-direct':'Print','close':'Close active pane','quit':'Quit app','switch-pane':'Switch pane'}),
+                ('Text and formatting',{'list-bullet':'Bullets','list-number':'Numbered list','list-check':'Checklist','undo':'Undo','redo':'Redo','bold':'Bold','italic':'Italic','underline':'Underline','strike':'Strikethrough','clear':'Clear formatting','link':'Insert/edit link','left':'Align left','center':'Center','right':'Align right','justify':'Justify','palette':'Highlight palette'}),
+                ('Search and appearance',{'focus-mode':'Focus mode','find':'Find','replace':'Find and replace','outline':'Document outline','find-next':'Next result','find-previous':'Previous result','zoom-in':'Zoom in','zoom-out':'Zoom out','zoom-reset':'Zoom 100%','shortcuts':'Keyboard shortcuts'})]
         for title,items in groups:
             box.append(Gtk.Label(label=title,xalign=0,css_classes=['heading']))
             for action,label in items.items():
@@ -197,8 +197,8 @@ class PreferencesMixin:
                 row.append(Gtk.Label(label=label,xalign=0,hexpand=True))
                 row.append(Gtk.ShortcutLabel(accelerator=' '.join(self.shortcut_bindings[action])))
                 box.append(row)
-        box.append(Gtk.Label(label='Tekstvelden en contextuele bediening',xalign=0,css_classes=['heading']))
-        for label,accel in [('Knippen','<Primary>x'),('Kopiëren','<Primary>c'),('Plakken','<Primary>v'),('Alles selecteren','<Primary>a'),('Volgend zoekresultaat / naam bevestigen','Return'),('Vorig zoekresultaat','<Shift>Return'),('Zoeken sluiten / hernoemen annuleren','Escape'),('Contextmenu openen','<Shift>F10')]:
+        box.append(Gtk.Label(label='Text fields and contextual controls',xalign=0,css_classes=['heading']))
+        for label,accel in [('Cut','<Primary>x'),('Copy','<Primary>c'),('Paste','<Primary>v'),('Select all','<Primary>a'),('Next search result / confirm name','Return'),('Previous search result','<Shift>Return'),('Close search / cancel rename','Escape'),('Open context menu','<Shift>F10')]:
             row=Gtk.Box(spacing=16);row.append(Gtk.Label(label=label,xalign=0,hexpand=True));row.append(Gtk.ShortcutLabel(accelerator=accel));box.append(row)
         scroll.set_child(box);toolbar.set_content(scroll);window.set_content(toolbar);window.present()
         return window

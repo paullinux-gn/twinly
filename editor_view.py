@@ -12,7 +12,7 @@ class FontButton(Gtk.Button):
     def _update_label(self,*_):
         desc=self.get_font_desc()
         if desc:
-            label='Lettertype en grootte: '+desc.to_string()
+            label='Font and size: '+desc.to_string()
             self.set_tooltip_text(label)
             self.update_property([Gtk.AccessibleProperty.LABEL],[label])
 

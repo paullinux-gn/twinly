@@ -32,8 +32,8 @@ class CustomStylesMixin:
         section=Gio.Menu()
         for key,(label,_) in PARAGRAPH_STYLES.items():section.append(label,'win.style-'+key)
         self.style_menu.append_section(None,section)
-        self.style_button=Gtk.MenuButton(menu_model=self.style_menu,tooltip_text='Alineastijl')
-        self.style_name_label=Gtk.Label(label='Lopende tekst',width_chars=14,max_width_chars=14,ellipsize=Pango.EllipsizeMode.END)
+        self.style_button=Gtk.MenuButton(menu_model=self.style_menu,tooltip_text='Paragraph style')
+        self.style_name_label=Gtk.Label(label='Body',width_chars=14,max_width_chars=14,ellipsize=Pango.EllipsizeMode.END)
         self.style_modified_label=Gtk.Label(label='',width_chars=1)
         box=Gtk.Box(spacing=2);box.append(self.style_name_label);box.append(self.style_modified_label)
         box.append(Gtk.Image.new_from_icon_name('pan-down-symbolic'))
@@ -53,7 +53,7 @@ class CustomStylesMixin:
             item.set_action_and_target_value('win.apply-custom-style',GLib.Variant('s',identifier))
             custom.append_item(item)
         if custom.get_n_items():self.style_menu.append_section(None,custom)
-        actions=Gio.Menu();actions.append('Stijl maken van selectie…','win.create-style');actions.append('Stijlen beheren…','win.manage-styles')
+        actions=Gio.Menu();actions.append('Create style from selection…','win.create-style');actions.append('Manage styles…','win.manage-styles')
         self.style_menu.append_section(None,actions)
 
     def cursor_style(self):
@@ -97,15 +97,15 @@ class CustomStylesMixin:
         current=self.formatting_definition(style)
         modified=current!=expected or (definition is not None and base!=definition['base'])
         self.style_name_label.set_text(name);self.style_modified_label.set_text('*' if modified else '')
-        description=name+(' · gewijzigd' if modified else '')
-        self.style_button.set_tooltip_text(description+' — Alineastijl kiezen')
+        description=name+(' · modified' if modified else '')
+        self.style_button.set_tooltip_text(description+' — Choose paragraph style')
         self.style_button.update_property([Gtk.AccessibleProperty.LABEL],[description])
 
     def save_custom_style(self,definition):
         definition=validate_custom_style(definition)
         library=self.custom_style_library()
-        if definition['id'] not in library and len(library)>=50:raise ValueError('Er kunnen maximaal 50 eigen stijlen worden bewaard.')
-        if any(d['id']!=definition['id'] and d['name'].casefold()==definition['name'].casefold() for d in library.values()):raise ValueError('Er bestaat al een stijl met die naam.')
+        if definition['id'] not in library and len(library)>=50:raise ValueError('Up to 50 custom styles can be saved.')
+        if any(d['id']!=definition['id'] and d['name'].casefold()==definition['name'].casefold() for d in library.values()):raise ValueError('A style with that name already exists.')
         library[definition['id']]=definition
         owner=self.workspace_owner or self;owner.queue_preferences(custom_styles=list(library.values()))
         for pane in (owner,owner.peer):
@@ -158,13 +158,13 @@ class CustomStylesMixin:
             cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert());selection=(cursor,cursor)
         offsets=tuple(i.get_offset() for i in selection);original=self.snapshot();path=self.path
         owner=self.workspace_owner or self
-        window=Adw.Window(transient_for=owner,modal=True,title='Eigen alineastijl',default_width=440)
+        window=Adw.Window(transient_for=owner,modal=True,title='Custom paragraph style',default_width=440)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12,margin_start=18,margin_end=18,margin_top=12,margin_bottom=18)
         box.append(Adw.HeaderBar())
-        name=Gtk.Entry(text=definition['name'],placeholder_text='Naam van de stijl',max_length=80);box.append(name)
+        name=Gtk.Entry(text=definition['name'],placeholder_text='Style name',max_length=80);box.append(name)
         keys=list(PARAGRAPH_STYLES);based=Gtk.DropDown.new_from_strings([PARAGRAPH_STYLES[k][0] for k in keys]);based.set_selected(keys.index(definition['base']))
-        box.append(Gtk.Label(label='Gebaseerd op (structuur in het document)',xalign=0));box.append(based)
-        chooser=Gtk.FontDialogButton(dialog=Gtk.FontDialog(title='Lettertype en grootte kiezen',modal=True))
+        box.append(Gtk.Label(label='Based on (document structure)',xalign=0));box.append(based)
+        chooser=Gtk.FontDialogButton(dialog=Gtk.FontDialog(title='Choose font and size',modal=True))
         formatting=definition['format']
         # Parse numeric weights natively: newer GI returns an int from get_weight(),
         # while set_weight() requires a registered Pango.Weight enum member.
@@ -184,7 +184,7 @@ class CustomStylesMixin:
             preview.set_attributes(attrs)
         chooser.connect('notify::font-desc',preview_font);preview_font()
         error=Gtk.Label(wrap=True,xalign=0,css_classes=['error']);box.append(error)
-        save=Gtk.Button(label='Stijl bewaren',css_classes=['suggested-action']);box.append(save)
+        save=Gtk.Button(label='Save style',css_classes=['suggested-action']);box.append(save)
         def commit(*_):
             try:
                 chosen=chooser.get_font_desc();formatting=copy.deepcopy(definition['format'])
@@ -202,21 +202,21 @@ class CustomStylesMixin:
 
     def manage_custom_styles(self,*_):
         owner=self.workspace_owner or self
-        window=Adw.Window(transient_for=owner,modal=True,title='Eigen stijlen beheren',default_width=440,default_height=400)
+        window=Adw.Window(transient_for=owner,modal=True,title='Manage custom styles',default_width=440,default_height=400)
         outer=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10);outer.append(Adw.HeaderBar())
-        outer.append(Gtk.Label(label='Wijzigingen worden toegepast wanneer je de stijl opnieuw kiest. Stijlen in bestaande documenten blijven behouden.',wrap=True,margin_start=16,margin_end=16))
+        outer.append(Gtk.Label(label='Changes apply when you choose the style again. Styles in existing documents are preserved.',wrap=True,margin_start=16,margin_end=16))
         rows=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=6,margin_start=16,margin_end=16,margin_bottom=16)
         def refresh():
             while rows.get_first_child():rows.remove(rows.get_first_child())
             library=self.custom_style_library()
-            if not library:rows.append(Gtk.Label(label='Nog geen eigen stijlen.'))
+            if not library:rows.append(Gtk.Label(label='No custom styles yet.'))
             for identifier,definition in sorted(library.items(),key=lambda pair:pair[1]['name'].casefold()):
                 row=Gtk.Box(spacing=6);row.append(Gtk.Label(label=definition['name'],xalign=0,hexpand=True,ellipsize=Pango.EllipsizeMode.END))
-                edit=Gtk.Button(icon_name='document-edit-symbolic',tooltip_text='Stijl bewerken')
+                edit=Gtk.Button(icon_name='document-edit-symbolic',tooltip_text='Edit style')
                 def edit_style(_,d=definition):
                     window.close();self.create_custom_style_dialog(definition=d,after=lambda:self.manage_custom_styles())
                 edit.connect('clicked',edit_style);row.append(edit)
-                remove=Gtk.Button(icon_name='edit-delete-symbolic',tooltip_text='Uit mijn stijlen verwijderen')
+                remove=Gtk.Button(icon_name='edit-delete-symbolic',tooltip_text='Remove from my styles')
                 remove.connect('clicked',lambda _,i=identifier:(self.delete_custom_style(i),refresh()));row.append(remove)
                 rows.append(row)
         refresh();scroll=Gtk.ScrolledWindow(vexpand=True);scroll.set_child(rows);outer.append(scroll);window.set_content(outer);window.present()

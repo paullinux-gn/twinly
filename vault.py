@@ -23,38 +23,38 @@ def crypto():
     try:
         import nacl
         from nacl import bindings,pwhash,utils
-        if tuple(int(x) for x in nacl.__version__.split('.')[:3])<(1,6,2):raise ImportError('PyNaCl 1.6.2 of nieuwer vereist')
+        if tuple(int(x) for x in nacl.__version__.split('.')[:3])<(1,6,2):raise ImportError('PyNaCl 1.6.2 or newer is required')
         return bindings,pwhash,utils
-    except ImportError as exc:raise VaultError('De kluis vereist PyNaCl 1.6.2 of nieuwer. Installeer op Arch: sudo pacman -S python-pynacl') from exc
+    except ImportError as exc:raise VaultError('The vault requires PyNaCl 1.6.2 or newer. Install on Arch: sudo pacman -S python-pynacl') from exc
 
 def identifier(value):
-    if not isinstance(value,str) or not re.fullmatch('[a-f0-9]{32}',value):raise VaultError('Ongeldige kluisidentiteit.')
+    if not isinstance(value,str) or not re.fullmatch('[a-f0-9]{32}',value):raise VaultError('Invalid vault identity.')
     return value
 
 def encoded(value):return base64.b64encode(value).decode('ascii')
 def decoded(value,length):
-    if not isinstance(value,str) or len(value)>256:raise VaultError('Ongeldige kluissleutel.')
+    if not isinstance(value,str) or len(value)>256:raise VaultError('Invalid vault key.')
     try:raw=base64.b64decode(value,validate=True)
-    except (ValueError,TypeError) as exc:raise VaultError('Ongeldige kluissleutel.') from exc
-    if len(raw)!=length:raise VaultError('Ongeldige kluissleutel.')
+    except (ValueError,TypeError) as exc:raise VaultError('Invalid vault key.') from exc
+    if len(raw)!=length:raise VaultError('Invalid vault key.')
     return raw
 
 def pack(value):return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()
 def unpack(raw):
-    try:return json.loads(raw.decode('utf-8'),parse_constant=lambda _:(_ for _ in ()).throw(VaultError('Ongeldige waarde.')))
-    except (ValueError,UnicodeError,RecursionError) as exc:raise VaultError('Beschadigde kluisgegevens.') from exc
+    try:return json.loads(raw.decode('utf-8'),parse_constant=lambda _:(_ for _ in ()).throw(VaultError('Invalid value.')))
+    except (ValueError,UnicodeError,RecursionError) as exc:raise VaultError('Damaged vault data.') from exc
 
 def recovery_text(key):
     text=base64.b32encode(key).decode().rstrip('=')
     return 'TWV1-'+ '-'.join(text[i:i+4] for i in range(0,len(text),4))
 def recovery_bytes(text):
     text=text.strip().upper()
-    if not text.startswith('TWV1-'):raise VaultError('Ongeldige herstelsleutel.')
+    if not text.startswith('TWV1-'):raise VaultError('Invalid recovery key.')
     compact=text[5:].replace('-','').replace(' ','')
-    if len(compact)!=52:raise VaultError('Ongeldige herstelsleutel.')
+    if len(compact)!=52:raise VaultError('Invalid recovery key.')
     try:raw=base64.b32decode(compact+'='*((-len(compact))%8))
-    except ValueError as exc:raise VaultError('Ongeldige herstelsleutel.') from exc
-    if len(raw)!=32:raise VaultError('Ongeldige herstelsleutel.')
+    except ValueError as exc:raise VaultError('Invalid recovery key.') from exc
+    if len(raw)!=32:raise VaultError('Invalid recovery key.')
     return raw
 
 class VaultStore:
@@ -67,7 +67,7 @@ class VaultStore:
             fd=os.open('writer.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW|os.O_CLOEXEC,0o600,dir_fd=parent)
         try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except OSError:
-            os.close(fd);raise VaultError('Deze kluis is al in een ander venster of proces geopend.')
+            os.close(fd);raise VaultError('This vault is already open in another window or process.')
         self.fd=fd
     def _slot_aad(self,kind,params):
         return pack({'version':1,'vault':self.header['id'],'slot':kind,'parameters':params})
@@ -78,17 +78,17 @@ class VaultStore:
     def _unwrap(self,key,kind,params,slot):
         b,_,_=crypto()
         try:return b.crypto_aead_xchacha20poly1305_ietf_decrypt(decoded(slot['ciphertext'],48),self._slot_aad(kind,params),decoded(slot['nonce'],24),key)
-        except Exception as exc:raise VaultError('Ontgrendelen mislukt: onjuiste toegangscode of beschadigde kluis.') from exc
+        except Exception as exc:raise VaultError('Unlock failed: incorrect credentials or damaged vault.') from exc
     def _password_key(self,password,params):
         _,p,_=crypto()
-        if not isinstance(password,str) or len(password.encode())>4096:raise VaultError('Ongeldig wachtwoord.')
-        if not isinstance(params,dict) or params.get('algorithm')!='argon2id13':raise VaultError('Onbekende wachtwoordafleiding.')
+        if not isinstance(password,str) or len(password.encode())>4096:raise VaultError('Invalid password.')
+        if not isinstance(params,dict) or params.get('algorithm')!='argon2id13':raise VaultError('Unknown password derivation.')
         ops=params.get('ops');memory=params.get('memory')
-        if type(ops) is not int or not 1<=ops<=6 or type(memory) is not int or not 8*1024*1024<=memory<=512*1024*1024:raise VaultError('Onveilige of te zware kluisparameters.')
+        if type(ops) is not int or not 1<=ops<=6 or type(memory) is not int or not 8*1024*1024<=memory<=512*1024*1024:raise VaultError('Unsafe or excessive vault parameters.')
         return p.argon2id.kdf(32,password.encode(),decoded(params.get('salt'),16),opslimit=ops,memlimit=memory)
     @classmethod
     def create(cls,path,password):
-        if not isinstance(password,str) or len(password)<12:raise VaultError('Gebruik een wachtwoord van minstens 12 tekens.')
+        if not isinstance(password,str) or len(password)<12:raise VaultError('Use a password of at least 12 characters.')
         path=Path(path).absolute()
         path.mkdir(mode=0o700) # Exclusive: never adopt an existing folder.
         store=cls(path)
@@ -109,7 +109,7 @@ class VaultStore:
     def unlock(self,credential,recovery=False):
         try:
             header=unpack(read_bytes(self.path/'vault.json',16384))
-            if not isinstance(header,dict) or type(header.get('version')) is not int or header.get('version')!=1:raise VaultError('Onbekende kluisversie.')
+            if not isinstance(header,dict) or type(header.get('version')) is not int or header.get('version')!=1:raise VaultError('Unknown vault version.')
             identifier(header.get('id'));self.lease();self.header=header
             if recovery:self.key=self._unwrap(recovery_bytes(credential),'recovery',{},header['recovery_slot'])
             else:
@@ -121,37 +121,37 @@ class VaultStore:
         except BaseException:
             self.close();raise
     def _validate_catalog(self,catalog):
-        if not isinstance(catalog,dict) or type(catalog.get('version')) is not int or catalog.get('version')!=1:raise VaultError('Ongeldige kluiscatalogus.')
-        if type(catalog.get('generation')) is not int or not 0<=catalog['generation']<2**63:raise VaultError('Ongeldige catalogusversie.')
+        if not isinstance(catalog,dict) or type(catalog.get('version')) is not int or catalog.get('version')!=1:raise VaultError('Invalid vault catalog.')
+        if type(catalog.get('generation')) is not int or not 0<=catalog['generation']<2**63:raise VaultError('Invalid catalog version.')
         nodes=catalog.get('nodes');drafts=catalog.get('drafts');settings=catalog.get('settings')
-        if not isinstance(nodes,dict) or len(nodes)>10000 or not isinstance(drafts,dict) or len(drafts)>100 or not isinstance(settings,dict) or len(pack(settings))>1024*1024:raise VaultError('Kluiscatalogus overschrijdt de limieten.')
+        if not isinstance(nodes,dict) or len(nodes)>10000 or not isinstance(drafts,dict) or len(drafts)>100 or not isinstance(settings,dict) or len(pack(settings))>1024*1024:raise VaultError('Vault catalog exceeds the limits.')
         sibling_names=set()
         for key,node in nodes.items():
             identifier(key)
-            if not isinstance(node,dict) or node.get('type') not in ('folder','document'):raise VaultError('Ongeldig kluisitem.')
+            if not isinstance(node,dict) or node.get('type') not in ('folder','document'):raise VaultError('Invalid vault item.')
             self.check_name(node.get('name'))
-            if 'trash' in node and type(node['trash']) is not bool:raise VaultError('Ongeldige prullenbakstatus.')
+            if 'trash' in node and type(node['trash']) is not bool:raise VaultError('Invalid trash status.')
             parent=node.get('parent')
-            if not isinstance(parent,str):raise VaultError('Ongeldige doelmap.')
+            if not isinstance(parent,str):raise VaultError('Invalid destination folder.')
             if not node.get('trash'):
                 token=(parent,node['name'].casefold())
-                if token in sibling_names:raise VaultError('Dubbele naam in de kluis.')
+                if token in sibling_names:raise VaultError('Duplicate name in vault.')
                 sibling_names.add(token)
-            if parent!='root' and (parent not in nodes or nodes[parent].get('type')!='folder'):raise VaultError('Ongeldige bovenliggende map.')
+            if parent!='root' and (parent not in nodes or nodes[parent].get('type')!='folder'):raise VaultError('Invalid parent folder.')
             if node['type']=='document':identifier(node.get('blob'))
         # Validate every node before walking ancestry (including forward references).
         for key,node in nodes.items():
             parent=node['parent'];visited={key}
             while parent!='root':
-                if parent in visited or len(visited)>128:raise VaultError('Cyclische of te diepe mappenstructuur.')
-                if nodes[parent].get('trash') and not node.get('trash'):raise VaultError('Actief item in een verwijderde map.')
+                if parent in visited or len(visited)>128:raise VaultError('Cyclic or excessively deep folder structure.')
+                if nodes[parent].get('trash') and not node.get('trash'):raise VaultError('Active item in a deleted folder.')
                 visited.add(parent);parent=nodes[parent]['parent']
         for key,blob in drafts.items():identifier(key);identifier(blob)
     def aad(self,purpose,document,blob):
         return pack({'version':1,'vault':self.header['id'],'purpose':purpose,'document':document,'blob':blob})
     def encrypt(self,raw,purpose,document,blob):
-        if self.key is None:raise VaultError('Kluis is vergrendeld.')
-        if len(raw)>MAX_DOCUMENT:raise VaultError('Document is te groot.')
+        if self.key is None:raise VaultError('Vault is locked.')
+        if len(raw)>MAX_DOCUMENT:raise VaultError('Document is too large.')
         b,_,_=crypto();state=b.crypto_secretstream_xchacha20poly1305_state()
         header=b.crypto_secretstream_xchacha20poly1305_init_push(state,self.key)
         parts=[MAGIC,header];aad=self.aad(purpose,document,blob)
@@ -161,31 +161,31 @@ class VaultStore:
             parts.extend((struct.pack('>I',len(encrypted)),encrypted))
         return b''.join(parts)
     def decrypt(self,raw,purpose,document,blob,limit=MAX_DOCUMENT):
-        if self.key is None:raise VaultError('Kluis is vergrendeld.')
+        if self.key is None:raise VaultError('Vault is locked.')
         b,_,_=crypto()
         try:
-            if not raw.startswith(MAGIC) or len(raw)<len(MAGIC)+24+4:raise VaultError('Ongeldig versleuteld object.')
+            if not raw.startswith(MAGIC) or len(raw)<len(MAGIC)+24+4:raise VaultError('Invalid encrypted object.')
             state=b.crypto_secretstream_xchacha20poly1305_state();pos=len(MAGIC)
             b.crypto_secretstream_xchacha20poly1305_init_pull(state,raw[pos:pos+24],self.key);pos+=24
             chunks=[];total=0;final=False;aad=self.aad(purpose,document,blob)
             while pos<len(raw):
-                if final or pos+4>len(raw):raise VaultError('Ongeldig einde van versleuteld object.')
+                if final or pos+4>len(raw):raise VaultError('Invalid encrypted object ending.')
                 size=struct.unpack('>I',raw[pos:pos+4])[0];pos+=4
-                if not 17<=size<=CHUNK+17 or pos+size>len(raw):raise VaultError('Ongeldige objectlengte.')
+                if not 17<=size<=CHUNK+17 or pos+size>len(raw):raise VaultError('Invalid object length.')
                 plain,tag=b.crypto_secretstream_xchacha20poly1305_pull(state,raw[pos:pos+size],aad);pos+=size
-                if tag not in (0,b.crypto_secretstream_xchacha20poly1305_TAG_FINAL):raise VaultError('Onbekend objecttype.')
+                if tag not in (0,b.crypto_secretstream_xchacha20poly1305_TAG_FINAL):raise VaultError('Unknown object type.')
                 total+=len(plain)
-                if total>limit:raise VaultError('Object overschrijdt de limiet.')
+                if total>limit:raise VaultError('Object exceeds the limit.')
                 chunks.append(plain);final=tag==b.crypto_secretstream_xchacha20poly1305_TAG_FINAL
-            if not final:raise VaultError('Onvolledig versleuteld object.')
+            if not final:raise VaultError('Incomplete encrypted object.')
             return b''.join(chunks)
         except VaultError:raise
-        except Exception as exc:raise VaultError('Authenticatie van kluisgegevens mislukt.') from exc
+        except Exception as exc:raise VaultError('Vault data authentication failed.') from exc
     def commit(self,candidate=None):
         candidate=copy.deepcopy(candidate if candidate is not None else self.catalog)
         candidate['generation']+=1;self._validate_catalog(candidate)
         raw=pack(candidate)
-        if len(raw)>MAX_CATALOG:raise VaultError('Kluiscatalogus is te groot.')
+        if len(raw)>MAX_CATALOG:raise VaultError('Vault catalog is too large.')
         previous=self.references(self.catalog) if self.catalog else set()
         atomic_write(self.path/'catalog.bin',self.encrypt(raw,'catalog','root','root'),private=True)
         self.catalog=candidate
@@ -218,7 +218,7 @@ class VaultStore:
         return self.decrypt(read_bytes(self.path/'objects'/(blob+'.bin'),MAX_DOCUMENT+65536),purpose,document,blob)
     @staticmethod
     def check_name(name):
-        if not isinstance(name,str) or not name.strip() or len(name)>200 or name in ('.','..') or any(c in '/\\' or ord(c)<32 for c in name):raise VaultError('Ongeldige naam.')
+        if not isinstance(name,str) or not name.strip() or len(name)>200 or name in ('.','..') or any(c in '/\\' or ord(c)<32 for c in name):raise VaultError('Invalid name.')
         return name.strip()
     def unique_name(self,parent,base,suffix=''):
         names={n['name'].casefold() for n in self.catalog['nodes'].values() if n['parent']==parent and not n.get('trash')}
@@ -229,19 +229,19 @@ class VaultStore:
             i+=1
     def add(self,name,parent='root',folder=False,document=None,identity=None):
         name=self.check_name(name);identity=identifier(identity) if identity else uuid.uuid4().hex
-        if identity in self.catalog['nodes']:raise VaultError('Dit item bestaat al.')
-        if parent!='root' and (parent not in self.catalog['nodes'] or self.catalog['nodes'][parent]['type']!='folder' or self.catalog['nodes'][parent].get('trash')):raise VaultError('Ongeldige doelmap.')
-        if any(n['parent']==parent and n['name'].casefold()==name.casefold() and not n.get('trash') for n in self.catalog['nodes'].values()):raise VaultError('Die naam bestaat al.')
+        if identity in self.catalog['nodes']:raise VaultError('This item already exists.')
+        if parent!='root' and (parent not in self.catalog['nodes'] or self.catalog['nodes'][parent]['type']!='folder' or self.catalog['nodes'][parent].get('trash')):raise VaultError('Invalid destination folder.')
+        if any(n['parent']==parent and n['name'].casefold()==name.casefold() and not n.get('trash') for n in self.catalog['nodes'].values()):raise VaultError('That name already exists.')
         candidate=copy.deepcopy(self.catalog);node={'type':'folder' if folder else 'document','name':name,'parent':parent}
         if not folder:node['blob']=self._object(to_html(document or blank(),name).encode(),'document',identity)
         candidate['nodes'][identity]=node;candidate['drafts'].pop(identity,None);self.commit(candidate);return identity
     def load(self,identity):
         identifier(identity);node=self.catalog['nodes'][identity]
-        if node['type']!='document':raise VaultError('Dit is geen document.')
+        if node['type']!='document':raise VaultError('This is not a document.')
         doc,_=from_html(self._load(node['blob'],'document',identity).decode());return doc
     def save(self,identity,doc):
         identifier(identity);node=self.catalog['nodes'][identity]
-        if node['type']!='document' or node.get('trash'):raise VaultError('Dit is geen actief document.')
+        if node['type']!='document' or node.get('trash'):raise VaultError('This is not an active document.')
         candidate=copy.deepcopy(self.catalog)
         candidate['nodes'][identity]['blob']=self._object(to_html(doc,node['name']).encode(),'document',identity)
         candidate['drafts'].pop(identity,None);self.commit(candidate)
@@ -251,16 +251,16 @@ class VaultStore:
         self.commit(candidate)
     def load_draft(self,identity):
         value=unpack(self._load(self.catalog['drafts'][identity],'recovery',identity))
-        if not isinstance(value,dict):raise VaultError('Ongeldige herstelkopie.')
-        return validate_document(value['document']),str(value.get('title','Nieuw document'))[:200]
+        if not isinstance(value,dict):raise VaultError('Invalid recovery draft.')
+        return validate_document(value['document']),str(value.get('title','New document'))[:200]
     def remove_draft(self,identity):
         if identity not in self.catalog['drafts']:return
         candidate=copy.deepcopy(self.catalog);candidate['drafts'].pop(identity);self.commit(candidate)
     def rename_move(self,identity,name,parent=None):
         candidate=copy.deepcopy(self.catalog);node=candidate['nodes'][identity];name=self.check_name(name)
         target=node['parent'] if parent is None else parent
-        if any(key!=identity and n['parent']==target and n['name'].casefold()==name.casefold() and not n.get('trash') for key,n in candidate['nodes'].items()):raise VaultError('Die naam bestaat al.')
-        if target!='root' and (target not in candidate['nodes'] or candidate['nodes'][target]['type']!='folder' or candidate['nodes'][target].get('trash')):raise VaultError('Ongeldige doelmap.')
+        if any(key!=identity and n['parent']==target and n['name'].casefold()==name.casefold() and not n.get('trash') for key,n in candidate['nodes'].items()):raise VaultError('That name already exists.')
+        if target!='root' and (target not in candidate['nodes'] or candidate['nodes'][target]['type']!='folder' or candidate['nodes'][target].get('trash')):raise VaultError('Invalid destination folder.')
         node.update(name=name,parent=target);self.commit(candidate)
     def descendants(self,identity):
         result={identity}
@@ -268,7 +268,7 @@ class VaultStore:
             following={key for key,node in self.catalog['nodes'].items() if node['parent'] in result}
             if following<=result:return result
             result.update(following)
-        raise VaultError('Mappenstructuur is te diep.')
+        raise VaultError('Folder structure is too deep.')
     def trash(self,identity,restore=False):
         candidate=copy.deepcopy(self.catalog)
         if restore:
@@ -286,7 +286,7 @@ class VaultStore:
     def settings(self,updates):
         candidate=copy.deepcopy(self.catalog);candidate['settings'].update(updates);self.commit(candidate)
     def change_password(self,password):
-        if len(password)<12:raise VaultError('Gebruik minstens 12 tekens.')
+        if len(password)<12:raise VaultError('Use at least 12 characters.')
         _,_,u=crypto();params={'algorithm':'argon2id13','salt':encoded(u.random(16)),'ops':DEFAULT_OPS,'memory':DEFAULT_MEMORY}
         slot=self._wrap(self._password_key(password,params),'password',params)
         header={**self.header,'password_parameters':params,'password_slot':slot}

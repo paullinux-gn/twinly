@@ -37,16 +37,16 @@ class Sidebar(CallbackOwner,Gtk.Box):
         self.header.set_title_widget(Gtk.Label(label='Twinly',css_classes=['heading']))
         menu=Gio.Menu()
         for entries in [
-            [('Nieuw document','new'),('Nieuwe map','new-folder')],
-            [('Hoofdmap kiezen…','root'),('Nieuwe hoofdmap…','new-root')],
+            [('New document','new'),('New folder','new-folder')],
+            [('Choose library…','root'),('New library…','new-root')],
             [('Vault','vaults')],
-            [('Documenten herstellen…','recover'),('Voorkeuren…','preferences'),('Sneltoetsen','shortcuts'),('Over Twinly','about')],
-            [('Afsluiten','quit')],
+            [('Recover documents…','recover'),('Preferences…','preferences'),('Keyboard shortcuts','shortcuts'),('About Twinly','about')],
+            [('Quit','quit')],
         ]:
             section=Gio.Menu()
             for label,action in entries:section.append(label,'win.'+action)
             menu.append_section(None,section)
-        self.menu_button=Gtk.MenuButton(menu_model=menu,tooltip_text='Hoofdmenu')
+        self.menu_button=Gtk.MenuButton(menu_model=menu,tooltip_text='Main menu')
         self.menu_button.add_css_class('sidebar-menu')
         self.menu_button.set_child(Gtk.Image.new_from_icon_name('open-menu-symbolic'))
         self.header.pack_end(self.menu_button)
@@ -84,8 +84,8 @@ class Sidebar(CallbackOwner,Gtk.Box):
         bottom=Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         bottom.append(Gtk.Separator())
         icons=Gtk.Box(spacing=8,homogeneous=True,margin_start=12,margin_end=12,margin_top=8,margin_bottom=8)
-        self.search_button=Gtk.Button(icon_name='system-search-symbolic',action_name='win.search-documents',tooltip_text='Documenten zoeken',css_classes=['flat'])
-        self.trash_button=Gtk.Button(icon_name='user-trash-symbolic',action_name='win.show-trash',tooltip_text='Prullenbak',css_classes=['flat'])
+        self.search_button=Gtk.Button(icon_name='system-search-symbolic',action_name='win.search-documents',tooltip_text='Search documents',css_classes=['flat'])
+        self.trash_button=Gtk.Button(icon_name='user-trash-symbolic',action_name='win.show-trash',tooltip_text='Trash',css_classes=['flat'])
         self.vault_button=Gtk.Button(icon_name='changes-prevent-symbolic',action_name='win.vaults',tooltip_text='Vault',css_classes=['flat'])
         for button in (self.search_button,self.trash_button,self.vault_button):icons.append(button)
         bottom.append(icons)
@@ -249,11 +249,11 @@ class Sidebar(CallbackOwner,Gtk.Box):
         menu=Gio.Menu()
         group=Gio.SimpleActionGroup()
         document=path is not None and not path.is_dir()
-        entries=[] if document else [('Nieuwe map','new-folder'),('Nieuw document','new')]
+        entries=[] if document else [('New folder','new-folder'),('New document','new')]
         if path is not None:
-            entries += [('Hernoemen…','rename'),('Verplaatsen naar…','move'),('Naar prullenbak…','trash')]
-        if document:entries += [('Naast huidig document openen','open-beside'),('Kopie maken','duplicate'),('Afdrukvoorbeeld…','preview'),('Afdrukken…','print-document')]
-        else:entries.append(('Hoofdmap kiezen…','root'))
+            entries += [('Rename…','rename'),('Move to…','move'),('Move to trash…','trash')]
+        if document:entries += [('Open beside current document','open-beside'),('Make a copy','duplicate'),('Print preview…','preview'),('Print…','print-document')]
+        else:entries.append(('Choose library…','root'))
         for label,name in entries:
             action=Gio.SimpleAction.new(name,None)
             def activate(action,param,key=name):
@@ -406,8 +406,8 @@ class Sidebar(CallbackOwner,Gtk.Box):
                     monitor.connect('changed',self.disk_changed)
                 monitors.append(monitor)
                 if len(monitors)>=2000:
-                    self.owner.message('Deze preview bewaakt maximaal 2000 mappen.');break
-        except GLib.Error as exc:self.owner.message('Mapbewaking mislukt: '+str(exc))
+                    self.owner.message('This preview monitors up to 2000 folders.');break
+        except GLib.Error as exc:self.owner.message('Folder monitoring failed: '+str(exc))
         for monitor in previous.values():monitor.cancel()
         self.monitors=monitors;self.monitor_paths=folders;self.known_files=files_known
 
@@ -443,7 +443,7 @@ class Sidebar(CallbackOwner,Gtk.Box):
 
     def perform_move(self,src,dest):
         try:
-            if vault_container(dest.parent):raise ValueError('Verplaats gewone bestanden niet naar een kluis; gebruik Importeren in de kluis.')
+            if vault_container(dest.parent):raise ValueError('Do not move ordinary files into a vault; use Import inside the vault.')
             expanded=self.expanded()
             move_path(src,dest,self.root)
             self.owner.path_moved(src,dest)

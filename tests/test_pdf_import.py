@@ -38,13 +38,13 @@ class PDFImport(unittest.TestCase):
         self.assertIn('Café & text',doc['text']);self.assertIn('Second page',doc['text'])
         self.assertFalse(doc['images']);self.assertFalse(doc['spans']);self.assertFalse(warnings)
     def test_no_text_layer_is_rejected_without_ocr(self):
-        with self.assertRaisesRegex(ValueError,'geen selecteerbare tekst'):
+        with self.assertRaisesRegex(ValueError,'no selectable text'):
             self.run_import(pdf_bytes([None,None]))
     def test_mixed_pdf_reports_pages_without_text(self):
         doc,warnings=self.run_import(pdf_bytes(['Readable',None]))
-        self.assertEqual('Readable',doc['text']);self.assertEqual(1,len(warnings));self.assertIn('1 van de 2',warnings[0])
+        self.assertEqual('Readable',doc['text']);self.assertEqual(1,len(warnings));self.assertIn('1 of the 2',warnings[0])
     def test_encrypted_and_malformed_documents_rejected(self):
-        with self.assertRaisesRegex(ValueError,'Beveiligde PDF'):self.run_import(pdf_bytes(['Secret'],'password'))
+        with self.assertRaisesRegex(ValueError,'Encrypted PDF'):self.run_import(pdf_bytes(['Secret'],'password'))
         for raw in (b'not a PDF',b'%PDF-1.7\nbroken'):
             with self.assertRaises(ValueError):self.run_import(raw)
     def test_page_and_text_limits(self):
@@ -57,7 +57,7 @@ class PDFImport(unittest.TestCase):
             with patch('pdf_import.subprocess.Popen') as factory:
                 process=factory.return_value
                 process.communicate.side_effect=[subprocess.TimeoutExpired('worker',1),(None,None)]
-                with self.assertRaisesRegex(ValueError,'duurde te lang'):import_pdf(path)
+                with self.assertRaisesRegex(ValueError,'took too long'):import_pdf(path)
                 process.kill.assert_called_once()
     def test_staged_install_contains_worker_and_bundled_pdf_library(self):
         import importlib.util

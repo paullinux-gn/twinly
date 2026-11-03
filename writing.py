@@ -25,7 +25,7 @@ class RecoveryDraft:
         fcntl.flock(self.fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
     def write(self,doc,title):
         data=json.dumps({'version':1,'title':title[:200],'document':validate_document(doc)},ensure_ascii=False,allow_nan=False)
-        if len(data.encode())>MAX_DOCUMENT:raise ValueError('Hersteldocument is te groot.')
+        if len(data.encode())>MAX_DOCUMENT:raise ValueError('Recovery document is too large.')
         atomic_write(self.path,data,private=True)
     def clear(self):
         self.path.unlink(missing_ok=True)
@@ -36,14 +36,14 @@ class RecoveryDraft:
     @staticmethod
     def read(path):
         path=Path(path)
-        if not re.fullmatch(r'[a-f0-9]{32}\.json',path.name):raise ValueError('Ongeldig hersteldocument.')
+        if not re.fullmatch(r'[a-f0-9]{32}\.json',path.name):raise ValueError('Invalid recovery document.')
         fd=os.open(path.with_suffix('.lock'),os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
         try:
             fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
             data=json.loads(read_text(path,MAX_DOCUMENT))
-            if not isinstance(data,dict) or data.get('version')!=1:raise ValueError('Onbekend herstelbestand.')
-            title=data.get('title','Nieuw document')
-            return (title[:200] if isinstance(title,str) else 'Nieuw document'),validate_document(data['document'])
+            if not isinstance(data,dict) or data.get('version')!=1:raise ValueError('Unknown recovery file.')
+            title=data.get('title','New document')
+            return (title[:200] if isinstance(title,str) else 'New document'),validate_document(data['document'])
         finally:os.close(fd)
     @staticmethod
     def available(directory):
@@ -61,17 +61,17 @@ class WritingMixin:
         self.recovery_pending=0;self.recovery_draft=None
         self.recovery_notice_shown=False
         self.outline_popover=Gtk.Popover(has_arrow=False)
-        self.outline_button=Gtk.MenuButton(icon_name='view-list-symbolic',tooltip_text='Documentstructuur · Ctrl+Shift+L',popover=self.outline_popover)
+        self.outline_button=Gtk.MenuButton(icon_name='view-list-symbolic',tooltip_text='Document outline · Ctrl+Shift+L',popover=self.outline_popover)
         self.document_header.pack_end(self.outline_button)
         self.outline_popover.connect('show',lambda _:self.refresh_outline())
-        self.replace_entry=Gtk.Entry(placeholder_text='Vervangen door…',hexpand=True)
+        self.replace_entry=Gtk.Entry(placeholder_text='Replace with…',hexpand=True)
         self.replace_entry.connect('activate',lambda *_:self.replace_matches(False))
         self.replace_row=Gtk.Box(spacing=6,visible=False)
         self.replace_row.append(self.replace_entry)
-        for label,all_matches in [('Vervangen',False),('Alles vervangen',True)]:
+        for label,all_matches in [('Replace',False),('Replace all',True)]:
             button=Gtk.Button(label=label);button.connect('clicked',lambda _,a=all_matches:self.replace_matches(a));self.replace_row.append(button)
-        self.search_case=Gtk.CheckButton(label='Hoofdlettergevoelig')
-        self.search_words=Gtk.CheckButton(label='Hele woorden')
+        self.search_case=Gtk.CheckButton(label='Case sensitive')
+        self.search_words=Gtk.CheckButton(label='Whole words')
         for control in (self.search_case,self.search_words):control.connect('toggled',self.refresh_search)
         options=Gtk.Box(spacing=12);options.append(self.search_case);options.append(self.search_words)
         self.replace_row.append(options)
@@ -79,7 +79,7 @@ class WritingMixin:
         search_layout=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=6)
         search_layout.append(search_box);search_layout.append(self.replace_row)
         self.search_bar.set_child(search_layout)
-        toggle=Gtk.ToggleButton(icon_name='edit-find-replace-symbolic',tooltip_text='Zoeken en vervangen · Ctrl+H')
+        toggle=Gtk.ToggleButton(icon_name='edit-find-replace-symbolic',tooltip_text='Find and replace · Ctrl+H')
         toggle.connect('toggled',lambda b:self.replace_row.set_visible(b.get_active()))
         search_box.append(toggle);self.replace_toggle=toggle
         if not self.workspace_owner:self.defer(self.check_recovery)
@@ -138,7 +138,7 @@ class WritingMixin:
         owner=self.workspace_owner or self;pane=owner.active_editor
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=3,margin_start=8,margin_end=8,margin_top=8,margin_bottom=8)
         items=pane.outline_items()
-        if not items:box.append(Gtk.Label(label='Gebruik kopstijlen om een structuur te maken.',wrap=True,margin_start=8,margin_end=8))
+        if not items:box.append(Gtk.Label(label='Use heading styles to create an outline.',wrap=True,margin_start=8,margin_end=8))
         for offset,title,style in items:
             label=Gtk.Label(label=title,xalign=0,ellipsize=Pango.EllipsizeMode.END,max_width_chars=32)
             label.set_margin_start({'title':0,'h1':0,'h2':12,'h3':24}[style])
@@ -172,7 +172,7 @@ class WritingMixin:
         current=self.buffer.get_slice(*self.buffer.get_bounds(),True)
         projected=len(current.encode())+sum(len(replacement.encode())-len(current[a:b].encode()) for a,b in matches)
         if projected>MAX_TEXT:
-            self.error('Het vervangen zou het document te groot maken.');return
+            self.error('The replacement would make the document too large.');return
         self.capture();self.loading=True;self.buffer.begin_user_action()
         try:
             for start,end in reversed(matches):
@@ -199,10 +199,10 @@ class WritingMixin:
         try:
             if self.dirty():
                 if self.recovery_draft is None:self.recovery_draft=RecoveryDraft(self.config.parent/'recovery')
-                self.recovery_draft.write(self.snapshot(),self.path.name if self.path else 'Nieuw document')
+                self.recovery_draft.write(self.snapshot(),self.path.name if self.path else 'New document')
             elif self.recovery_draft:self.recovery_draft.clear()
         except (OSError,ValueError) as exc:
-            logging.getLogger('twinly').warning('Herstelkopie opslaan mislukt: %s',exc)
+            logging.getLogger('twinly').warning('Failed to save recovery draft: %s',exc)
         return False
 
     def clear_recovery(self):
@@ -210,14 +210,14 @@ class WritingMixin:
         self.recovery_pending=0
         if getattr(self,'recovery_draft',None):
             try:self.recovery_draft.close()
-            except OSError as exc:logging.getLogger('twinly').warning('Herstelkopie opruimen mislukt: %s',exc)
+            except OSError as exc:logging.getLogger('twinly').warning('Failed to clean up recovery draft: %s',exc)
             self.recovery_draft=None
 
     def check_recovery(self):
         if self.closed:return False
         available=bool(RecoveryDraft.available(self.config.parent/'recovery'))
         if available and not self.recovery_notice_shown:
-            toast=Adw.Toast(title='Niet-opgeslagen documenten beschikbaar voor herstel',button_label='Herstellen…',timeout=0)
+            toast=Adw.Toast(title='Unsaved documents available for recovery',button_label='Recover…',timeout=0)
             toast.connect('button-clicked',self.show_recovery)
             self.toast_overlay.add_toast(toast)
         self.recovery_notice_shown=available
@@ -226,11 +226,11 @@ class WritingMixin:
     def show_recovery(self,*_):
         owner=self.workspace_owner or self
         entries=RecoveryDraft.available(owner.config.parent/'recovery')
-        window=Adw.Window(transient_for=owner,modal=True,title='Documenten herstellen',default_width=440,default_height=360)
+        window=Adw.Window(transient_for=owner,modal=True,title='Recover documents',default_width=440,default_height=360)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8,margin_start=16,margin_end=16,margin_top=16,margin_bottom=16)
         header=Adw.HeaderBar();box.append(header)
-        if not entries:box.append(Gtk.Label(label='Geen herstelkopieën beschikbaar.',wrap=True))
-        else:box.append(Gtk.Label(label='Herstel als nieuw document. Het oorspronkelijke bestand wordt niet overschreven.',wrap=True))
+        if not entries:box.append(Gtk.Label(label='No recovery drafts available.',wrap=True))
+        else:box.append(Gtk.Label(label='Recover as a new document. The original file will not be overwritten.',wrap=True))
         for path,title in entries:
             button=Gtk.Button(label=title)
             button.connect('clicked',lambda _,p=path:self.recover_document(p,window));box.append(button)
@@ -245,7 +245,7 @@ class WritingMixin:
                 for image in doc['images']:pixbuf_for(image['src'])
                 pane.clear_recovery();pane.path=None;pane.saved_stamp=None
                 pane.restore(doc,reset=True);pane.set_editing(True);pane.saved_doc=blank();pane.capture();pane.flush_recovery()
-                if pane.recovery_draft is None or not pane.recovery_draft.path.exists():raise OSError('Herstelkopie kon niet veilig worden overgenomen.')
+                if pane.recovery_draft is None or not pane.recovery_draft.path.exists():raise OSError('Could not safely transfer the recovery draft.')
                 Path(path).unlink();Path(path).with_suffix('.lock').unlink(missing_ok=True)
                 if window:window.close()
                 owner.check_recovery()

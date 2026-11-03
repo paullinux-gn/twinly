@@ -61,9 +61,9 @@ class Editing(unittest.TestCase):
         while child:
             if isinstance(child,Gtk.Button):labels[child.get_label()]=child
             child=child.get_next_sibling()
-        self.assertTrue(labels['Kopiëren    Ctrl+C'].is_sensitive())
-        self.assertFalse(labels['Knippen    Ctrl+X'].is_sensitive())
-        self.assertFalse(labels['Plakken    Ctrl+V'].is_sensitive())
+        self.assertTrue(labels['Copy    Ctrl+C'].is_sensitive())
+        self.assertFalse(labels['Cut    Ctrl+X'].is_sensitive())
+        self.assertFalse(labels['Paste    Ctrl+V'].is_sensitive())
         pop.popdown()
 
     def test_checkmark_saves_and_reopening_requires_pencil(self):

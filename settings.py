@@ -14,7 +14,7 @@ def finite_number(value,default,low,high):
 
 def read_settings(path):
     try:
-        def reject(value):raise ValueError('Niet-eindig getal in voorkeuren: '+value)
+        def reject(value):raise ValueError('Non-finite number in preferences: '+value)
         result=json.loads(read_text(path,1024*1024),parse_constant=reject)
         return result if isinstance(result,dict) else {}
     except (OSError,ValueError,UnicodeError):return {}

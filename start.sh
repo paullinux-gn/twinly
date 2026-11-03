@@ -13,8 +13,8 @@ try:
     assert (Gtk.get_major_version(),Gtk.get_minor_version()) >= (4,12)
     assert (Adw.get_major_version(),Adw.get_minor_version()) >= (1,4)
 except (ImportError,ValueError,AssertionError) as exc:
-    print('Twinly mist een afhankelijkheid of vereist GTK ≥ 4.12 en libadwaita ≥ 1.4.')
-    print('Installeer op Arch Linux:')
+    print('Twinly is missing a dependency or requires GTK ≥ 4.12 and libadwaita ≥ 1.4.')
+    print('Install on Arch Linux:')
     print('  sudo pacman -S python python-gobject python-cairo gtk4 libadwaita')
     sys.exit(1)
 PY

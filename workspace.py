@@ -81,7 +81,7 @@ class WorkspaceMixin:
             self.outer_view.queue_draw()
 
     def choose_beside(self):
-        self.file_chooser('Document hiernaast openen',Gtk.FileChooserAction.OPEN,
+        self.file_chooser('Open document beside',Gtk.FileChooserAction.OPEN,
                           (self.workspace_owner or self).open_beside,folder=self.sidebar.root)
 
     def open_beside(self,path):
@@ -144,9 +144,9 @@ class WorkspaceMixin:
         for editor in (owner,owner.peer):
             if editor and editor.path and editor.path.resolve()==path:
                 owner.activate_pane(editor);editor.view.grab_focus()
-                owner.ask('Dit document staat al open',
-                          'Het geopende document heeft de focus gekregen. Kies een ander document om ernaast te openen.',
-                          [('cancel','Sluiten')],lambda _:None)
+                owner.ask('This document is already open',
+                          'The open document has been focused. Choose another document to open beside it.',
+                          [('cancel','Close')],lambda _:None)
                 return
         if not owner.peer:owner.open_beside(path)
         else:
@@ -204,9 +204,9 @@ class WorkspaceMixin:
         rectangle=Gdk.Rectangle();rectangle.x=int(x);rectangle.y=int(y)+8
         rectangle.width=1;rectangle.height=1;pop.set_pointing_to(rectangle)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        items=[('Hernoemen',self.start_title_edit),
-               ('Referentie losmaken' if self.pinned else 'Vastzetten als referentie',self.toggle_pin)]
-        if owner.peer:items += [('Deelvensters verwisselen',owner.swap_panes),('Deelvenster sluiten',lambda:owner.close_pane(self))]
+        items=[('Rename',self.start_title_edit),
+               ('Unpin reference' if self.pinned else 'Pin as reference',self.toggle_pin)]
+        if owner.peer:items += [('Swap panes',owner.swap_panes),('Close pane',lambda:owner.close_pane(self))]
         for label,callback in items:
             button=Gtk.Button(label=label,css_classes=['flat'])
             button.get_child().set_xalign(0)
@@ -300,7 +300,7 @@ class WorkspaceMixin:
             owner.open_beside(path);return
         available=[editor for editor in editors if not editor.pinned]
         if not available:
-            owner.error('Beide documenten zijn vastgezet. Maak eerst één deelvenster los.');return
+            owner.error('Both documents are pinned. Unpin a pane first.');return
         target=owner.active_editor if owner.active_editor in available else available[0]
         if len(editors)==1 and owner.pinned:owner.open_beside(path)
         else:target.open_path(path)

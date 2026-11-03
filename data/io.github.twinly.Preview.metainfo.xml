@@ -13,7 +13,7 @@
    <li>Import ODT, Word and PDF text, preview printing and export PDF, ODT and Word files</li>
    <li>Start with an editable English guide and an embedded sample photo</li>
   </ul>
-  <p>The current interface is in Dutch. The Getting Started document is in English. Blur depends on the runtime and compositor.</p>
+  <p>The interface and Getting Started document are in English. Blur depends on the runtime and compositor.</p>
  </description>
  <launchable type="desktop-id">io.github.twinly.Preview.desktop</launchable>
  <provides><binary>twinly</binary><mediatype>text/html</mediatype></provides>

@@ -21,7 +21,7 @@ class VaultRef:
     proposed_name:str|None=None
     proposed_parent:str|None=None
     @property
-    def node(self):return self.store.catalog['nodes'][self.identity] if self.identity!='root' else {'name':'Kluis','type':'folder','parent':'root'}
+    def node(self):return self.store.catalog['nodes'][self.identity] if self.identity!='root' else {'name':'Vault','type':'folder','parent':'root'}
     @property
     def name(self):return self.proposed_name or self.node['name']
     @property
@@ -37,7 +37,7 @@ class VaultRef:
             result.append(parent)
             if parent.identity=='root':return tuple(result)
             parent=parent.parent
-        raise VaultError('Mappenstructuur is te diep.')
+        raise VaultError('Folder structure is too deep.')
     def is_dir(self):return self.node['type']=='folder'
     def is_file(self):return self.node['type']=='document'
     def is_symlink(self):return False
@@ -53,11 +53,11 @@ class VaultSidebar(Sidebar):
     def __init__(self,owner,root):
         self.store=owner.vault_store
         super().__init__(owner,root)
-        self.header.set_title_widget(Gtk.Label(label='Kluis',css_classes=['heading']))
+        self.header.set_title_widget(Gtk.Label(label='Vault',css_classes=['heading']))
         self.vault_button.set_visible(False)
-        self.root_label.set_text('Versleutelde documenten');self.root_label.set_tooltip_text('Versleutelde kluis')
+        self.root_label.set_text('Encrypted documents');self.root_label.set_tooltip_text('Encrypted vault')
         menu=Gio.Menu()
-        for label,action in [('Nieuw document','new'),('Nieuwe map','new-folder'),('Documenten herstellen…','recover'),('Wachtwoord wijzigen…','vault-password'),('Automatisch vergrendelen…','vault-idle'),('Kluis vergrendelen','vault-lock'),('Voorkeuren…','preferences'),('Afsluiten en vergrendelen','quit')]:menu.append(label,'win.'+action)
+        for label,action in [('New document','new'),('New folder','new-folder'),('Recover documents…','recover'),('Change password…','vault-password'),('Auto-lock…','vault-idle'),('Lock vault','vault-lock'),('Preferences…','preferences'),('Quit and lock','quit')]:menu.append(label,'win.'+action)
         self.menu_button.set_menu_model(menu)
     def entries(self,folder):
         parent=folder.identity if isinstance(folder,VaultRef) else 'root';result=Gio.ListStore.new(VaultNode)
@@ -87,9 +87,9 @@ class VaultSidebar(Sidebar):
         ref=path if isinstance(path,VaultRef) else VaultRef(self.store,'root')
         pop=Gtk.PopoverMenu();menu=Gio.Menu();actions=Gio.SimpleActionGroup()
         entries=[]
-        if ref.is_dir():entries=[('Nieuw document',lambda:self.owner.active_editor.new(folder=ref)),('Nieuwe map',lambda:self.owner.active_editor.new_folder(folder=ref))]
-        else:entries=[('Openen',lambda:self.owner.active_editor.open_path(ref)),('Hiernaast openen',lambda:self.owner.open_beside(ref)),('Kopie maken',lambda:self.owner.active_editor.duplicate_document(path=ref))]
-        if ref.identity!='root':entries += [('Hernoemen',lambda:(self.select_path(ref),self.owner.rename())),('Verplaatsen…',lambda:(self.select_path(ref),self.owner.move())),('Naar prullenbak',lambda:(self.select_path(ref),self.owner.trash()))]
+        if ref.is_dir():entries=[('New document',lambda:self.owner.active_editor.new(folder=ref)),('New folder',lambda:self.owner.active_editor.new_folder(folder=ref))]
+        else:entries=[('Open',lambda:self.owner.active_editor.open_path(ref)),('Open beside',lambda:self.owner.open_beside(ref)),('Make a copy',lambda:self.owner.active_editor.duplicate_document(path=ref))]
+        if ref.identity!='root':entries += [('Rename',lambda:(self.select_path(ref),self.owner.rename())),('Move…',lambda:(self.select_path(ref),self.owner.move())),('Move to trash',lambda:(self.select_path(ref),self.owner.trash()))]
         for i,(label,callback) in enumerate(entries):
             action=Gio.SimpleAction.new('item'+str(i),None)
             action.connect('activate',lambda *_,f=callback:(pop.popdown(),self.defer(f)))
@@ -137,7 +137,7 @@ class VaultEditing:
         return self.vault_store.path
     def make_sidebar(self,root):return VaultSidebar(self,root)
     def document_reference(self,path):
-        if not isinstance(path,VaultRef) or path.store is not self.vault_store:raise VaultError('Dit bestand hoort niet bij deze kluis. Gebruik HTML importeren voor een versleutelde kopie.')
+        if not isinstance(path,VaultRef) or path.store is not self.vault_store:raise VaultError('This file does not belong to this vault. Use Import HTML to create an encrypted copy.')
         return path
     def make_editor_pane(self):return VaultPane(self.get_application(),self.vault_store,self.vault_config,self)
     def finish_close_pane(self,editor):
@@ -188,17 +188,17 @@ class VaultEditing:
         self.recovery_pending=0
         if self.closed or self.loading or self.vault_store.key is None:return False
         if self.dirty():
-            try:self.vault_store.draft(self.vault_draft_id,self.snapshot(),self.path.name if self.path else 'Nieuw document')
-            except (OSError,ValueError) as exc:self.save_problem='Opslaan mislukt';self.update_title();self.message('Versleutelde herstelkopie opslaan mislukt: '+str(exc))
+            try:self.vault_store.draft(self.vault_draft_id,self.snapshot(),self.path.name if self.path else 'New document')
+            except (OSError,ValueError) as exc:self.save_problem='Save failed';self.update_title();self.message('Failed to save encrypted recovery draft: '+str(exc))
         return False
     def check_recovery(self):
         if not self.workspace_owner and self.vault_store.catalog and self.vault_store.catalog['drafts']:
-            toast=Adw.Toast(title='Versleutelde herstelkopieën beschikbaar',button_label='Herstellen…',timeout=0)
+            toast=Adw.Toast(title='Encrypted recovery drafts available',button_label='Recover…',timeout=0)
             toast.connect('button-clicked',self.show_recovery);self.toast_overlay.add_toast(toast)
         return False
     def show_recovery(self,*_):
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
-        window=Adw.Window(transient_for=self.workspace_owner or self,modal=True,title='Versleutelde documenten herstellen',default_width=420,default_height=320)
+        window=Adw.Window(transient_for=self.workspace_owner or self,modal=True,title='Recover encrypted documents',default_width=420,default_height=320)
         box.append(Adw.HeaderBar())
         live={pane.vault_draft_id for pane in ((self.workspace_owner or self),(self.workspace_owner or self).peer) if pane and pane.dirty()}
         found=False
@@ -208,7 +208,7 @@ class VaultEditing:
             except (OSError,ValueError):continue
             found=True;button=Gtk.Button(label=title)
             button.connect('clicked',lambda _,i=identity:self.recover_document(i,window));box.append(button)
-        if not found:box.append(Gtk.Label(label='Geen afgesloten herstelkopieën beschikbaar.',wrap=True))
+        if not found:box.append(Gtk.Label(label='No inactive recovery drafts available.',wrap=True))
         scroll=Gtk.ScrolledWindow(vexpand=True);scroll.set_child(box);window.set_content(scroll);window.present()
     def recover_document(self,identity,window=None):
         def run():
@@ -248,7 +248,7 @@ class VaultEditing:
             self.vault_draft_id=ref.identity;self.update_title()
             if after:after()
         except (OSError,ValueError,KeyError) as exc:
-            self.save_problem='Opslaan mislukt';self.update_title();self.error('Versleuteld opslaan mislukt: '+str(exc))
+            self.save_problem='Save failed';self.update_title();self.error('Encrypted save failed: '+str(exc))
     def autosave(self):
         self.autosave_pending=0
         if not self.closed and self.dirty():
@@ -268,12 +268,12 @@ class VaultEditing:
                 self.sidebar.refresh();self.sidebar.select_path(self.path);self.update_title()
                 if after:after()
             except (OSError,ValueError) as exc:self.error(str(exc))
-        self.name_dialog('Binnen de kluis opslaan',suggested_name or 'Nieuw document',named)
+        self.name_dialog('Save inside vault',suggested_name or 'New document',named)
     def new(self,*_,folder=None):
         parent=folder if isinstance(folder,VaultRef) else self.sidebar.folder()
         def run():
             try:
-                identity=self.vault_store.add(self.vault_store.unique_name(parent.identity,'nieuw document','.html'),parent.identity)
+                identity=self.vault_store.add(self.vault_store.unique_name(parent.identity,'new document','.html'),parent.identity)
                 self.saved_doc=self.snapshot() # The outer guard already handled the previous document.
                 self.sidebar.refresh(self.sidebar.expanded()|{parent});self.open_path(VaultRef(self.vault_store,identity));self.set_editing(True);self.sidebar.rename_created(VaultRef(self.vault_store,identity))
             except (OSError,ValueError) as exc:self.error(str(exc))
@@ -281,7 +281,7 @@ class VaultEditing:
     def new_folder(self,*_,folder=None):
         parent=folder if isinstance(folder,VaultRef) else self.sidebar.folder()
         try:
-            identity=self.vault_store.add(self.vault_store.unique_name(parent.identity,'nieuwe map'),parent.identity,folder=True)
+            identity=self.vault_store.add(self.vault_store.unique_name(parent.identity,'new folder'),parent.identity,folder=True)
             self.sidebar.refresh(self.sidebar.expanded()|{parent});self.sidebar.rename_created(VaultRef(self.vault_store,identity))
         except (OSError,ValueError) as exc:self.error(str(exc))
     def rename_current_document(self,name):
@@ -291,20 +291,20 @@ class VaultEditing:
         self.vault_store.rename_move(self.path.identity,name);self.sidebar.refresh();self.sidebar.select_path(self.path);self.update_title()
     def rename(self,*_):
         ref=self.sidebar.selected()
-        if ref:self.name_dialog('Hernoemen',ref.stem,lambda name:self.sidebar.perform_move(ref,ref.with_name(safe_name(name)+('.html' if ref.is_file() and not name.endswith('.html') else ''))))
+        if ref:self.name_dialog('Rename',ref.stem,lambda name:self.sidebar.perform_move(ref,ref.with_name(safe_name(name)+('.html' if ref.is_file() and not name.endswith('.html') else ''))))
     def move(self,*_):
         ref=self.sidebar.selected()
         if not ref:return
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8);parents=[VaultRef(self.vault_store,'root')]+[VaultRef(self.vault_store,k) for k,n in self.vault_store.catalog['nodes'].items() if n['type']=='folder' and not n.get('trash') and k not in self.vault_store.descendants(ref.identity)]
         picker=Gtk.DropDown.new_from_strings([r.name for r in parents]);box.append(picker)
-        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Doelmap in de kluis',extra_child=box)
-        dialog.add_response('cancel','Annuleren');dialog.add_response('move','Verplaatsen')
+        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Destination folder in vault',extra_child=box)
+        dialog.add_response('cancel','Cancel');dialog.add_response('move','Move')
         dialog.connect('response',lambda _,r:self.sidebar.perform_move(ref,VaultRef(self.vault_store,ref.identity,proposed_parent=parents[picker.get_selected()].identity)) if r=='move' else None);dialog.present()
     def duplicate_document(self,*_,path=None):
         ref=path or self.path
         try:
             doc=self.snapshot() if ref is None or ref==self.path else self.vault_store.load(ref.identity)
-            parent=ref.parent if ref else self.sidebar.folder();base=(ref.stem if ref else 'Nieuw document')+' – kopie'
+            parent=ref.parent if ref else self.sidebar.folder();base=(ref.stem if ref else 'New document')+' – copy'
             identity=self.vault_store.add(self.vault_store.unique_name(parent.identity,base,'.html'),parent.identity,document=doc)
             self.sidebar.refresh();self.open_path(VaultRef(self.vault_store,identity));self.set_editing(True)
         except (OSError,ValueError) as exc:self.error(str(exc))
@@ -328,25 +328,25 @@ class VaultEditing:
     def show_trash(self,*_):
         box=self.trash_page
         while box.get_first_child():box.remove(box.get_first_child())
-        empty=Gtk.Button(label='Prullenbak leegmaken');empty.connect('clicked',self.empty_trash);box.append(empty)
+        empty=Gtk.Button(label='Empty trash');empty.connect('clicked',self.empty_trash);box.append(empty)
         nodes=self.vault_store.catalog['nodes']
         for key,node in nodes.items():
             if node.get('trash') and (node['parent']=='root' or not nodes[node['parent']].get('trash')):
-                row=Gtk.Button(label='Herstellen: '+node['name']);row.connect('clicked',lambda _,i=key:self.restore_trash_item(i));box.append(row)
+                row=Gtk.Button(label='Restore: '+node['name']);row.connect('clicked',lambda _,i=key:self.restore_trash_item(i));box.append(row)
         self.document_stack.set_visible_child_name('trash')
     def restore_trash_item(self,identity):
         try:self.vault_store.trash(identity,restore=True);self.sidebar.refresh();self.show_trash()
-        except (OSError,ValueError) as exc:self.error('Herstellen is niet gelukt: '+str(exc))
+        except (OSError,ValueError) as exc:self.error('Recovery failed: '+str(exc))
     def empty_trash(self,*_):
         def confirmed(response):
             if response!='empty':return
             try:self.vault_store.empty_trash();self.show_trash()
-            except (OSError,ValueError) as exc:self.error('Prullenbak leegmaken is niet gelukt: '+str(exc))
-        self.ask('Prullenbak leegmaken?','Versleutelde documenten in de prullenbak worden verwijderd. Back-ups kunnen nog kopieën bevatten.',[('cancel','Annuleren'),('empty','Leegmaken')],confirmed)
+            except (OSError,ValueError) as exc:self.error('Failed to empty trash: '+str(exc))
+        self.ask('Empty trash?','Encrypted documents in the trash will be deleted. Backups may still contain copies.',[('cancel','Cancel'),('empty','Empty')],confirmed)
     def show_documents(self,*_):
         box=self.documents_page
         while box.get_first_child():box.remove(box.get_first_child())
-        entry=Gtk.SearchEntry(placeholder_text='Documenten in de kluis zoeken');box.append(entry)
+        entry=Gtk.SearchEntry(placeholder_text='Search vault documents');box.append(entry)
         rows=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4);scroll=Gtk.ScrolledWindow(vexpand=True);scroll.set_child(rows);box.append(scroll)
         def refresh(*_):
             while rows.get_first_child():rows.remove(rows.get_first_child())
@@ -361,7 +361,7 @@ class VaultEditing:
         def picked(path):
             suffix=path.suffix.lower()
             if suffix not in ('.html','.htm','.odt','.docx'):
-                self.error('Importeer HTML, ODT of DOCX. PDF-import is in de kluis niet beschikbaar.');return
+                self.error('Import HTML, ODT or DOCX. PDF import is not available inside a vault.');return
             def import_file(response):
                 if response!='import':return
                 def worker():
@@ -383,41 +383,41 @@ class VaultEditing:
                         return False
                     GLib.idle_add(complete)
                 Thread(target=worker,daemon=True).start()
-            self.ask('Versleutelde kopie importeren?','Het oorspronkelijke bestand blijft ongewijzigd buiten de kluis. ODT en DOCX worden naar Twinly HTML omgezet; opmaak en latere exports kunnen verschillen.',[('cancel','Annuleren'),('import','Importeren')],import_file)
-        self.file_chooser('HTML of Office importeren als versleutelde kopie',Gtk.FileChooserAction.OPEN,picked,import_office=True)
+            self.ask('Import encrypted copy?','The original file remains unchanged outside the vault. ODT and DOCX are converted to Twinly HTML; formatting and later exports may differ.',[('cancel','Cancel'),('import','Import')],import_file)
+        self.file_chooser('Import HTML or Office as an encrypted copy',Gtk.FileChooserAction.OPEN,picked,import_office=True)
     import_office=open
     def open_document_link(self,link,beside=False,approved_target=None):
         if link.get('kind')=='external':
-            self.ask('Externe link openen?','De link wordt buiten de kluis in je browser geopend.',[('cancel','Annuleren'),('open','Openen')],lambda r:Gio.AppInfo.launch_default_for_uri(link['href'],None) if r=='open' else None);return
+            self.ask('Open external link?','The link will open outside the vault in your browser.',[('cancel','Cancel'),('open','Open')],lambda r:Gio.AppInfo.launch_default_for_uri(link['href'],None) if r=='open' else None);return
         try:
             value=link['href'];identity=identifier(value[:-5] if value.endswith('.html') else '')
             node=self.vault_store.catalog['nodes'][identity]
-            if node.get('trash'):raise VaultError('Dit document staat in de prullenbak.')
+            if node.get('trash'):raise VaultError('This document is in the trash.')
             ref=VaultRef(self.vault_store,identity)
             if beside:(self.workspace_owner or self).open_beside(ref)
             else:self.open_path(ref)
-        except (ValueError,KeyError):self.error('Documentlink in de kluis niet gevonden.')
+        except (ValueError,KeyError):self.error('Vault document link not found.')
     def link_dialog(self,*_):
         bounds=self.buffer.get_selection_bounds();cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert())
         start,end=(i.get_offset() for i in bounds) if bounds else (cursor.get_offset(),cursor.get_offset())
         choices=[(k,n['name']) for k,n in self.vault_store.catalog['nodes'].items() if n['type']=='document' and not n.get('trash')]
-        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Documentlink in de kluis')
+        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Vault document link')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
-        text=Gtk.Entry(text=self.buffer.get_text(self.buffer.get_iter_at_offset(start),self.buffer.get_iter_at_offset(end),True),placeholder_text='Weergavetekst')
-        picker=Gtk.DropDown.new_from_strings([n for _,n in choices] or ['Geen documenten']);picker.set_enable_search(True)
-        box.append(text);box.append(picker);dialog.set_extra_child(box);dialog.add_response('cancel','Annuleren');dialog.add_response('add','Invoegen');dialog.set_response_enabled('add',bool(choices))
+        text=Gtk.Entry(text=self.buffer.get_text(self.buffer.get_iter_at_offset(start),self.buffer.get_iter_at_offset(end),True),placeholder_text='Display text')
+        picker=Gtk.DropDown.new_from_strings([n for _,n in choices] or ['No documents']);picker.set_enable_search(True)
+        box.append(text);box.append(picker);dialog.set_extra_child(box);dialog.add_response('cancel','Cancel');dialog.add_response('add','Insert');dialog.set_response_enabled('add',bool(choices))
         def response(_,choice):
             if choice=='add' and not self.closed:self.insert_document_link(text.get_text(),{'href':choices[picker.get_selected()][0]+'.html','kind':'document'},start,end)
         dialog.connect('response',response);dialog.present()
     def document_for_print(self,path=None):
         return self.vault_store.load(path.identity) if path and path!=self.path else self.snapshot()
     def disclosure(self,callback):
-        self.ask('Buiten de kluis gebruiken?','Exportbestanden en afdruktaken zijn niet versleuteld door Twinly. Interne kluislinks werken niet buiten de kluis.',[('cancel','Annuleren'),('continue','Doorgaan')],lambda r:callback() if r=='continue' else None)
+        self.ask('Use outside the vault?','Exported files and print jobs are not encrypted by Twinly. Internal vault links do not work outside the vault.',[('cancel','Cancel'),('continue','Continue')],lambda r:callback() if r=='continue' else None)
     def validate_export_path(self,path):
         path=Path(path);resolved=path.resolve()
-        if self.vault_store.path.resolve() in (resolved,*resolved.parents):raise VaultError('Kies een exportlocatie buiten de kluis.')
+        if self.vault_store.path.resolve() in (resolved,*resolved.parents):raise VaultError('Choose an export location outside the vault.')
         for parent in resolved.parents:
-            if (parent/'vault.json').is_file():raise VaultError('Exporteer geen onversleutelde bestanden naar een kluismap.')
+            if (parent/'vault.json').is_file():raise VaultError('Do not export unencrypted files into a vault folder.')
         return path
     def file_chooser(self,title,action,callback,**kwargs):
         def checked(path):
@@ -451,12 +451,12 @@ class VaultEditing:
             document=copy.deepcopy(self.snapshot())
             def save(path):
                 path=self.validate_export_path(path.with_suffix('.'+format));export_document(document,path,format)
-            self.file_chooser('Onversleutelde '+format.upper()+'-kopie exporteren',Gtk.FileChooserAction.SAVE,save,name=(self.path.stem if self.path else 'Document')+'.'+format,export_format=format)
+            self.file_chooser('Export unencrypted '+format.upper()+' copy',Gtk.FileChooserAction.SAVE,save,name=(self.path.stem if self.path else 'Document')+'.'+format,export_format=format)
         self.disclosure(start)
     def export_html(self,*_):
         def run():
             snapshot=self.snapshot()
-            self.file_chooser('Onversleutelde HTML-kopie exporteren',Gtk.FileChooserAction.SAVE,lambda path:atomic_write(path,to_html(snapshot,self.path.stem if self.path else 'Document')),name=(self.path.stem if self.path else 'Document')+'.html')
+            self.file_chooser('Export unencrypted HTML copy',Gtk.FileChooserAction.SAVE,lambda path:atomic_write(path,to_html(snapshot,self.path.stem if self.path else 'Document')),name=(self.path.stem if self.path else 'Document')+'.html')
         self.disclosure(run)
     def close_requested(self,*_):
         if getattr(self,'closing_ready',False):return False
@@ -492,9 +492,9 @@ class VaultEditor(VaultEditing,Editor):
             action=Gio.SimpleAction.new(name,None);action.connect('activate',callback);self.add_action(action)
         for name in ('root','new-root','back','forward','vault-create','vault-open','vaults'):self.lookup_action(name).set_enabled(False)
         menu=Gio.Menu()
-        for label,name in [('HTML / ODT / Word importeren…','open'),('HTML-kopie exporteren…','vault-export-html'),('PDF exporteren…','export-pdf'),('ODT exporteren…','export-odt'),('Word exporteren…','export-docx'),('Kopie in de kluis maken','duplicate'),('Documentstructuur','outline'),('Zoeken en vervangen','replace')]:menu.append(label,'win.'+name)
+        for label,name in [('Import HTML / ODT / Word…','open'),('Export HTML copy…','vault-export-html'),('Export PDF…','export-pdf'),('Export ODT…','export-odt'),('Export Word…','export-docx'),('Make a copy in vault','duplicate'),('Document outline','outline'),('Find and replace','replace')]:menu.append(label,'win.'+name)
         self.document_menu_button.set_menu_model(menu)
-        lock=Gtk.Button(icon_name='changes-prevent-symbolic',tooltip_text='Kluis vergrendelen');lock.connect('clicked',self.lock_vault);self.document_header.pack_end(lock)
+        lock=Gtk.Button(icon_name='changes-prevent-symbolic',tooltip_text='Lock vault');lock.connect('clicked',self.lock_vault);self.document_header.pack_end(lock)
         self.set_sidebar_pixel_width(store.catalog['settings'].get('sidebar_width',290))
         self.vault_toplevels=Gtk.Window.get_toplevels()
         self.vault_toplevel_handler=self.vault_toplevels.connect('items-changed',lambda *_:self.defer(self.track_transient_activity))
@@ -527,9 +527,9 @@ class VaultEditor(VaultEditing,Editor):
     def desktop_lock_changed(self,app,*_):
         if app.get_property('screensaver-active'):self.lock_vault()
     def configure_auto_lock(self,*_):
-        dialog=Adw.MessageDialog(transient_for=self,heading='Automatisch vergrendelen')
-        values=[1,5,15,30];picker=Gtk.DropDown.new_from_strings([str(v)+' minuten' for v in values]);picker.set_selected(values.index(self.idle_minutes))
-        dialog.set_extra_child(picker);dialog.add_response('cancel','Annuleren');dialog.add_response('save','Bewaren')
+        dialog=Adw.MessageDialog(transient_for=self,heading='Auto-lock')
+        values=[1,5,15,30];picker=Gtk.DropDown.new_from_strings([str(v)+' minutes' for v in values]);picker.set_selected(values.index(self.idle_minutes))
+        dialog.set_extra_child(picker);dialog.add_response('cancel','Cancel');dialog.add_response('save','Save')
         def changed(_,response):
             if response=='save':
                 self.idle_minutes=values[picker.get_selected()];self.save_preferences(idle_minutes=self.idle_minutes)
@@ -539,14 +539,14 @@ class VaultEditor(VaultEditing,Editor):
         def changed(value):
             try:self.vault_store.change_password(value)
             except (OSError,ValueError) as exc:self.error(str(exc))
-        password_dialog(self,'Wachtwoord wijzigen',changed,confirmation=True)
+        password_dialog(self,'Change password',changed,confirmation=True)
     def lock_vault(self,*_):
         if self.locking or self.closed:return
         self.locking=True;pending=[]
         try:
             for pane in (self,self.peer):
                 if pane and pane.dirty():
-                    identity=pane.vault_draft_id;title=pane.path.name if pane.path else 'Nieuw document'
+                    identity=pane.vault_draft_id;title=pane.path.name if pane.path else 'New document'
                     raw=pack({'document':pane.snapshot(),'title':title})
                     try:self.vault_store.draft(identity,pane.snapshot(),title)
                     except (OSError,ValueError):pending.append((identity,self.vault_store.encrypt(raw,'pending',identity,identity)))
@@ -560,7 +560,7 @@ class VaultEditor(VaultEditing,Editor):
             self.destroy_confidential_windows()
             self.closing_ready=True;self.close()
         except Exception as exc:
-            self.locking=False;self.error('Vergrendelen is niet gelukt. De kluis is nog geopend: '+str(exc))
+            self.locking=False;self.error('Lock failed. The vault is still open: '+str(exc))
     def destroy_confidential_windows(self):
         for window in list(Gtk.Window.get_toplevels()):
             current=window.get_transient_for()
@@ -585,8 +585,8 @@ class VaultEditor(VaultEditing,Editor):
         self.sidebar.base.remove_all()
         clear_image_cache();self.vault_store.close()
         self.launcher.windows.discard(self)
-        self.set_title('Twinly — Kluis vergrendeld')
-        if self.launcher.pending.get(self.vault_store.vault_id):self.launcher.parent.error('De kluis is vergrendeld, maar sommige versleutelde wijzigingen staan alleen in het geheugen. Houd Twinly open en ontgrendel opnieuw om ze op te slaan.')
+        self.set_title('Twinly — Vault locked')
+        if self.launcher.pending.get(self.vault_store.vault_id):self.launcher.parent.error('The vault is locked, but some encrypted changes exist only in memory. Keep Twinly open and unlock it again to save them.')
 
 # Credential entry and slow crypto run without placing passwords in preferences.
 def password_dialog(parent,title,callback,confirmation=False,recovery=False):
@@ -594,11 +594,11 @@ def password_dialog(parent,title,callback,confirmation=False,recovery=False):
     box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
     first=Gtk.PasswordEntry(show_peek_icon=True,hexpand=True);box.append(first)
     second=Gtk.PasswordEntry(show_peek_icon=True,hexpand=True) if confirmation else None
-    if second:box.append(Gtk.Label(label='Wachtwoord herhalen (minstens 12 tekens)'));box.append(second)
-    recovery_toggle=Gtk.CheckButton(label='Herstelsleutel gebruiken') if recovery else None
+    if second:box.append(Gtk.Label(label='Repeat password (at least 12 characters)'));box.append(second)
+    recovery_toggle=Gtk.CheckButton(label='Use recovery key') if recovery else None
     if recovery_toggle:box.append(recovery_toggle)
     dialog.set_extra_child(box);dialog.set_destroy_with_parent(True)
-    dialog.add_response('cancel','Annuleren');dialog.add_response('ok','Doorgaan');dialog.set_close_response('cancel')
+    dialog.add_response('cancel','Cancel');dialog.add_response('ok','Continue');dialog.set_close_response('cancel')
     def response(_,choice):
         if choice!='ok':
             first.set_text('')
@@ -609,7 +609,7 @@ def password_dialog(parent,title,callback,confirmation=False,recovery=False):
         first.set_text('')
         if second:second.set_text('')
         if second and (password!=other or len(password)<12):
-            parent.error('De wachtwoorden moeten overeenkomen en minstens 12 tekens bevatten.');return
+            parent.error('Passwords must match and contain at least 12 characters.');return
         callback(password,is_recovery) if recovery else callback(password)
     dialog.connect('response',response);dialog.present();first.grab_focus()
 
@@ -635,24 +635,24 @@ class VaultLauncher:
         if child:self.page.remove(child)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=18,margin_start=24,margin_end=24,margin_top=24,margin_bottom=24)
         box.append(Gtk.Label(label='Vault',xalign=0,css_classes=['title-1']))
-        box.append(Gtk.Label(label='Open een kluis met je wachtwoord. Documenten blijven versleuteld totdat je ontgrendelt.',wrap=True,xalign=0))
+        box.append(Gtk.Label(label='Open a vault with your password. Documents remain encrypted until you unlock it.',wrap=True,xalign=0))
         controls=Gtk.Box(spacing=8)
-        for label,callback in [('Nieuwe kluis…',self.create),('Bestaande kluis toevoegen…',self.open)]:
+        for label,callback in [('New vault…',self.create),('Add existing vault…',self.open)]:
             button=Gtk.Button(label=label);button.connect('clicked',callback);controls.append(button)
         box.append(controls)
         rows=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,css_classes=['boxed-list'])
         paths=self.remembered()
         for value in paths:
             path=Path(value);available=(path/'vault.json').is_file()
-            row=Adw.ActionRow(title=path.name,subtitle=str(path) if available else 'Niet gevonden — '+str(path));row.set_use_markup(False)
+            row=Adw.ActionRow(title=path.name,subtitle=str(path) if available else 'Not found — '+str(path));row.set_use_markup(False)
             row.add_prefix(Gtk.Image(icon_name='changes-prevent-symbolic'))
-            button=Gtk.Button(label='Ontgrendelen' if available else 'Locatie zoeken…',valign=Gtk.Align.CENTER)
+            button=Gtk.Button(label='Unlock' if available else 'Locate folder…',valign=Gtk.Align.CENTER)
             button.connect('clicked',lambda _,p=path,exists=available:self.unlock_path(p) if exists else self.open())
             row.add_suffix(button);row.set_activatable_widget(button)
-            forget=Gtk.Button(icon_name='list-remove-symbolic',tooltip_text='Uit deze lijst verwijderen (bestanden blijven bewaard)',valign=Gtk.Align.CENTER,css_classes=['flat'])
+            forget=Gtk.Button(icon_name='list-remove-symbolic',tooltip_text='Remove from this list (files are kept)',valign=Gtk.Align.CENTER,css_classes=['flat'])
             forget.connect('clicked',lambda _,p=value:self.forget(p));row.add_suffix(forget);rows.append(row)
         if paths:box.append(rows)
-        else:box.append(Gtk.Label(label='Nog geen kluizen. Maak er een of voeg een bestaande kluis toe.',wrap=True,xalign=0,css_classes=['dim-label']))
+        else:box.append(Gtk.Label(label='No vaults yet. Create one or add an existing vault.',wrap=True,xalign=0,css_classes=['dim-label']))
         scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER);scroll.set_child(Adw.Clamp(maximum_size=900,child=box));self.page.append(scroll)
         owner.document_stack.set_visible_child_name('vaults');owner.record_navigation()
         if owner.split.get_collapsed():owner.split.set_show_sidebar(False)
@@ -661,9 +661,9 @@ class VaultLauncher:
             if not window.closed and window.vault_store.path==Path(path).absolute():window.present();return
         try:crypto()
         except ValueError as exc:self.parent.error(str(exc));return
-        password_dialog(self.parent,'Kluis ontgrendelen',lambda password,recovery:self.busy(lambda:VaultStore(path).unlock(password,recovery),self.present),recovery=True)
+        password_dialog(self.parent,'Unlock vault',lambda password,recovery:self.busy(lambda:VaultStore(path).unlock(password,recovery),self.present),recovery=True)
     def busy(self,work,finished):
-        progress=Adw.MessageDialog(transient_for=self.parent,heading='Kluis voorbereiden…',body='Wachtwoordafleiding kan even duren.')
+        progress=Adw.MessageDialog(transient_for=self.parent,heading='Preparing vault…',body='Password derivation may take a moment.')
         progress.set_deletable(False);progress.present()
         def worker():
             result=None;error=None
@@ -684,17 +684,17 @@ class VaultLauncher:
         try:crypto()
         except ValueError as exc:self.parent.error(str(exc));return
         def picked(path):
-            password_dialog(self.parent,'Nieuwe versleutelde kluis',lambda password:self.busy(lambda:VaultStore.create(path,password),self.created),confirmation=True)
-        self.parent.file_chooser('Nieuwe kluis (kies een nieuwe mapnaam)',Gtk.FileChooserAction.SAVE,picked,name='Private.twinly-vault')
+            password_dialog(self.parent,'New encrypted vault',lambda password:self.busy(lambda:VaultStore.create(path,password),self.created),confirmation=True)
+        self.parent.file_chooser('New vault (choose a new folder name)',Gtk.FileChooserAction.SAVE,picked,name='Private.twinly-vault')
     def created(self,result):
         store,recovery=result
         try:self.remember(store.path)
-        except (OSError,ValueError) as exc:self.parent.error('Kluis gemaakt, maar locatie niet bewaard: '+str(exc))
-        dialog=Adw.MessageDialog(transient_for=self.parent,heading='Bewaar je herstelsleutel',body='Deze sleutel geeft toegang tot de volledige kluis. Bewaar hem apart. Zonder wachtwoord én sleutel zijn de gegevens niet terug te halen.')
+        except (OSError,ValueError) as exc:self.parent.error('Vault created, but location not saved: '+str(exc))
+        dialog=Adw.MessageDialog(transient_for=self.parent,heading='Save your recovery key',body='This key gives access to the entire vault. Store it separately. If you lose both the password and recovery key, the data cannot be recovered.')
         label=Gtk.Label(label=recovery,selectable=True,wrap=True)
-        acknowledged=Gtk.CheckButton(label='Ik heb de herstelsleutel apart bewaard')
+        acknowledged=Gtk.CheckButton(label='I have stored the recovery key separately')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12);box.append(label);box.append(acknowledged);dialog.set_extra_child(box)
-        dialog.add_response('cancel','Later openen');dialog.add_response('ok','Kluis openen');dialog.set_close_response('cancel')
+        dialog.add_response('cancel','Open later');dialog.add_response('ok','Open vault');dialog.set_close_response('cancel')
         dialog.set_response_enabled('ok',False);acknowledged.connect('toggled',lambda b:dialog.set_response_enabled('ok',b.get_active()))
         consumed=[False]
         def done(_,response):
@@ -708,15 +708,15 @@ class VaultLauncher:
         try:crypto()
         except ValueError as exc:self.parent.error(str(exc));return
         def picked(path):
-            if not (path/'vault.json').is_file():self.parent.error('Dit is geen Twinly-kluis. Kies de map van een bestaande kluis, of maak een nieuwe via Vault.');return
+            if not (path/'vault.json').is_file():self.parent.error('This is not a Twinly vault. Choose an existing vault folder, or create a new one from Vault.');return
             try:self.remember(path)
             except (OSError,ValueError) as exc:self.parent.error(str(exc));return
             self.unlock_path(path)
-        self.parent.file_chooser('Kluis openen',Gtk.FileChooserAction.SELECT_FOLDER,picked)
+        self.parent.file_chooser('Open vault',Gtk.FileChooserAction.SELECT_FOLDER,picked)
     def present(self,store):
         try:
             try:self.remember(store.path)
-            except (OSError,ValueError) as exc:self.parent.error('Kluislocatie niet bewaard: '+str(exc))
+            except (OSError,ValueError) as exc:self.parent.error('Vault location not saved: '+str(exc))
             pending=self.pending.get(store.vault_id,[])
             for identity,cipher in pending:
                 value=unpack(store.decrypt(cipher,'pending',identity,identity));store.draft(identity,value['document'],value['title'])

@@ -34,7 +34,7 @@ def pixbuf_for(src):
     loader.close()
     p = loader.get_pixbuf()
     if oversized or p.get_width() * p.get_height() > MAX_IMAGE_PIXELS:
-        raise ResourceLimitError('De foto heeft te veel pixels (maximum 16 megapixels).')
+        raise ResourceLimitError('The photo has too many pixels (maximum 16 megapixels).')
     cost=p.get_byte_length()+len(src)
     if cost<=_IMAGE_CACHE_LIMIT:
         while _image_cache and _image_cache_bytes+cost>_IMAGE_CACHE_LIMIT:
@@ -57,7 +57,7 @@ class Pages:
 
     def reserve(self, height):
         if self.y + height > self.height - self.margin and self.pages[-1]:
-            if len(self.pages)>=1000:raise ResourceLimitError('Afdrukvoorbeeld overschrijdt de limiet van 1000 pagina’s.')
+            if len(self.pages)>=1000:raise ResourceLimitError('Print preview exceeds the 1000-page limit.')
             self.pages.append([])
             self.y = self.margin
 
@@ -240,7 +240,7 @@ class Pages:
 
 class PrintPreview(Gtk.Window):
     def __init__(self, parent, doc):
-        super().__init__(title='Afdrukvoorbeeld', transient_for=parent, default_width=850, default_height=800)
+        super().__init__(title='Print preview', transient_for=parent, default_width=850, default_height=800)
         self.closed=False;self.file_dialogs=[];self.print_operation=None
         self.set_destroy_with_parent(True)
         self.connect('close-request',self.close_requested)
@@ -253,21 +253,21 @@ class PrintPreview(Gtk.Window):
         root.set_margin_end(12)
         controls = Gtk.Box(spacing=8)
         self.paper = Gtk.DropDown.new_from_strings(['A4','A5','Letter'])
-        self.orientation = Gtk.DropDown.new_from_strings(['Staand','Liggend'])
+        self.orientation = Gtk.DropDown.new_from_strings(['Portrait','Landscape'])
         self.margin = Gtk.SpinButton.new_with_range(5,40,1)
         self.margin.set_value(15)
-        for label, widget in [('Papier', self.paper), ('Stand',self.orientation), ('Marge (mm)',self.margin)]:
+        for label, widget in [('Paper', self.paper), ('Orientation',self.orientation), ('Margin (mm)',self.margin)]:
             controls.append(Gtk.Label(label=label))
             controls.append(widget)
         root.append(controls)
         nav = Gtk.Box(spacing=8)
-        for icon,tooltip,step in [('go-previous-symbolic','Vorige pagina',-1),
-                                  ('go-next-symbolic','Volgende pagina',1)]:
+        for icon,tooltip,step in [('go-previous-symbolic','Previous page',-1),
+                                  ('go-next-symbolic','Next page',1)]:
             b=Gtk.Button(icon_name=icon,tooltip_text=tooltip)
             b.update_property([Gtk.AccessibleProperty.LABEL],[tooltip])
             b.connect('clicked',lambda _,direction=step:self.turn(direction))
             nav.append(b)
-        for label, callback in [('PDF opslaan…',self.save_pdf), ('Afdrukken…',self.print_document)]:
+        for label, callback in [('Save PDF…',self.save_pdf), ('Print…',self.print_document)]:
             b=Gtk.Button(label=label)
             b.connect('clicked',callback)
             nav.append(b)
@@ -295,7 +295,7 @@ class PrintPreview(Gtk.Window):
         self.refresh()
 
     def refresh(self):
-        self.label.set_text(f'Pagina {self.index+1} / {len(self.pages.pages)}')
+        self.label.set_text(f'Page {self.index+1} / {len(self.pages.pages)}')
         self.area.queue_draw()
 
     def draw(self,area,cr,w,h):
@@ -309,8 +309,8 @@ class PrintPreview(Gtk.Window):
 
     def save_pdf(self,*_):
         if self.closed:return
-        dialog=Gtk.FileDialog(title='PDF opslaan',modal=True,initial_name='document.pdf')
-        filters=Gio.ListStore.new(Gtk.FileFilter);pdf=Gtk.FileFilter(name='PDF-document (.pdf)');pdf.add_pattern('*.pdf');filters.append(pdf);dialog.set_filters(filters)
+        dialog=Gtk.FileDialog(title='Save PDF',modal=True,initial_name='document.pdf')
+        filters=Gio.ListStore.new(Gtk.FileFilter);pdf=Gtk.FileFilter(name='PDF document (.pdf)');pdf.add_pattern('*.pdf');filters.append(pdf);dialog.set_filters(filters)
         cancellable=Gio.Cancellable();self.file_dialogs.append(cancellable)
         def finished(dialog,result):
             if cancellable in self.file_dialogs:self.file_dialogs.remove(cancellable)
@@ -319,9 +319,9 @@ class PrintPreview(Gtk.Window):
                 file=dialog.save_finish(result)
                 if self.closed or not parent or getattr(parent,'closed',False) or not file:return
                 path=file.get_path()
-                if not path:raise ValueError('Kies een lokaal PDF-bestand.')
+                if not path:raise ValueError('Choose a local PDF file.')
                 from filesystem import vault_container
-                if vault_container(path):raise ValueError('Kies een PDF-locatie buiten een versleutelde kluis.')
+                if vault_container(path):raise ValueError('Choose a PDF location outside an encrypted vault.')
                 if hasattr(parent,'validate_export_path'):path=parent.validate_export_path(path)
                 self.pages.pdf(path)
             except GLib.Error as exc:
