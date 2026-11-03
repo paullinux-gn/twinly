@@ -5,7 +5,9 @@ and approved by its owner. It depicts a writing desk, notebook, pen, coffee and 
 There are no external photo dependencies or remote image URLs in the introduction.
 The HTML includes the image as a data URI. Keep this provenance note with the source.
 
-The SVG application icon is an original provisional vector mark created for this
-publication preparation. The owner may replace it before release.
+The application icon uses Twinly's woven mark in the owner-selected vermilion,
+cream and burgundy palette, with a rounded-square background. The design was
+developed with LLM assistance. The final SVG uses solid colors without gradients,
+shadows or textures.
 
 Development of Twinly is LLM-assisted. Developer attribution: Paullinux.
