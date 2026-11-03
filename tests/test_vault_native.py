@@ -46,6 +46,15 @@ class VaultNative(unittest.TestCase):
             if path.is_file():
                 raw=path.read_bytes()
                 for text in (b'VAULT SECRET CANARY 9f73',b'SensitiveStyle9f73',b'Secret filename9f73'):self.assertNotIn(text,raw,str(path))
+    def test_about_window_is_parented_and_closes_when_vault_locks(self):
+        self.w.lookup_action('about').activate(None);pump()
+        window=self.w.about_window
+        self.assertIs(self.w,window.get_transient_for())
+        self.assertTrue(window.get_visible())
+        self.w.lock_vault();pump()
+        self.assertFalse(window.get_visible())
+        self.assertTrue(window.closed)
+
     def test_pencil_reads_and_saves_encrypted_documents(self):
         self.w.new();pump();path=self.w.path
         self.assertTrue(self.w.editing)

@@ -105,6 +105,14 @@
           "path": "../scripts/install.py"
         },
         {
+          "type": "file",
+          "path": "../LICENSE"
+        },
+        {
+          "type": "file",
+          "path": "../LICENSING.md"
+        },
+        {
           "type": "dir",
           "path": "../data",
           "dest": "data"

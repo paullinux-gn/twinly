@@ -1,19 +1,22 @@
-# Licence decision required before public release
+# Twinly licensing
 
-No project licence has been selected by the owner yet. This preparation does not
-silently grant the project a licence. Choose one before publishing source for reuse
-or submitting to Flathub, and run `scripts/configure_release.py` with that choice.
+Twinly is copyright © 2026 Paullinux and is licensed under the GNU General
+Public License, version 3 or (at your option) any later version
+(`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the grant and full license text.
 
-The helper supports MIT and GPL-3.0-or-later using the bundled SPDX texts. It writes
-LICENSE and completes the AppStream project licence. It also records your chosen
-copyright holder. Other licences can be added deliberately later.
+The About window and AppStream metadata identify this license. Native and Flatpak
+installations include it under `share/licenses/twinly/LICENSE`.
 
-The AppStream metadata newly prepared here uses CC0-1.0. The sample desk photo was
-AI-generated for this project and approved by the owner. See data/CREDITS.md.
+## Content and dependencies
 
-## Bundled dependency
+The AppStream metadata is available under CC0-1.0. The writing-desk sample photo
+was AI-generated for Twinly and approved by its owner. The application icon is
+original project artwork. See [data/CREDITS.md](data/CREDITS.md).
 
 `vendor/pypdf/` is third-party pypdf, distributed under BSD-3-Clause. Its full
-licence and copyright notice are in `vendor/pypdf-LICENSE.txt`; source version
-and wheel checksum are in `vendor/README.md`. This licence applies to that
-dependency independently of the application licence you select for Twinly.
+license and copyright notices remain in `vendor/pypdf-LICENSE.txt` and are
+included in installed copies and in the About window's legal section. Version
+and source information are in [vendor/README.md](vendor/README.md).
+
+Optional vault dependencies and system libraries retain their own licenses;
+Twinly's project license does not replace their notices.

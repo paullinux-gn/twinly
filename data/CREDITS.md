@@ -7,3 +7,5 @@ The HTML includes the image as a data URI. Keep this provenance note with the so
 
 The SVG application icon is an original provisional vector mark created for this
 publication preparation. The owner may replace it before release.
+
+Development of Twinly is LLM-assisted. Developer attribution: Paullinux.

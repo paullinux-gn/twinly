@@ -7,8 +7,9 @@ is required. The interface and bundled Getting Started guide are in
 English and includes an embedded sample photo and a working internal link.
 
 This repository is prepared as a **0.4.0 preview**, not a published Flathub release.
-The public repository identity and project licence still need the owner's choices.
-See [publishing instructions](docs/PUBLISHING.md) and [licensing](LICENSING.md).
+Developed by Paullinux and licensed under [GPL-3.0-or-later](LICENSE).
+See [publishing instructions](docs/PUBLISHING.md) and [third-party licensing](LICENSING.md).
+The About Twinly window shows the version, license, project links and credits.
 
 ![Twinly first start](docs/screenshots/twinly.png)
 

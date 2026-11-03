@@ -18,6 +18,9 @@ def install(source,prefix,destdir):
     for relative,name in [('share/applications',APP_ID+'.desktop'),('share/metainfo',APP_ID+'.metainfo.xml'),('share/icons/hicolor/scalable/apps',APP_ID+'.svg')]:
         directory=target/relative;directory.mkdir(parents=True,exist_ok=True)
         shutil.copy2(source/'data'/name,directory/name)
+    legal=target/'share'/'licenses'/'twinly';legal.mkdir(parents=True,exist_ok=True)
+    for name in ('LICENSE','LICENSING.md'):shutil.copy2(source/name,legal/name)
+    shutil.copy2(source/'data'/'CREDITS.md',legal/'CREDITS.md')
     launcher=target/'bin'/'twinly';launcher.parent.mkdir(parents=True,exist_ok=True)
     entry=prefix/'share'/'twinly'/'editor.py'
     import shlex

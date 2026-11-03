@@ -6,6 +6,11 @@ from filesystem import private_directory,atomic_write
 
 APP_ID='io.github.twinly.Preview'
 VERSION='0.4.0'
+DEVELOPER_NAME='Paullinux'
+COPYRIGHT='Copyright © 2026 Paullinux'
+LICENSE_ID='GPL-3.0-or-later'
+WEBSITE='https://github.com/paullinux-gn/twinly'
+DESCRIPTION='A calm writing space for connected documents.'
 DATA_DIR=Path(__file__).resolve().parent/'data'
 
 def locations():

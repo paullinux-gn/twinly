@@ -2043,6 +2043,40 @@ class Native(unittest.TestCase):
         bold.emit('clicked');pump()
         self.assertTrue(any(span['style'].get('weight') for span in self.w.snapshot()['spans']))
 
+    def test_about_window_shows_license_credits_and_reopens(self):
+        from application import APP_ID,VERSION
+        self.w.lookup_action('about').activate(None);pump()
+        window=self.w.about_window
+        try:
+            self.assertIsInstance(window,Adw.AboutWindow)
+            self.assertIs(self.w,window.get_transient_for())
+            self.assertTrue(window.get_modal())
+            self.assertTrue(window.get_visible())
+            self.assertEqual('Twinly',window.get_application_name())
+            self.assertEqual(APP_ID,window.get_application_icon())
+            self.assertTrue(Gtk.IconTheme.get_for_display(window.get_display()).has_icon(APP_ID))
+            self.assertEqual(VERSION,window.get_version())
+            self.assertEqual('Paullinux',window.get_developer_name())
+            self.assertEqual(['Paullinux'],window.get_developers())
+            self.assertEqual(Gtk.License.GPL_3_0,window.get_license_type())
+            self.assertIn('2026 Paullinux',window.get_copyright())
+            self.assertEqual('https://github.com/paullinux-gn/twinly',window.get_website())
+            self.assertEqual(window.get_website()+'/issues',window.get_issue_url())
+            labels=[]
+            def walk(widget):
+                if isinstance(widget,Gtk.Label):labels.append(widget.get_text())
+                child=widget.get_first_child()
+                while child:walk(child);child=child.get_next_sibling()
+            walk(window)
+            self.assertTrue(any('LLM-assisted development' in label for label in labels))
+            self.assertTrue(any('pypdf' in label for label in labels))
+            self.assertIs(window,self.w.about())
+        finally:window.close();pump()
+        self.assertIsNone(self.w.about_window)
+        reopened=self.w.about()
+        self.assertIsNot(window,reopened)
+        reopened.close()
+
     def test_english_menus_preferences_and_new_documents(self):
         from model import PARAGRAPH_STYLES,COLORS
         def labels(menu):

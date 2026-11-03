@@ -54,6 +54,13 @@ text=license_source.read_text(encoding='utf-8')
 if args.license=='MIT':text=text.replace('<year>',str(datetime.date.today().year)).replace('<copyright holders>',args.author.strip())
 else:text='Twinly — Copyright '+str(datetime.date.today().year)+' '+args.author.strip()+'\nSPDX-License-Identifier: GPL-3.0-or-later\n\n'+text
 (root/'LICENSE').write_text(text,encoding='utf-8')
+application=root/'application.py'
+source=application.read_text(encoding='utf-8')
+for key,entry in {'DEVELOPER_NAME':args.author.strip(),
+                  'COPYRIGHT':'Copyright © '+str(datetime.date.today().year)+' '+args.author.strip(),
+                  'LICENSE_ID':args.license,'WEBSITE':repository}.items():
+    source=re.sub(r'^'+key+r'=.*$',lambda match:key+'='+repr(entry),source,flags=re.M)
+application.write_text(source,encoding='utf-8')
 (root/'packaging'/'publication.json').write_text(json.dumps({'app_id':args.app_id,'repository':repository,'author':args.author.strip(),'license':args.license},indent=2)+'\n')
 print('Configured',args.app_id,'for',repository,'under',args.license)
 print('Run python3 scripts/check_release.py --publication before publishing.')

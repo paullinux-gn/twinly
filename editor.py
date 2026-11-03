@@ -29,7 +29,7 @@ from preferences import PreferencesMixin
 from editor_view import DocumentView,FontButton
 from actions import ActionsMixin
 from lifecycle import CallbackOwner
-from application import APP_ID,VERSION,locations,default_root
+from application import APP_ID,VERSION,DEVELOPER_NAME,COPYRIGHT,LICENSE_ID,WEBSITE,DESCRIPTION,DATA_DIR,locations,default_root
 from filesystem import read_text,read_bytes,move_path,create_directory,private_directory,vault_container
 import private_trash
 import logging
@@ -2518,11 +2518,41 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             if preview:preview.destroy()
 
     def about(self,*_):
-        self.ask(f'Twinly · local preview {VERSION}',
-                 'Native GTK4/libadwaita. Standalone HTML documents with embedded photos. '
-                 'No tables or fixed page layouts in the editor. PNG/JPEG photos only. '
-                 'External HTML support is limited; complex web pages are not fully preserved.',
-                 [('cancel','Close')],lambda _:None)
+        owner=self.workspace_owner or self
+        window=getattr(owner,'about_window',None)
+        if window and not window.closed:
+            window.present();return window
+        icons=Gtk.IconTheme.get_for_display(owner.get_display())
+        if not icons.has_icon(APP_ID):icons.add_search_path(str(DATA_DIR))
+        window=Adw.AboutWindow(transient_for=owner,modal=True,destroy_with_parent=True,
+            application_name='Twinly',application_icon=APP_ID,developer_name=DEVELOPER_NAME,
+            version=VERSION,comments=DESCRIPTION,website=WEBSITE,
+            support_url=WEBSITE+'/issues',issue_url=WEBSITE+'/issues',
+            developers=[DEVELOPER_NAME],copyright=COPYRIGHT,
+            license_type={'GPL-3.0-or-later':Gtk.License.GPL_3_0,'MIT':Gtk.License.MIT_X11}[LICENSE_ID])
+        window.closed=False
+        def closed(*_):
+            window.closed=True
+            if getattr(owner,'about_window',None) is window:owner.about_window=None
+        window.connect('unrealize',closed)
+        window.add_credit_section('Development',['LLM-assisted development'])
+        window.add_credit_section('Built with',[
+            'GTK https://www.gtk.org',
+            'libadwaita https://gnome.pages.gitlab.gnome.org/libadwaita/',
+            'PyGObject https://pygobject.gnome.org',
+            'pypdf https://github.com/py-pdf/pypdf',
+            'PyNaCl (optional vault support) https://pynacl.readthedocs.io',
+        ])
+        window.add_acknowledgement_section('Bundled content',[
+            'Writing-desk photo: AI-generated for Twinly and approved by its owner',
+            'Application icon: original Twinly vector artwork',
+        ])
+        notice=Path(__file__).resolve().parent/'vendor'/'pypdf-LICENSE.txt'
+        window.add_legal_section('pypdf',None,Gtk.License.CUSTOM,
+                                 GLib.markup_escape_text(notice.read_text(encoding='utf-8')))
+        owner.about_window=window
+        window.present()
+        return window
 
     def close_requested(self,*_):
         if getattr(self,'closing_ready',False):return False

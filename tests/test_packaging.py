@@ -63,6 +63,11 @@ class Packaging(unittest.TestCase):
             self.assertTrue((stage/'app/bin/twinly').is_file())
             for name in module.MODULES:self.assertTrue((app/name).is_file(),name)
             self.assertTrue((app/'data/getting-started.html').is_file())
+            legal=stage/'app/share/licenses/twinly'
+            for name in ('LICENSE','LICENSING.md'):
+                self.assertEqual((ROOT/name).read_bytes(),(legal/name).read_bytes())
+            self.assertEqual((ROOT/'data/CREDITS.md').read_bytes(),(legal/'CREDITS.md').read_bytes())
+            self.assertTrue((app/'vendor/pypdf-LICENSE.txt').is_file())
             self.assertFalse((app/'Documenten').exists())
             self.assertFalse((app/'Instellingen').exists())
             self.assertNotIn('getting-started-photo.png',[p.name for p in (app/'data').iterdir()])
@@ -79,6 +84,18 @@ class Packaging(unittest.TestCase):
             self.assertTrue((project/'packaging/io.github.TestOwner.Twinly.json').is_file())
             self.assertNotIn('io.github.twinly.Preview',(project/'scripts/build-flatpak.sh').read_text())
             self.assertIn('flatpak run io.github.TestOwner.Twinly',(project/'README.md').read_text())
+
+    def test_project_license_is_gpl_version_three_or_later(self):
+        import xml.etree.ElementTree as ET
+        from application import APP_ID,LICENSE_ID
+        metadata=ET.parse(ROOT/'data'/(APP_ID+'.metainfo.xml')).getroot()
+        self.assertEqual('GPL-3.0-or-later',LICENSE_ID)
+        self.assertEqual(LICENSE_ID,metadata.findtext('project_license'))
+        license=(ROOT/'LICENSE').read_text()
+        self.assertIn('SPDX-License-Identifier: '+LICENSE_ID,license)
+        self.assertIn('any later version',license)
+        self.assertIn((ROOT/'licenses/GPL-3.0-or-later.txt').read_text(),license)
+        self.assertIn('Paullinux',metadata.findtext('developer/name'))
 
     def test_offline_package_checks_pass(self):
         result=subprocess.run([sys.executable,str(ROOT/'scripts/check_release.py')],capture_output=True,text=True)

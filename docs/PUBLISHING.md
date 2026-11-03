@@ -1,27 +1,28 @@
 # Publishing checklist
 
 The source, initial content, metadata, installer, Flatpak manifest and CI workflows
-are prepared. Nothing has been pushed, uploaded as a GitHub release or submitted
-to Flathub. A manifest is not an already-tested Flatpak binary.
+are prepared and the source is hosted on GitHub. Creating a GitHub release and
+submitting to Flathub are separate steps. A manifest is not an already-tested
+Flatpak binary.
 
 ## 1. Set the real identity and licence
 
 Create/choose your GitHub account and repository name. Choose an application ID
 derived from an identity you control. The current `io.github.twinly.Preview`
 is the existing preview identifier, not a claim that a GitHub account is owned.
-Choose the project licence and copyright holder explicitly:
+Twinly is licensed under GPL-3.0-or-later, copyright Paullinux. Keep that choice
+when configuring the final application ID:
 
 ```sh
 python3 scripts/configure_release.py \
   --app-id io.github.YOUR_ACCOUNT.Twinly \
   --repository https://github.com/YOUR_ACCOUNT/twinly \
-  --author 'YOUR COPYRIGHT HOLDER NAME' \
-  --license MIT
+  --author 'Paullinux' \
+  --license GPL-3.0-or-later
 python3 scripts/check_release.py --publication
 ```
 
-`MIT` is an example of syntax, not a licence chosen on the owner's behalf.
-The helper also supports `GPL-3.0-or-later`. For another licence, add its full text
+The helper also supports MIT for other projects. For another licence, add its full text
 and AppStream SPDX identifier deliberately. Application-ID segments cannot contain
 hyphens. The helper updates application IDs, filenames, manifest, desktop entry,
 metadata, installer and workflows, then writes LICENSE and developer/repository data.
@@ -32,7 +33,7 @@ and installation identity.
 
 Confirm README, LICENSE, CREDITS, provisional icon and English guide. Add real
 screenshots to AppStream after the public repository provides stable screenshot URLs.
-Review SECURITY.md and test the tightened portal permissions. The fuller About dialog remains deferred as requested. Do not include personal
+Review SECURITY.md and test the tightened portal permissions. The About window includes Paullinux attribution, GPL details, project links and third-party credits. Do not include personal
 Documenten/Instellingen directories, logs, credentials or local build outputs.
 No project git history or invented public URLs have been created for you.
 
