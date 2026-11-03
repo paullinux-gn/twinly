@@ -1959,6 +1959,21 @@ class Native(unittest.TestCase):
         self.assertFalse(self.w.peer.dirty())
         self.assertEqual(self.w.saved_stamp,__import__('model').stamp(first))
 
+    def test_photo_chooser_uses_image_filter_independent_of_title(self):
+        from unittest.mock import patch,Mock
+        with patch.object(self.w,'file_chooser') as choose:
+            self.w.insert_photo()
+            self.assertTrue(choose.call_args.kwargs['photo'])
+        with patch('editor.Gtk.FileDialog') as factory:
+            self.w.file_chooser('Choose a picture',Gtk.FileChooserAction.OPEN,Mock(),photo=True)
+            filters=factory.return_value.set_filters.call_args.args[0]
+            selected=filters.get_item(0)
+            self.assertEqual('Photos (PNG, JPEG)',selected.get_name())
+            factory.return_value.set_default_filter.assert_called_once_with(selected)
+            for name,accepted in [('photo.jpg',True),('photo.JPEG',True),('photo.png',True),('page.html',False)]:
+                info=Gio.FileInfo();info.set_display_name(name);info.set_content_type(Gio.content_type_guess(name,None)[0])
+                self.assertEqual(accepted,selected.match(info),name)
+
     def test_revision_file_dialog_uses_current_api_and_handles_cancel(self):
         from unittest.mock import patch,Mock
         from gi.repository import Gio

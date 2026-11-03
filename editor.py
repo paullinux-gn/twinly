@@ -1564,11 +1564,18 @@ class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,Workspa
             self.sidebar.rename_created(path)
         self.guard(activate)
 
-    def file_chooser(self,title,action,callback,name=None,folder=None,export_format=None,import_office=False):
+    def file_chooser(self,title,action,callback,name=None,folder=None,export_format=None,import_office=False,photo=False):
         dialog=Gtk.FileDialog(title=title,modal=True)
         if name:dialog.set_initial_name(name)
         if folder:dialog.set_initial_folder(Gio.File.new_for_path(str(folder)))
-        if import_office:
+        if photo:
+            filters=Gio.ListStore.new(Gtk.FileFilter)
+            image_filter=Gtk.FileFilter(name='Photos (PNG, JPEG)')
+            for mime in ('image/png','image/jpeg'):image_filter.add_mime_type(mime)
+            for extension in ('png','jpg','jpeg'):
+                for suffix in (extension,extension.upper()):image_filter.add_pattern('*.'+suffix)
+            filters.append(image_filter);dialog.set_filters(filters);dialog.set_default_filter(image_filter)
+        elif import_office:
             filters=Gio.ListStore.new(Gtk.FileFilter)
             office_filter=Gtk.FileFilter(name='Documents (.odt, .docx, .pdf)')
             for pattern in ('*.odt','*.docx','*.pdf','*.ODT','*.DOCX','*.PDF'):office_filter.add_pattern(pattern)
@@ -1578,7 +1585,7 @@ class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,Workspa
             export_filter=Gtk.FileFilter(name={'odt':'OpenDocument text (.odt)','docx':'Word document (.docx)'}[export_format])
             export_filter.add_pattern('*.'+export_format)
             filters.append(export_filter);dialog.set_filters(filters)
-        elif action in (Gtk.FileChooserAction.OPEN,Gtk.FileChooserAction.SAVE) and 'Photo' not in title:
+        elif action in (Gtk.FileChooserAction.OPEN,Gtk.FileChooserAction.SAVE):
             filters=Gio.ListStore.new(Gtk.FileFilter)
             html_filter=Gtk.FileFilter(name='HTML documents')
             html_filter.add_pattern('*.html');html_filter.add_pattern('*.htm')
@@ -2062,7 +2069,7 @@ class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,Workspa
                 self.select_photo(entry)
                 self.capture()
             except Exception as exc:self.error(str(exc))
-        self.file_chooser('Insert photo · PNG or JPEG',Gtk.FileChooserAction.OPEN,picked,folder=self.sidebar.root)
+        self.file_chooser('Insert photo · PNG or JPEG',Gtk.FileChooserAction.OPEN,picked,folder=self.sidebar.root,photo=True)
 
     def photo_width_changed(self,widget):
         # GtkSpinButton normally commits typed text only on Enter/focus loss.
