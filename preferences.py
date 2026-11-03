@@ -24,23 +24,24 @@ class PreferencesMixin:
                 logging.getLogger('twinly').exception('Voorkeuren opslaan mislukt')
                 if not self.closed:self.error('Voorkeuren opslaan mislukt: '+str(exc))
         return False
-
     def load_appearance(self):
         settings=read_settings(self.config)
-                self.appearance_mode=settings.get('appearance','dark-light')
-        if self.appearance_mode not in ('system','light','dark','dark-light'):self.appearance_mode='dark-light'
+        self.appearance_mode=settings.get('appearance','dark-light')
+        if self.appearance_mode not in ('system','light','dark','dark-light'):
+            self.appearance_mode='dark-light'
         self.blur_requested=settings.get('blur',True) is True
-        def number(key,default,low,high):return finite_number(settings.get(key),default,low,high)
+        def number(key,default,low,high):
+            return finite_number(settings.get(key),default,low,high)
         self.blur_radius=number('blur_radius',30,0,40)
         self.blur_tint=number('blur_tint',75,10,100)
         self.blur_available=False
         if (Gtk.get_major_version(),Gtk.get_minor_version())>=(4,24) and 'Wayland' in type(self.get_display()).__name__:
-            probe=Gtk.CssProvider();errors=[]
+            probe=Gtk.CssProvider()
+            errors=[]
             probe.connect('parsing-error',lambda *args:errors.append(True))
             probe.load_from_string('.blur-probe { backdrop-filter: blur(18px); }')
             self.blur_available=not errors
         self.apply_appearance()
-
     def apply_appearance(self):
         modes={'system':Adw.ColorScheme.DEFAULT,'light':Adw.ColorScheme.FORCE_LIGHT,'dark':Adw.ColorScheme.FORCE_DARK,
                'dark-light':Adw.ColorScheme.FORCE_DARK}
