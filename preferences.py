@@ -27,9 +27,9 @@ class PreferencesMixin:
 
     def load_appearance(self):
         settings=read_settings(self.config)
-        self.appearance_mode=settings.get('appearance','system')
-        if self.appearance_mode not in ('system','light','dark','dark-light'):self.appearance_mode='system'
-        self.blur_requested=settings.get('blur',False) is True
+                self.appearance_mode=settings.get('appearance','dark-light')
+        if self.appearance_mode not in ('system','light','dark','dark-light'):self.appearance_mode='dark-light'
+        self.blur_requested=settings.get('blur',True) is True
         def number(key,default,low,high):return finite_number(settings.get(key),default,low,high)
         self.blur_radius=number('blur_radius',30,0,40)
         self.blur_tint=number('blur_tint',75,10,100)
