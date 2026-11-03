@@ -69,9 +69,9 @@ class WorkspaceMixin:
             shown=((pane is editor and getattr(self,'header_hovered',False))
                    or pane.title_stack.get_visible_child_name()=='edit' or bool(pop and pop.get_visible()))
             visibility.append((id(pane),shown))
-            pane.title_row.set_opacity(1 if shown else 0)
-            pane.title_row.set_can_target(shown)
-            pane.title_row.set_sensitive(shown)
+            pane.title_details.set_opacity(1 if shown else 0)
+            pane.title_details.set_can_target(shown)
+            pane.title_details.set_sensitive(shown)
         visibility=tuple(visibility)
         if visibility!=getattr(self,'header_title_visibility',None):
             self.header_title_visibility=visibility
@@ -184,6 +184,7 @@ class WorkspaceMixin:
             else:pane.title_row.remove_css_class('active-document')
         self.header_back.set_sensitive(editor.navigation_index>0)
         self.header_forward.set_sensitive(editor.navigation_index<len(editor.navigation)-1)
+        self.refresh_edit_actions()
         self.refresh_focus_layout()
 
     def set_pinned(self,value):
@@ -230,6 +231,7 @@ class WorkspaceMixin:
             scroll_value=peer.document_scroll.get_vadjustment().get_value()
             self.path=peer.path;self.saved_stamp=peer.saved_stamp
             self.restore(peer.snapshot(),reset=True)
+            self.set_editing(peer.editing)
             self.saved_doc=copy.deepcopy(peer.saved_doc)
             self.history=copy.deepcopy(peer.history);self.history_index=peer.history_index
             self.navigation=copy.deepcopy(peer.navigation);self.navigation_index=peer.navigation_index
@@ -255,6 +257,7 @@ class WorkspaceMixin:
         self.show_active_zoom(self)
         self.swapped=False
         self.active_editor=self;self.peer=None
+        self.refresh_edit_actions()
         self.header_editor=self
         self.update_header_title()
         self.refresh_focus_layout()

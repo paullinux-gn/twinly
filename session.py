@@ -15,6 +15,7 @@ class DocumentSession:
     navigation_index: int=-1
     zoom: float=1.0
     pinned: bool=False
+    editing: bool=True
 
     def append_history(self,document,max_entries=60,max_bytes=32*1024*1024):
         """Bound structural history; immutable embedded image strings remain shared."""

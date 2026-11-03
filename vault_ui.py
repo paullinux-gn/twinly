@@ -216,7 +216,7 @@ class VaultEditing:
                 doc,title=self.vault_store.load_draft(identity)
                 for image in doc['images']:pixbuf_for(image['src'])
                 self.vault_draft_id=uuid.uuid4().hex
-                self.path=None;self.restore(doc,reset=True);self.saved_doc=blank();self.capture()
+                self.path=None;self.restore(doc,reset=True);self.set_editing(True);self.saved_doc=blank();self.capture()
                 self.vault_store.draft(self.vault_draft_id,self.snapshot(),title)
                 if identity!=self.vault_draft_id:self.vault_store.remove_draft(identity)
                 if window:window.close()
@@ -232,7 +232,7 @@ class VaultEditing:
             try:
                 doc=self.vault_store.load(ref.identity)
                 for image in doc['images']:pixbuf_for(image['src'])
-                self.path=ref;self.restore(doc,reset=True);self.vault_draft_id=ref.identity
+                self.path=ref;self.restore(doc,reset=True);self.set_editing(False);self.vault_draft_id=ref.identity
                 self.sidebar.select_path(ref);self.show_editor()
             except (OSError,ValueError,KeyError) as exc:self.error(str(exc))
         self.guard(run)
@@ -275,7 +275,7 @@ class VaultEditing:
             try:
                 identity=self.vault_store.add(self.vault_store.unique_name(parent.identity,'nieuw document','.html'),parent.identity)
                 self.saved_doc=self.snapshot() # The outer guard already handled the previous document.
-                self.sidebar.refresh(self.sidebar.expanded()|{parent});self.open_path(VaultRef(self.vault_store,identity));self.sidebar.rename_created(VaultRef(self.vault_store,identity))
+                self.sidebar.refresh(self.sidebar.expanded()|{parent});self.open_path(VaultRef(self.vault_store,identity));self.set_editing(True);self.sidebar.rename_created(VaultRef(self.vault_store,identity))
             except (OSError,ValueError) as exc:self.error(str(exc))
         self.guard(run)
     def new_folder(self,*_,folder=None):
@@ -306,7 +306,7 @@ class VaultEditing:
             doc=self.snapshot() if ref is None or ref==self.path else self.vault_store.load(ref.identity)
             parent=ref.parent if ref else self.sidebar.folder();base=(ref.stem if ref else 'Nieuw document')+' – kopie'
             identity=self.vault_store.add(self.vault_store.unique_name(parent.identity,base,'.html'),parent.identity,document=doc)
-            self.sidebar.refresh();self.open_path(VaultRef(self.vault_store,identity))
+            self.sidebar.refresh();self.open_path(VaultRef(self.vault_store,identity));self.set_editing(True)
         except (OSError,ValueError) as exc:self.error(str(exc))
     def trash(self,*_):
         ref=self.sidebar.selected()
@@ -378,7 +378,7 @@ class VaultEditing:
                             if error:raise VaultError(error)
                             for image in document['images']:pixbuf_for(image['src'])
                             parent=self.sidebar.folder();name=self.vault_store.unique_name(parent.identity,path.stem,'.html')
-                            identity=self.vault_store.add(name,parent.identity,document=document);self.sidebar.refresh();self.open_path(VaultRef(self.vault_store,identity))
+                            identity=self.vault_store.add(name,parent.identity,document=document);self.sidebar.refresh();self.open_path(VaultRef(self.vault_store,identity));self.set_editing(True)
                         except (OSError,ValueError) as exc:self.error(str(exc))
                         return False
                     GLib.idle_add(complete)

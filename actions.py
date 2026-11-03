@@ -3,6 +3,25 @@ from gi.repository import Gio,GLib
 from model import COLORS,PARAGRAPH_STYLES
 
 class ActionsMixin:
+    EDIT_ACTIONS=frozenset((
+        'list-bullet','list-number','list-check','list-remove','toggle-check',
+        'replace','link','photo','horizontal-rule','delete-photo','undo','redo',
+        'bold','italic','underline','strike','clear','left','center','right',
+        'justify','palette','unhighlight','apply-custom-style',
+    ))
+
+    def edit_action(self,name):
+        return name in self.EDIT_ACTIONS or name.startswith(('style-','highlight-'))
+
+    def refresh_edit_actions(self):
+        owner=self.workspace_owner or self
+        for pane in (owner,owner.peer):
+            if pane is None:continue
+            # Window actions are shared and must follow the focused pane.
+            target=owner.active_editor if pane is owner else pane
+            for name in pane.list_actions():
+                if pane.edit_action(name):pane.lookup_action(name).set_enabled(target.editing)
+
     def build_actions(self,app):
         bindings={
             'list-bullet':(lambda *_:self.apply_list('bullet'),['<Primary><Shift>7']),
@@ -75,13 +94,14 @@ class ActionsMixin:
         custom=Gio.SimpleAction.new('apply-custom-style',GLib.VariantType.new('s'))
         def apply_custom(action,param):
             active=getattr(self,'active_editor',self)
-            active.activate_custom_style(action,param)
+            if active.editing:active.activate_custom_style(action,param)
         custom.connect('activate',apply_custom);self.add_action(custom)
         for name,(callback,keys) in bindings.items():
             action=(Gio.SimpleAction.new_stateful(name,None,GLib.Variant.new_boolean(False))
                     if name=='focus-mode' else Gio.SimpleAction.new(name,None))
             def dispatch(action,param,callback=callback,name=name):
                 active=getattr(self,'active_editor',self)
+                if self.edit_action(name) and not active.editing:return
                 if active is not self and name not in ('close','quit','switch-pane','swap-panes','preferences','shortcuts','about','root','new-root','search-documents','show-trash','new-folder','rename','move','trash','vaults','vault-create','vault-open'):
                     active.lookup_action(name).activate(param)
                 else:callback(action,param)

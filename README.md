@@ -182,6 +182,15 @@ and both writing panes stay white with
 dark text and a dark caret. Selection retains the accent colour. The choice is
 saved and works with focus mode and blur; documents and exports are unchanged.
 
+### Reading and editing
+
+Existing documents open read-only. A persistent pencil beside each pane's title
+turns on editing and reveals the formatting toolbar. The pencil becomes a
+checkmark: click it to save and return to reading. If saving fails or is cancelled,
+the document remains editable. Selecting, copying, searching, following links and
+printing remain available while reading. Each pane has its own editing state,
+including vault documents; newly created documents start editable.
+
 ### Shared document title
 
 The separate document title rows have been removed. Hover over the shared

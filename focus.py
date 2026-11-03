@@ -65,7 +65,7 @@ class FocusMixin:
         owner=self.workspace_owner or self
         if owner is not self:return owner.refresh_focus_layout()
         enabled=getattr(self,'focus_mode',False)
-        if self.search_controls_open():
+        if self.search_controls_open() or not self.active_editor.editing:
             self.cancel_focus_hide();self.focus_toolbar_visible=False;self.focus_pointer_top=False
         elif self.toolbar_always_visible:self.focus_toolbar_visible=True
         slot=self.shared_toolbar if self.peer else self.toolbar
@@ -116,7 +116,8 @@ class FocusMixin:
             # an empty strip outside it.
             self.workspace_layout.set_margin_top(0)
             inset=(slot.measure(Gtk.Orientation.VERTICAL,width)[1]+self.focus_revealer.get_margin_top()
-                   if not self.search_controls_open() else 0)
+                   if self.active_editor.editing else header_height)
+            if self.search_controls_open():inset=0
             for pane in (self,self.peer):
                 if pane:
                     pane.search_bar.set_margin_top(header_height if pane.search_bar.get_search_mode() else 0)
@@ -146,7 +147,7 @@ class FocusMixin:
 
     def focus_motion(self,controller,x,y):
         if self.closed:return
-        if self.search_controls_open():return
+        if self.search_controls_open() or not self.active_editor.editing:return
         found,bounds=self.workspace_overlay.compute_bounds(self)
         if found and not bounds.get_x()<=x<=bounds.get_x()+bounds.get_width():
             self.focus_leave();return

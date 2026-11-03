@@ -46,6 +46,19 @@ class VaultNative(unittest.TestCase):
             if path.is_file():
                 raw=path.read_bytes()
                 for text in (b'VAULT SECRET CANARY 9f73',b'SensitiveStyle9f73',b'Secret filename9f73'):self.assertNotIn(text,raw,str(path))
+    def test_pencil_reads_and_saves_encrypted_documents(self):
+        self.w.new();pump();path=self.w.path
+        self.assertTrue(self.w.editing)
+        self.w.buffer.insert_at_cursor('VAULT SECRET CANARY 9f73')
+        self.w.edit_button.emit('clicked')
+        self.assertFalse(self.w.editing)
+        self.assertIn('VAULT SECRET CANARY 9f73',self.store.load(path.identity)['text'])
+        self.w.open_path(path)
+        self.assertFalse(self.w.view.get_editable())
+        self.w.edit_button.emit('clicked')
+        self.assertTrue(self.w.editing)
+        self.assert_no_plaintext()
+
     def test_edit_save_private_styles_and_both_panes(self):
         from vault_ui import VaultRef
         self.w.new();pump();first=self.w.path.identity

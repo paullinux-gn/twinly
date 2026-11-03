@@ -328,14 +328,19 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.pin_button=Gtk.ToggleButton(icon_name='view-pin-symbolic',tooltip_text='Referentie losmaken',css_classes=['flat'])
         self.pin_button.set_visible(False)
         self.pin_button.connect('toggled',lambda b:self.set_pinned(b.get_active()))
-        self.title_row.append(self.pin_button)
-        self.title_row.append(title_center)
+        self.title_details=Gtk.Box(spacing=0)
+        self.title_details.append(self.pin_button)
+        self.title_details.append(title_center)
+        self.title_row.append(self.title_details)
+        self.edit_button=Gtk.Button(icon_name='document-edit-symbolic',css_classes=['flat'],focus_on_click=False)
+        self.edit_button.connect('clicked',self.toggle_editing)
+        self.title_row.append(self.edit_button)
         self.pane_close=Gtk.Button(icon_name='window-close-symbolic',tooltip_text='Deelvenster sluiten · Ctrl+W',css_classes=['flat'],focusable=False)
         self.pane_close.set_visible(True)
         self.pane_close.connect('clicked',lambda _:
             (self.workspace_owner or self).close_pane(self) if (self.workspace_owner or self).peer
             else (self.workspace_owner or self).close_active_pane())
-        self.title_row.append(self.pane_close)
+        self.title_details.append(self.pane_close)
         title_context=Gtk.GestureClick(button=3)
         title_context.connect('pressed',self.title_context_menu)
         self.title_row.add_controller(title_context)
@@ -425,9 +430,49 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.update_header_title()
             self.setup_focus_mode()
             self.toolbar_pin_button.connect('toggled',self.toolbar_visibility_toggled)
+        self.set_editing(True)
         self.font_button.connect('notify::font-desc',lambda *_:
             (self.workspace_owner or self).refresh_focus_layout()
             if hasattr(self.workspace_owner or self,'focus_overlay_slot') else None)
+
+    def set_editing(self,enabled):
+        self.editing=bool(enabled)
+        self.view.set_editable(self.editing)
+        self.view.set_cursor_visible(self.editing)
+        label='Opslaan en lezen' if self.editing else 'Document bewerken'
+        self.edit_button.set_icon_name('emblem-ok-symbolic' if self.editing else 'document-edit-symbolic')
+        self.edit_button.set_tooltip_text(label)
+        self.edit_button.update_property([Gtk.AccessibleProperty.LABEL],[label])
+        self.toolbar.set_sensitive(self.editing)
+        self.replace_toggle.set_sensitive(self.editing)
+        self.replace_row.set_sensitive(self.editing)
+        if not self.editing:
+            self.replace_toggle.set_active(False)
+            self.photo_bar.set_visible(False)
+            for entry in self.anchors:
+                entry.pop('resize_start',None)
+                if 'frame' in entry:entry['frame'].set_cursor_from_name(None)
+            for name in ('text_popover','palette','text_color_popover'):
+                pop=getattr(self,name,None)
+                if pop:pop.popdown()
+        owner=self.workspace_owner or self
+        owner.refresh_edit_actions()
+        slot=getattr(owner,'shared_toolbar',None) if owner.peer else owner.toolbar
+        if self is owner.active_editor and getattr(owner,'focus_overlay_slot',None) is slot and slot is not None:
+            owner.cancel_focus_hide()
+            owner.focus_toolbar_visible=self.editing
+            owner.refresh_focus_layout()
+
+    def toggle_editing(self,*_):
+        owner=self.workspace_owner or self
+        owner.activate_pane(self)
+        if not self.editing:
+            self.set_editing(True)
+            self.view.grab_focus()
+        else:
+            # The save callback runs only after a successful write (including
+            # Save As / external-change confirmation). Cancellation keeps editing.
+            self.save(after=lambda:self.set_editing(False))
 
     @staticmethod
     def button(icon,tooltip,action):
@@ -462,6 +507,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     LIST_PREFIX=r'^(?:[•] |[☐☑] |\d+\. )'
 
     def apply_list(self,kind):
+        if not self.editing:return
         self.show_editor()
         bounds=self.buffer.get_selection_bounds()
         start,end=(i.copy() for i in bounds) if bounds else (self.buffer.get_iter_at_mark(self.buffer.get_insert()),self.buffer.get_iter_at_mark(self.buffer.get_insert()))
@@ -483,6 +529,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.capture();self.view.grab_focus()
 
     def toggle_check(self,*_):
+        if not self.editing:return
         where=self.buffer.get_iter_at_mark(self.buffer.get_insert());where.set_line_offset(0)
         end=where.copy();end.forward_char()
         text=self.buffer.get_text(where,end,True)
@@ -493,6 +540,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.capture()
 
     def list_key_pressed(self,controller,keyval,keycode,state):
+        if not self.editing:return False
         if keyval not in (Gdk.KEY_Return,Gdk.KEY_KP_Enter) or state or self.buffer.get_has_selection():return False
         cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert())
         start=cursor.copy();start.set_line_offset(0)
@@ -611,7 +659,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             gesture.set_state(Gtk.EventSequenceState.CLAIMED)
             self.buffer.place_cursor(where);self.toggle_check();return
         link=self.link_at_position(x,y)
-        if link and (link[2]['kind']=='document' or gesture.get_current_event_state()&Gdk.ModifierType.CONTROL_MASK):
+        if link and (link[2]['kind']=='document' or not self.editing or gesture.get_current_event_state()&Gdk.ModifierType.CONTROL_MASK):
             gesture.set_state(Gtk.EventSequenceState.CLAIMED)
             if link[2]['kind']=='document':self.show_link_choices(link[2],x,y)
             else:self.open_document_link(link[2])
@@ -678,10 +726,12 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         except Exception as exc:self.error(str(exc))
 
     def remove_link(self):
+        if not self.editing:return
         link=self.current_link()
         if link:self.apply_style('link',None,(self.buffer.get_iter_at_offset(link[0]),self.buffer.get_iter_at_offset(link[1])))
 
     def insert_document_link(self,text,link,start,end):
+        if not self.editing:return
         if not text.strip() or '\n' in text or not valid_link(link['href']):raise ValueError('Vul een geldige link en weergavetekst in.')
         self.capture()
         was_loading=self.loading;self.loading=True
@@ -700,6 +750,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.view.grab_focus()
 
     def link_dialog(self,*_):
+        if not self.editing:return
         self.show_editor()
         selected=self.buffer.get_selection_bounds()
         link=self.current_link()
@@ -792,6 +843,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             accelerators={'Knippen':'Ctrl+X','Kopiëren':'Ctrl+C','Plakken':'Ctrl+V','Alles selecteren':'Ctrl+A','Link invoegen…':'Ctrl+K','Link bewerken…':'Ctrl+K'}
             shown=label+('    '+accelerators[label] if label in accelerators else '')
             button=Gtk.Button(label=shown,focus_on_click=False)
+            button.set_sensitive(self.editing or label in ('Kopiëren','Alles selecteren','Link openen','Link hiernaast openen'))
             button.add_css_class('flat')
             button.get_child().set_xalign(0)
             button.connect('clicked',lambda *_:run(callback))
@@ -809,6 +861,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         box.append(Gtk.Separator())
         palette=self.palette_grid(columns=4)
         box.append(palette)
+        palette.set_sensitive(self.editing)
         # Bind palette buttons explicitly, including those hidden while collapsed.
         def bind_colors(widget):
             if isinstance(widget,Gtk.Button) and widget.get_action_name():
@@ -936,6 +989,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         dialog.choose_rgba(self.workspace_owner or self,initial,cancellable,finished)
 
     def set_text_color(self,colour):
+        if not self.editing:return
         bounds=self.buffer.get_selection_bounds()
         if bounds:
             self.typing_color=None
@@ -1029,6 +1083,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         return bounds
 
     def apply_style(self,key,value,bounds=None):
+        if not self.editing:return
         if self.loading:return
         bounds=bounds or self.bounds()
         if not bounds:return
@@ -1042,6 +1097,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.view.grab_focus()
 
     def toggle_style(self,key):
+        if not self.editing:return
         bounds=self.bounds()
         if not bounds:return
         start,end=bounds
@@ -1070,6 +1126,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.apply_style('align',value,(start,end))
 
     def clear(self):
+        if not self.editing:return
         bounds=self.bounds()
         if bounds:
             self.typing_font=None;self.typing_color=None;self.typing_paragraph=None
@@ -1079,6 +1136,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.capture()
 
     def choose_font(self,button):
+        if not self.editing:return
         bounds=self.buffer.get_selection_bounds()
         if not bounds:
             cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert())
@@ -1130,6 +1188,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             if self.typing_color:buffer.apply_tag(self.tag_for('foreground',self.typing_color),start,end)
 
     def font_chosen(self,button,*_,bounds=None,desc=None,capture=True):
+        if not self.editing:return
         if self.loading:return
         bounds=bounds or self.buffer.get_selection_bounds()
         desc=(desc or button.get_font_desc()).copy()
@@ -1331,12 +1390,14 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             clear_image_cache()
 
     def undo(self,*_):
+        if not self.editing:return
         self.capture()
         if self.history_index>0:
             self.history_index-=1
             self.restore(copy.deepcopy(self.history[self.history_index]))
 
     def redo(self,*_):
+        if not self.editing:return
         self.capture()
         if self.history_index<len(self.history)-1:
             self.history_index+=1
@@ -1487,6 +1548,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.path=path
             self.saved_stamp=stamp(path)
             self.restore(doc,reset=True)
+            self.set_editing(True)
             self.record_navigation()
             self.sidebar.select_path(path)
             if self.split.get_collapsed():self.split.set_show_sidebar(False)
@@ -1582,7 +1644,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                         for image in imported['images']:pixbuf_for(image['src'])
                         atomic_write(destination,to_html(imported,destination.stem),overwrite=False)
                         self.path=destination;self.saved_stamp=stamp(destination)
-                        self.restore(imported,reset=True);self.record_navigation()
+                        self.restore(imported,reset=True);self.set_editing(True);self.record_navigation()
                         self.sidebar.refresh();self.sidebar.select_path(destination)
                         self.view.grab_focus()
                         if warnings:self.ask('Importeren voltooid','\n'.join(warnings),[('cancel','Sluiten')],lambda _:None)
@@ -1615,6 +1677,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 self.path=path
                 self.saved_stamp=loaded_stamp
                 self.restore(doc,reset=True)
+                self.set_editing(False)
                 self.record_navigation()
                 self.sidebar.select_path(path)
                 self.message(' · '.join(warnings) if warnings else 'Document geopend · '+str(path))
@@ -1651,6 +1714,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 self.path=destination
                 self.saved_stamp=stamp(destination)
                 self.restore(doc,reset=True)
+                self.set_editing(True)
                 self.record_navigation()
                 self.sidebar.refresh()
                 self.sidebar.select_path(destination)
@@ -1857,6 +1921,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.anchors.append({'anchor':anchor,'kind':'rule'})
 
     def insert_rule(self,*_):
+        if not self.editing:return
         self.show_editor()
         self.buffer.delete_selection(True,True)
         cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert())
@@ -1928,9 +1993,10 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         was_loading=self.loading;self.loading=True
         try:self.photo_width.set_value(entry['data']['width'])
         finally:self.loading=was_loading
-        self.photo_bar.set_visible(True)
+        self.photo_bar.set_visible(self.editing)
 
     def photo_drag_begin(self,gesture,x,y,entry):
+        if not self.editing:return
         frame=entry['frame']
         corner_x=x<=14 or x>=frame.get_width()-14
         corner_y=y<=14 or y>=frame.get_height()-14
@@ -1946,6 +2012,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         frame.set_cursor_from_name('nwse-resize' if (x<frame.get_width()/2)==(y<frame.get_height()/2) else 'nesw-resize')
 
     def photo_drag_update(self,gesture,dx,dy,entry):
+        if not self.editing:return
         if 'resize_start' not in entry or entry['anchor'].get_deleted():return
         width,height,sx,sy=entry['resize_start']
         ratio=height/width
@@ -1967,7 +2034,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.capture()
 
     def insert_photo(self,*_):
+        if not self.editing:return
         def picked(path):
+            if not self.editing:return
             try:
                 src=image_data(path)
                 images=self.snapshot()['images']
@@ -1996,6 +2065,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.resize_photo(widget,width=int(text))
 
     def resize_photo(self,widget,width=None):
+        if not self.editing:return
         entry=self.selected_photo
         if self.loading or not entry or entry['anchor'].get_deleted():return
         w=widget.get_value_as_int() if width is None else width
@@ -2007,6 +2077,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.capture()
 
     def delete_photo(self,*_):
+        if not self.editing:return
         entry=self.selected_photo
         if entry and not entry['anchor'].get_deleted():
             start=self.buffer.get_iter_at_child_anchor(entry['anchor'])
@@ -2327,6 +2398,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                         self.path=target['path']
                         self.saved_stamp=loaded_stamp if self.path else None
                         self.restore(doc,reset=True)
+                        self.set_editing(self.path is None)
                     self.document_stack.set_visible_child_name('editor')
                     if self.path:self.sidebar.select_path(self.path)
                     if self.split.get_collapsed():self.split.set_show_sidebar(False)

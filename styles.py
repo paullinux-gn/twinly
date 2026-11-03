@@ -127,6 +127,7 @@ class CustomStylesMixin:
             self.buffer.apply_tag(self.tag_for(key,value),start,end)
 
     def apply_custom_style(self,definition):
+        if not self.editing:return
         definition=validate_custom_style(definition)
         self.apply_paragraph_style(definition['base'],capture=False)
         self.typing_family=None;self.typing_color=None

@@ -96,6 +96,7 @@ class WritingMixin:
         return start,end
 
     def apply_paragraph_style(self,style,capture=True):
+        if not self.editing:return
         if style not in PARAGRAPH_STYLES:return
         family=self.typing_font.get_family() if self.typing_font else (self.typing_custom_format.get('family') if self.typing_custom_format else self.typing_family)
         self.typing_font=None;self.typing_family=family
@@ -156,6 +157,7 @@ class WritingMixin:
         self.open_search();self.replace_toggle.set_active(True)
 
     def replace_matches(self,all_matches=False):
+        if not self.editing:return
         self.refresh_search(select=False)
         if not self.search_matches:return
         replacement=self.replace_entry.get_text()
@@ -242,7 +244,7 @@ class WritingMixin:
                 from printing import pixbuf_for
                 for image in doc['images']:pixbuf_for(image['src'])
                 pane.clear_recovery();pane.path=None;pane.saved_stamp=None
-                pane.restore(doc,reset=True);pane.saved_doc=blank();pane.capture();pane.flush_recovery()
+                pane.restore(doc,reset=True);pane.set_editing(True);pane.saved_doc=blank();pane.capture();pane.flush_recovery()
                 if pane.recovery_draft is None or not pane.recovery_draft.path.exists():raise OSError('Herstelkopie kon niet veilig worden overgenomen.')
                 Path(path).unlink();Path(path).with_suffix('.lock').unlink(missing_ok=True)
                 if window:window.close()
