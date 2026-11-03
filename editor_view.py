@@ -154,10 +154,12 @@ class PageViewMixin:
         scroll.set_child(None)
         self.view.set_halign(Gtk.Align.CENTER if self.page_view else Gtk.Align.FILL)
         if self.page_view:
+            scroll.add_css_class('page-view-scroll')
             self.view.add_css_class('page-sheet')
             self.page_canvas.append(self.view)
             scroll.set_child(self.page_canvas)
         else:
+            scroll.remove_css_class('page-view-scroll')
             self.view.remove_css_class('page-sheet')
             scroll.set_child(self.view)
         self.lookup_action('page-view').set_state(GLib.Variant.new_boolean(self.page_view))

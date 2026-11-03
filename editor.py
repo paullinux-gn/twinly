@@ -1388,6 +1388,8 @@ class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,Workspa
             setattr(self,name,0)
         Gtk.StyleContext.remove_provider_for_display(self.get_display(),self.css_provider)
         if not self.workspace_owner:
+            handler=getattr(self,'page_theme_handler',0)
+            if handler:Adw.StyleManager.get_default().disconnect(handler);self.page_theme_handler=0
             self.sidebar.cleanup()
             Gtk.StyleContext.remove_provider_for_display(self.get_display(),self.appearance_provider)
             self.theme.close()

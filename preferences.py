@@ -41,13 +41,24 @@ class PreferencesMixin:
             probe.connect('parsing-error',lambda *args:errors.append(True))
             probe.load_from_string('.blur-probe { backdrop-filter: blur(18px); }')
             self.blur_available=not errors
+        manager=Adw.StyleManager.get_default()
+        handler=getattr(self,'page_theme_handler',0)
+        if handler:manager.disconnect(handler)
+        self.page_theme_handler=manager.connect('notify::dark',lambda *_:self.update_page_theme())
         self.apply_appearance()
+
+    def update_page_theme(self):
+        dark=Adw.StyleManager.get_default().get_dark() and self.appearance_mode!='dark-light'
+        if dark:self.add_css_class('page-dark')
+        else:self.remove_css_class('page-dark')
+
     def apply_appearance(self):
         modes={'system':Adw.ColorScheme.DEFAULT,'light':Adw.ColorScheme.FORCE_LIGHT,'dark':Adw.ColorScheme.FORCE_DARK,
                'dark-light':Adw.ColorScheme.FORCE_DARK}
         Adw.StyleManager.get_default().set_color_scheme(modes[self.appearance_mode])
         if self.appearance_mode=='dark-light':self.add_css_class('light-document')
         else:self.remove_css_class('light-document')
+        self.update_page_theme()
         enabled=self.blur_requested and self.blur_available
         if enabled:self.add_css_class('twinly-blur')
         else:self.remove_css_class('twinly-blur')

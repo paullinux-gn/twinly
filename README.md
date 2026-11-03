@@ -186,7 +186,8 @@ saved and works with focus mode and blur; documents and exports are unchanged.
 ### Optional page view
 
 Choose **Page view** in the document menu to switch between the flexible editor
-and a white sheet with a fixed paper width and margins. The default is A4 portrait
+and a sheet with a fixed paper width and margins. The surround matches the
+working-area color, with a thin grey outline and a subtle shadow in light themes. The default is A4 portrait
 with 15 mm margins. Resizing the window keeps the sheet width and line wrapping
 fixed; use the zoom control to change its displayed size. Narrow panes scroll
 horizontally instead of squeezing the text.
