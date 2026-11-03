@@ -183,6 +183,20 @@ and both writing panes stay white with
 dark text and a dark caret. Selection retains the accent colour. The choice is
 saved and works with focus mode and blur; documents and exports are unchanged.
 
+### Optional page view
+
+Choose **Page view** in the document menu to switch between the flexible editor
+and a white sheet with a fixed paper width and margins. The default is A4 portrait
+with 15 mm margins. Resizing the window keeps the sheet width and line wrapping
+fixed; use the zoom control to change its displayed size. Narrow panes scroll
+horizontally instead of squeezing the text.
+
+Change paper size (A4, A5 or Letter), orientation and margins in **Print preview**;
+those settings also update Page view. The view choice and paper settings are
+remembered, apply to both panes, and work inside vaults. This is a continuous
+sheet that grows with the text; exact page breaks remain in Print preview.
+Switching views does not change document content or its saved HTML.
+
 ### Reading and editing
 
 Existing documents open read-only. A persistent pencil beside each pane's title

@@ -124,9 +124,9 @@ class FocusMixin:
                     pane.documents_page.set_margin_top(header_height)
                     pane.trash_page.set_margin_top(header_height)
                     if not hasattr(pane,'document_top_margin'):pane.document_top_margin=pane.view.get_top_margin()
-                    # TextView padding belongs to the scrollable document, so
-                    # it clears the pill initially and scrolls away with text.
-                    pane.view.set_top_margin(pane.document_top_margin+inset)
+                    # Keep controls clear of scrollable content. Page view
+                    # places this space outside the sheet, preserving its margins.
+                    pane.update_document_inset(inset)
 
     def toggle_focus(self,*_):
         owner=self.workspace_owner or self

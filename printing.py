@@ -8,6 +8,16 @@ from gi.repository import Gtk, Pango, PangoCairo, GdkPixbuf, Gdk, GLib, Gio
 from model import blank,decode_image,validate_document,MAX_IMAGE_PIXELS,ResourceLimitError,resolved_style
 from filesystem import atomic_write
 import io
+from settings import finite_number
+
+PAPER_SIZES_MM={'A4':(210,297),'A5':(148,210),'Letter':(215.9,279.4)}
+
+def normalized_page_setup(value):
+    value=value if isinstance(value,dict) else {}
+    paper=value.get('paper','A4')
+    return {'paper':paper if isinstance(paper,str) and paper in PAPER_SIZES_MM else 'A4',
+            'landscape':value.get('landscape',False) is True,
+            'margin_mm':finite_number(value.get('margin_mm'),15,5,40)}
 
 
 _image_cache=OrderedDict()
@@ -255,7 +265,10 @@ class PrintPreview(Gtk.Window):
         self.paper = Gtk.DropDown.new_from_strings(['A4','A5','Letter'])
         self.orientation = Gtk.DropDown.new_from_strings(['Portrait','Landscape'])
         self.margin = Gtk.SpinButton.new_with_range(5,40,1)
-        self.margin.set_value(15)
+        setup=normalized_page_setup(getattr(parent,'page_setup',{}))
+        self.paper.set_selected(list(PAPER_SIZES_MM).index(setup['paper']))
+        self.orientation.set_selected(int(setup['landscape']))
+        self.margin.set_value(setup['margin_mm'])
         for label, widget in [('Paper', self.paper), ('Orientation',self.orientation), ('Margin (mm)',self.margin)]:
             controls.append(Gtk.Label(label=label))
             controls.append(widget)
@@ -287,6 +300,9 @@ class PrintPreview(Gtk.Window):
         w,h={'A4':(595.276,841.89),'A5':(419.528,595.276),'Letter':(612,792)}[self.paper.get_selected_item().get_string()]
         if self.orientation.get_selected(): w,h=h,w
         self.pages=Pages(self.doc,w,h,self.margin.get_value()*72/25.4)
+        update=getattr(self.get_transient_for(),'set_page_setup',None)
+        if update:update({'paper':self.paper.get_selected_item().get_string(),
+                          'landscape':bool(self.orientation.get_selected()),'margin_mm':self.margin.get_value()})
         self.index=min(self.index,len(self.pages.pages)-1)
         self.refresh()
 

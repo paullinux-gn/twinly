@@ -26,7 +26,7 @@ from writing import WritingMixin
 from styles import CustomStylesMixin
 from focus import FocusMixin
 from preferences import PreferencesMixin
-from editor_view import DocumentView,FontButton
+from editor_view import DocumentView,FontButton,PageViewMixin
 from actions import ActionsMixin
 from lifecycle import CallbackOwner
 from application import APP_ID,VERSION,DEVELOPER_NAME,COPYRIGHT,LICENSE_ID,WEBSITE,DESCRIPTION,DATA_DIR,locations,default_root
@@ -35,7 +35,7 @@ import private_trash
 import logging
 
 
-class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,PreferencesMixin,ActionsMixin,CallbackOwner):
+class EditorCore(PageViewMixin,CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,PreferencesMixin,ActionsMixin,CallbackOwner):
     def __init__(self,app,root=None,workspace_owner=None):
         if workspace_owner:super().__init__(orientation=Gtk.Orientation.VERTICAL)
         else:super().__init__(application=app,title='Twinly · Preview',default_width=1120,default_height=800,width_request=420,height_request=360)
@@ -125,7 +125,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             [('Save','save'),('Save as…','save-as'),('Make a copy','duplicate')],
             [('Find…','find'),('Insert link…','link'),('Insert photo…','photo')],
             [('Print preview…','print'),('Print…','print-direct')],
-            [('Focus mode','focus-mode')],
+            [('Focus mode','focus-mode'),('Page view','page-view')],
             [('Open beside current document…','open-beside'),('Swap panes','swap-panes'),('Pin as reference','pin-pane'),('Close pane','close')],
         ]:
             section=Gio.Menu()
@@ -418,6 +418,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.appearance_provider=Gtk.CssProvider();watch_css(self.appearance_provider)
             Gtk.StyleContext.add_provider_for_display(self.get_display(),self.appearance_provider,Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION+1)
             self.load_appearance()
+        self.setup_page_view()
         self.change_zoom(0)
         self.restore(blank(),reset=True)
         self.record_navigation()
@@ -1230,6 +1231,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 if not entry['anchor'].get_deleted() and entry.get('kind')!='rule':self.set_picture_size(entry)
         finally:self.loading=was_loading
         self.zoom_label.set_label(f'{int(self.zoom*100)}%')
+        if hasattr(self,'page_canvas'):self.update_page_geometry()
 
     def snapshot(self):
         text=self.buffer.get_slice(*self.buffer.get_bounds(),True)
@@ -1883,6 +1885,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def mark_set(self,buffer,location,mark):
         if self.loading or not hasattr(self,'photo_bar'):return
         if mark==buffer.get_insert():
+            if getattr(self,'page_view',False):self.queue_page_scroll()
             self.update_format_state()
             for entry in self.anchors:
                 if entry['anchor'].get_deleted() or entry.get('kind')=='rule':continue

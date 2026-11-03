@@ -3,6 +3,13 @@ import logging
 from gi.repository import Gtk
 
 BASE_CSS = r"""
+            .page-desk {background:mix(@window_bg_color,black,.08);}
+            textview.document.page-sheet, textview.document.page-sheet text {
+                background:#ffffff;color:#202020;caret-color:#202020;}
+            textview.document.page-sheet {box-shadow:0 0 0 1px alpha(black,.18);}
+            textview.document.page-sheet text selection {
+                background-color:@accent_bg_color;color:@accent_fg_color;}
+
             .blur-sidebar headerbar, .blur-sidebar headerbar:backdrop {
                 background:transparent;
                 }
