@@ -55,8 +55,15 @@ def pixbuf_for(src):
 
 
 class Pages:
-    def __init__(self, doc, width=595.276, height=841.89, margin=42.52):
+    def __init__(self, doc, width=595.276, height=841.89, margin=42.52, text_context=None):
         self.doc, self.width, self.height, self.margin = validate_document(doc), width, height, margin
+        # Match the GTK renderer actually in use. In particular, older GTK
+        # versions hint font metrics, while newer versions use fractional ones.
+        options=PangoCairo.context_get_font_options(text_context) if text_context else None
+        self.font_options=options.copy() if options else cairo.FontOptions()
+        if not options:self.font_options.set_hint_metrics(cairo.HINT_METRICS_OFF)
+        self.round_glyph_positions=text_context.get_round_glyph_positions() if text_context else False
+        self.text_language=text_context.get_language() if text_context else None
         self.pixbufs={}
         self.sorted_spans=sorted(enumerate(self.doc['spans']),key=lambda item:item[1]['start'])
         self.span_cursor=0;self.active_spans=[];self.last_span_start=-1
@@ -95,11 +102,9 @@ class Pages:
     def text_layout(self, text, offset):
         layout = PangoCairo.create_layout(self.context)
         PangoCairo.context_set_resolution(layout.get_context(), DOCUMENT_DPI)
-        # GTK text layout uses fractional vertical font metrics. Avoid rounding
-        # every printed line to whole device pixels before converting to points.
-        options=cairo.FontOptions();options.set_hint_metrics(cairo.HINT_METRICS_OFF)
-        PangoCairo.context_set_font_options(layout.get_context(),options)
-        layout.get_context().set_round_glyph_positions(False)
+        PangoCairo.context_set_font_options(layout.get_context(),self.font_options)
+        layout.get_context().set_round_glyph_positions(self.round_glyph_positions)
+        if self.text_language:layout.get_context().set_language(self.text_language)
         layout.set_font_description(Pango.FontDescription(DOCUMENT_FONT+' '+str(DOCUMENT_FONT_SIZE)))
         layout.set_width(self.content_width_pixels * Pango.SCALE)
         layout.set_wrap(Pango.WrapMode.WORD_CHAR)
@@ -318,7 +323,11 @@ class PrintPreview(Gtk.Window):
     def rebuild(self,*_):
         w,h={'A4':(595.276,841.89),'A5':(419.528,595.276),'Letter':(612,792)}[self.paper.get_selected_item().get_string()]
         if self.orientation.get_selected(): w,h=h,w
-        self.pages=Pages(self.doc,w,h,self.margin.get_value()*72/25.4)
+        parent=self.get_transient_for()
+        editor=getattr(parent,'active_editor',parent)
+        view=getattr(editor,'view',None)
+        self.pages=Pages(self.doc,w,h,self.margin.get_value()*72/25.4,
+                         text_context=view.get_pango_context() if view else None)
         update=getattr(self.get_transient_for(),'set_page_setup',None)
         if update:update({'paper':self.paper.get_selected_item().get_string(),
                           'landscape':bool(self.orientation.get_selected()),'margin_mm':self.margin.get_value()})

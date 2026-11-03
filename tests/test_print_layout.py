@@ -83,6 +83,36 @@ class PrintLayout(unittest.TestCase):
                       {'start':len(heading)+1,'end':len(doc['text']),'style':{'family':'Serif','size':14,'italic':True}}]
         self.compare_text(doc)
 
+    def test_preview_preserves_editor_hinting_settings(self):
+        import cairo
+        from gi.repository import PangoCairo
+        context=self.w.view.get_pango_context()
+        original=PangoCairo.context_get_font_options(context).copy()
+        original_round=context.get_round_glyph_positions()
+        try:
+            # Exercise older GTK's hinted metrics explicitly, independently of
+            # the current GTK version's default (unhinted on modern GTK).
+            hinted=original.copy();hinted.set_hint_metrics(cairo.HINT_METRICS_ON)
+            hinted.set_hint_style(cairo.HINT_STYLE_FULL)
+            PangoCairo.context_set_font_options(context,hinted)
+            context.set_round_glyph_positions(True)
+            doc=blank();doc['text']='Café heading and serif text'
+            preview=PrintPreview(self.w,doc)
+            try:
+                layout=preview.pages.pages[0][0][1];printed=layout.get_context()
+                options=PangoCairo.context_get_font_options(printed)
+                self.assertEqual(cairo.HINT_METRICS_ON,options.get_hint_metrics())
+                self.assertEqual(cairo.HINT_STYLE_FULL,options.get_hint_style())
+                self.assertTrue(printed.get_round_glyph_positions())
+                font=Pango.FontDescription('Serif Italic 14')
+                actual=context.get_metrics(font,context.get_language())
+                expected=printed.get_metrics(font,printed.get_language())
+                self.assertEqual(actual.get_height(),expected.get_height())
+            finally:preview.destroy()
+        finally:
+            PangoCairo.context_set_font_options(context,original)
+            context.set_round_glyph_positions(original_round)
+
     def test_paper_orientation_and_margins_match(self):
         self.w.set_page_setup({'paper':'Letter','landscape':True,'margin_mm':20})
         doc=blank();doc['text']=('A predictable line length for the working sheet and print preview. '*8)+'\nNext.'
