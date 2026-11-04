@@ -328,11 +328,15 @@ class WorkspaceMixin:
         return EditorPane(self.get_application(),self.sidebar.root,workspace_owner=self)
 
     def hover_document(self,*_):
+        if self.document_stack.get_visible_child_name()!='editor':return
         owner=self.workspace_owner or self
         current=getattr(owner,'header_editor',owner.active_editor)
         pop=getattr(current,'title_popover',None)
         if current.title_stack.get_visible_child_name()=='edit' or (pop and pop.get_visible()):return
-        if current is not self:
+        if owner.active_editor is not self:
+            owner.activate_pane(self)
+            self.view.grab_focus()
+        elif current is not self:
             owner.header_editor=self
             owner.update_header_title()
 
@@ -378,23 +382,10 @@ class WorkspaceMixin:
                     else:self.document_header.pack_end(row)
             self.header_title_slots=slots
         self.header_title_row=editor.title_row;self.header_title_side=side
-        visibility=[]
         for pane in (self,self.peer):
             if not pane:continue
-            pop=getattr(pane,'title_popover',None)
-            shown=((pane is editor and getattr(self,'header_hovered',False))
-                   or pane.title_stack.get_visible_child_name()=='edit' or bool(pop and pop.get_visible()))
-            visibility.append((id(pane),shown))
-            pane.title_details.set_opacity(1 if shown else 0)
-            pane.title_details.set_can_target(shown)
-            pane.title_details.set_sensitive(shown)
-        visibility=tuple(visibility)
-        if visibility!=getattr(self,'header_title_visibility',None):
-            self.header_title_visibility=visibility
-            # Rebuild the translucent background as well as the title nodes.
-            # Redrawing only the opacity layer can leave stale blur pixels.
-            self.document_header.queue_draw()
-            self.outer_view.queue_draw()
+            if pane is self.active_editor:pane.title_row.add_css_class('active-document')
+            else:pane.title_row.remove_css_class('active-document')
 
     def choose_beside(self):
         self.file_chooser('Open document beside',Gtk.FileChooserAction.OPEN,

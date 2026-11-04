@@ -239,12 +239,12 @@ including vault documents; newly created documents start editable.
 
 ### Shared document title
 
-The separate document title rows have been removed. Hover over the shared
-headerbar to reveal the active document title and its close button. Click the
+Document titles and their close buttons stay visible in the shared headerbar.
+A thin blue underline identifies the active document. Hovering over a document
+selects its pane for typing while preserving its read/edit setting. Click the
 title to rename it inline, or right-click it for pin/swap/rename/close commands.
-Renaming and an open title menu keep the title visible. With two panes, click
-either document or use F6 to switch editing panes. Hovering a document makes
-the header title and close button follow it without moving keyboard focus. Closing follows Ctrl+W:
+With two panes, hovering, clicking inside a document or pressing F6 switches
+editing panes. Closing follows Ctrl+W:
 close the active pane, or the application when only one pane remains.
 
 ### Writing tools

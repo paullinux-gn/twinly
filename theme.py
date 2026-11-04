@@ -78,7 +78,8 @@ BASE_CSS = r"""
             .pane-title button image {transition:none;}
             .pane-title .title {font-weight:normal;font-size:0.95em;}
             .pane-title button {background:transparent;box-shadow:none;padding:4px;}
-            .pane-title.active-document .pane-indicator {background:@accent_bg_color;border-radius:1px;}
+            .pane-title .pane-indicator {background:transparent;border-radius:1px;}
+            .pane-title.active-document .pane-indicator {background:#3584e4;}
             .format-toolbar button.active-format {background:alpha(@accent_bg_color,.18);color:@accent_color;}
             .format-toolbar .linked {border-spacing:1px;border-left:1px solid alpha(currentColor,.12);padding-left:6px;}
             .zoom-pill > button {border-radius:999px;padding:6px 14px;

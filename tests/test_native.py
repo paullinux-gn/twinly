@@ -748,7 +748,7 @@ class Native(unittest.TestCase):
         first.write_text('<p>First</p>');second.write_text('<p>Second</p>')
         self.w.open_path(first);self.w.open_beside(second);pump();peer=self.w.peer
         self.assertIs(self.w.header_title_row,peer.title_row)
-        self.assertEqual(0,peer.title_details.get_opacity())
+        self.assertEqual(1,peer.title_details.get_opacity())
         self.w.header_title_hover(True)
         self.assertEqual(1,peer.title_details.get_opacity())
         self.assertTrue(peer.title_details.get_sensitive())
@@ -760,7 +760,7 @@ class Native(unittest.TestCase):
         self.assertIsNone(self.w.peer)
         self.assertIs(self.w.header_title_row,self.w.title_row)
         self.w.header_title_hover(False)
-        self.assertEqual(0,self.w.title_details.get_opacity())
+        self.assertEqual(1,self.w.title_details.get_opacity())
 
     def test_document_scrolls_beneath_header_in_both_panes(self):
         import time
@@ -802,18 +802,22 @@ class Native(unittest.TestCase):
         self.assertEqual(1,self.w.title_details.get_opacity())
         self.w.title_entry.set_text('After');self.w.commit_title_edit();pump()
         self.assertEqual(self.root/'After.html',self.w.path)
-        self.assertEqual(0,self.w.title_details.get_opacity())
+        self.assertEqual(1,self.w.title_details.get_opacity())
         self.assertGreaterEqual(self.w.focus_revealer.get_margin_top(),self.w.document_header.get_height()+8)
 
-    def test_header_follows_hover_without_changing_typing_focus(self):
+    def test_header_titles_stay_visible_and_hover_selects_typing_pane(self):
         first=self.root/'First.html';second=self.root/'Second.html'
         first.write_text('<p>First</p>');second.write_text('<p>Second</p>')
         self.w.open_path(first);self.w.open_beside(second);pump();peer=self.w.peer
         peer.view.grab_focus();peer.buffer.place_cursor(peer.buffer.get_end_iter());pump()
-        before_focus=self.w.get_focus()
+        self.assertIs(peer.view,self.w.get_focus())
         self.w.hover_document()
-        self.assertIs(peer,self.w.active_editor)
-        self.assertIs(before_focus,self.w.get_focus())
+        self.assertIs(self.w,self.w.active_editor)
+        self.assertIs(self.w.view,self.w.get_focus())
+        self.assertTrue(self.w.title_row.has_css_class('active-document'))
+        self.assertFalse(peer.title_row.has_css_class('active-document'))
+        self.assertEqual(2,self.w.title_indicator.get_size_request()[1])
+        self.assertIs(self.w.title_stack.get_parent(),self.w.title_indicator.get_parent())
         self.assertIs(self.w.title_row,self.w.header_title_row)
         self.assertEqual('left',self.w.header_title_side)
         self.w.swap_panes();self.assertEqual('right',self.w.header_title_side)
@@ -1758,7 +1762,7 @@ class Native(unittest.TestCase):
         self.assertIsNone(self.w.zoom_label.get_parent())
         self.assertFalse(peer.pin_button.get_visible())
         self.assertTrue(peer.pane_close.get_visible())
-        self.assertEqual(0,peer.title_details.get_opacity())
+        self.assertEqual(1,peer.title_details.get_opacity())
         self.w.lookup_action('find').activate(None)
         self.assertTrue(peer.search_bar.get_search_mode())
         self.assertFalse(self.w.search_bar.get_search_mode())

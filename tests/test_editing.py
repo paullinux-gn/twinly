@@ -33,13 +33,13 @@ class Editing(unittest.TestCase):
             if pane:pane.saved_doc=pane.snapshot()
         self.w.destroy();pump();self.tmp.cleanup()
 
-    def test_open_is_read_only_and_pencil_survives_hidden_title(self):
+    def test_open_is_read_only_with_permanently_visible_title(self):
         self.w.open_path(self.path);pump();self.w.header_title_hover(False)
         self.assertFalse(self.w.view.get_editable())
         self.assertFalse(self.w.view.get_cursor_visible())
         self.assertTrue(self.w.edit_button.is_sensitive())
         self.assertEqual(1,self.w.title_row.get_opacity())
-        self.assertEqual(0,self.w.title_details.get_opacity())
+        self.assertEqual(1,self.w.title_details.get_opacity())
         self.assertEqual('document-edit-symbolic',self.w.edit_button.get_icon_name())
         self.w.focus_motion(None,self.w.get_width()-50,0)
         self.assertFalse(self.w.focus_revealer.get_reveal_child())
