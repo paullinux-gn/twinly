@@ -113,9 +113,6 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                                                  tooltip_text='Always show toolbar',focus_on_click=False)
         self.toolbar_pin_button.update_property([Gtk.AccessibleProperty.LABEL],['Always show toolbar'])
         header.pack_end(self.toolbar_pin_button)
-        save=Gtk.Button(icon_name='media-floppy-symbolic',action_name='win.save',
-                        tooltip_text='Save · Ctrl+S')
-        save.update_property([Gtk.AccessibleProperty.LABEL],['Save'])
         document_menu=Gio.Menu()
         for items in [
             [('New document','new'),('Open…','open'),('Import…','import-office')],
@@ -137,7 +134,6 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.document_menu_button=Gtk.MenuButton(menu_model=document_menu,tooltip_text='Document menu')
         self.document_menu_button.set_child(Gtk.Image.new_from_icon_name('open-menu-symbolic'))
         header.pack_end(self.document_menu_button)
-        header.pack_end(save)
         header.pack_end(self.button('system-search-symbolic','Find in document · Ctrl+F','win.toggle-find'))
         self.toolbar=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=10)
         self.toolbar.add_css_class('format-toolbar')
