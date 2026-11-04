@@ -146,7 +146,7 @@ class Security(unittest.TestCase):
     def test_new_preferences_and_default_documents_are_private(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);config=root/'config/preferences.json';documents=root/'data/Documents'
-            with patch('application.locations',return_value=(config,documents)):default_root(config)
+            with patch('application.locations',return_value=(config,documents)):documents,_=default_root(config)
             self.assertEqual(0o700,stat.S_IMODE(documents.stat().st_mode))
             self.assertEqual(0o700,stat.S_IMODE(config.parent.stat().st_mode))
             self.assertEqual(0o600,stat.S_IMODE(config.stat().st_mode))

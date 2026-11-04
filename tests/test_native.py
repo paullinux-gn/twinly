@@ -222,42 +222,31 @@ class Native(unittest.TestCase):
         self.assertFalse(folder_menu.activate_action('context.preview',None))
         self.assertFalse(folder_menu.activate_action('context.print-document',None))
 
-    def test_hamburger_new_root_creates_folder_in_app(self):
-        folder=self.root/'Contextmap';folder.mkdir()
-        self.w.sidebar.refresh()
-        self.w.lookup_action('new-root').activate(None)
-        pump()
+    def test_hamburger_creates_named_managed_workspace(self):
+        self.w.lookup_action('new-root').activate(None);pump()
         dialogs=[w for w in Gtk.Window.list_toplevels() if isinstance(w,Adw.MessageDialog)
-                 and w.get_transient_for()==self.w and w.get_heading()=='New library']
-        self.assertEqual(1,len(dialogs))
-        dialog=dialogs[0]
-        entry=dialog.get_extra_child().get_first_child()
-        newroot=self.root/'New library'
-        entry.set_text(str(newroot))
-        self.assertEqual('Create and use folder',dialog.get_response_label('use'))
-        dialog.response('use');dialog.destroy();pump()
-        self.assertTrue(newroot.is_dir())
-        self.assertEqual(newroot,self.w.sidebar.root)
+                 and w.get_transient_for()==self.w and w.get_heading()=='New workspace']
+        self.assertEqual(1,len(dialogs));dialog=dialogs[0]
+        entry=dialog.get_extra_child().get_first_child();kind=entry.get_next_sibling()
+        self.assertFalse(dialog.get_response_enabled('create'))
+        entry.set_text('New writing');self.assertFalse(dialog.get_response_enabled('create'))
+        kind.set_selected(1);self.assertTrue(dialog.get_response_enabled('create'))
+        dialog.response('create');dialog.destroy();pump()
+        item=self.w.workspace_store().find(self.w.sidebar.root)
+        self.assertEqual('New writing',item['name'])
+        self.assertTrue((self.w.sidebar.root/'Getting Started.html').exists())
         self.assertTrue(self.w.config.exists())
 
-    def test_context_root_can_only_use_existing_folder(self):
+    def test_context_import_never_creates_missing_source(self):
+        from unittest.mock import patch
         pop=self.w.sidebar.context_menu()
         self.assertFalse(pop.activate_action('context.new-root',None))
-        self.assertTrue(pop.activate_action('context.root',None))
-        pump()
-        dialogs=[w for w in Gtk.Window.list_toplevels() if isinstance(w,Adw.MessageDialog)
-                 and w.get_transient_for()==self.w and w.get_heading()=='Choose library']
-        self.assertEqual(1,len(dialogs))
-        dialog=dialogs[0]
-        entry=dialog.get_extra_child().get_first_child()
-        missing=self.root/'Mag niet aangemaakt worden'
-        entry.set_text(str(missing))
-        self.assertFalse(dialog.get_response_enabled('use'))
+        with patch.object(self.w,'file_chooser') as chooser:
+            self.assertTrue(pop.activate_action('context.root',None));pump()
+            self.assertEqual(Gtk.FileChooserAction.SELECT_FOLDER,chooser.call_args.args[1])
+        missing=self.root/'Missing'
         with self.assertRaises(ValueError):self.w.apply_root(missing)
         self.assertFalse(missing.exists())
-        entry.set_text(str(self.root))
-        self.assertTrue(dialog.get_response_enabled('use'))
-        dialog.response('cancel');dialog.destroy()
 
     def test_sidebar_keeps_pixel_width_when_window_resizes(self):
         import time
@@ -304,16 +293,16 @@ class Native(unittest.TestCase):
             launch.assert_not_called()
         self.assertEqual(self.root,self.w.sidebar.root)
 
-    def test_root_choice_cancel_and_existing_folder(self):
-        newroot=self.root/'Niet aanmaken'
-        dialog=self.w.choose_root()
-        dialog.get_extra_child().get_first_child().set_text(str(newroot))
-        dialog.response('cancel');dialog.destroy();pump()
-        self.assertFalse(newroot.exists())
+    def test_workspace_import_keeps_source_and_selects_managed_copy(self):
+        from unittest.mock import patch
+        with patch.object(self.w,'file_chooser') as chooser:
+            self.w.choose_root();self.assertTrue(chooser.called)
         self.assertEqual(self.root,self.w.sidebar.root)
-        existing=self.root/'Bestaand';existing.mkdir()
+        existing=self.root/'Existing';existing.mkdir();(existing/'Note.html').write_text('<p>Keep</p>')
         self.w.apply_root(existing)
-        self.assertEqual(existing,self.w.sidebar.root)
+        self.assertNotEqual(existing,self.w.sidebar.root)
+        self.assertTrue((existing/'Note.html').exists())
+        self.assertEqual((existing/'Note.html').read_bytes(),(self.w.sidebar.root/'Note.html').read_bytes())
 
     def test_blank_sidebar_context_uses_root(self):
         nested=self.root/'Submap';nested.mkdir()

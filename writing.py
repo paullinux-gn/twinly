@@ -188,6 +188,10 @@ class WritingMixin:
             self.search_index=next((i for i,(a,b) in enumerate(self.search_matches) if a>=after),0)
             self.select_search_result()
 
+    def recovery_folder(self):
+        store=self.workspace_store()
+        return store.home/'Recovery' if store.catalog.exists() else self.config.parent/'recovery'
+
     def queue_recovery(self):
         if self.loading or self.closed:return
         if self.recovery_pending:GLib.source_remove(self.recovery_pending)
@@ -198,7 +202,7 @@ class WritingMixin:
         if self.closed or self.loading:return False
         try:
             if self.dirty():
-                if self.recovery_draft is None:self.recovery_draft=RecoveryDraft(self.config.parent/'recovery')
+                if self.recovery_draft is None:self.recovery_draft=RecoveryDraft(self.recovery_folder())
                 self.recovery_draft.write(self.snapshot(),self.path.name if self.path else 'New document')
             elif self.recovery_draft:self.recovery_draft.clear()
         except (OSError,ValueError) as exc:
@@ -215,7 +219,7 @@ class WritingMixin:
 
     def check_recovery(self):
         if self.closed:return False
-        available=bool(RecoveryDraft.available(self.config.parent/'recovery'))
+        available=bool(RecoveryDraft.available(self.recovery_folder()))
         if available and not self.recovery_notice_shown:
             toast=Adw.Toast(title='Unsaved documents available for recovery',button_label='Recover…',timeout=0)
             toast.connect('button-clicked',self.show_recovery)
@@ -225,7 +229,7 @@ class WritingMixin:
 
     def show_recovery(self,*_):
         owner=self.workspace_owner or self
-        entries=RecoveryDraft.available(owner.config.parent/'recovery')
+        entries=RecoveryDraft.available(owner.recovery_folder())
         window=Adw.Window(transient_for=owner,modal=True,title='Recover documents',default_width=440,default_height=360)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8,margin_start=16,margin_end=16,margin_top=16,margin_bottom=16)
         header=Adw.HeaderBar();box.append(header)

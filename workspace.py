@@ -5,79 +5,93 @@ from gi.repository import Gtk,Gio,Gdk,Adw,Pango
 from settings import read_settings,finite_number
 
 class WorkspaceMixin:
+    def workspace_store(self):
+        from managed_workspaces import WorkspaceStore
+        owner=self.workspace_owner or self
+        if getattr(owner,'is_vault',False):owner=owner.launcher.parent
+        return WorkspaceStore(owner.config)
+
     def show_libraries(self,*_):
         owner=self.workspace_owner or self
         if getattr(owner,'is_vault',False):
             owner.launcher.parent.present();return owner.launcher.parent.show_libraries()
         owner.libraries_trash_visible=False
-        owner.libraries_trash_button.set_label('Library Trash')
-        owner.refresh_libraries()
-        owner.libraries_split.set_show_sidebar(True)
+        owner.libraries_trash_button.set_label('Workspace Trash')
+        owner.refresh_libraries();owner.libraries_split.set_show_sidebar(True)
 
     def setup_libraries(self):
-        """Locations only: vault contents always go through the password flow."""
         self.libraries_split=Adw.OverlaySplitView(sidebar_position=Gtk.PackType.END,
-            min_sidebar_width=240,max_sidebar_width=300,sidebar_width_fraction=.24)
+            min_sidebar_width=290,max_sidebar_width=360,sidebar_width_fraction=.24)
         self.libraries_split.set_content(self.split)
         panel=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12,
                       margin_start=12,margin_end=12,margin_top=12,margin_bottom=12)
         heading=Gtk.Box(spacing=6)
-        heading.append(Gtk.Label(label='Libraries',xalign=0,hexpand=True,css_classes=['title-3']))
-        close=Gtk.Button(icon_name='window-close-symbolic',tooltip_text='Close libraries',css_classes=['flat'])
+        heading.append(Gtk.Label(label='Workspaces',xalign=0,hexpand=True,css_classes=['title-3']))
+        close=Gtk.Button(icon_name='window-close-symbolic',tooltip_text='Close workspaces',css_classes=['flat'])
         close.connect('clicked',lambda *_:self.libraries_split.set_show_sidebar(False))
         heading.append(close);panel.append(heading)
+        panel.append(Gtk.Label(label='Create your own workspace and choose whether to encrypt it.',wrap=True,xalign=0))
         self.library_rows=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,css_classes=['boxed-list'])
         scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
         scroll.set_child(self.library_rows);panel.append(scroll)
-        for label,callback in [('New library…',self.new_root),('Add existing library…',self.choose_root),
-                               ('New vault…',lambda *_:self.vault_launcher().create()),
-                               ('Add existing vault…',lambda *_:self.vault_launcher().open())]:
+        for label,callback in [('New workspace…',self.new_root),('Import workspace…',self.choose_root)]:
             button=Gtk.Button(label=label);button.connect('clicked',callback);panel.append(button)
         self.libraries_split.set_sidebar(panel)
         self.libraries_trash_visible=False
-        self.libraries_trash_button=Gtk.Button(label='Library Trash')
+        self.libraries_trash_button=Gtk.Button(label='Workspace Trash')
         self.libraries_trash_button.connect('clicked',self.toggle_library_trash)
         panel.append(self.libraries_trash_button)
         self.refresh_libraries()
-        if not self.sidebar.root.is_dir():self.sidebar.root_label.set_text('No library selected')
 
     @staticmethod
     def compact_location_labels(widget):
-        # Paths must ellipsize rather than force the narrow pane wider.
         if isinstance(widget,Gtk.Label):
-            widget.set_wrap(False);widget.set_ellipsize(Pango.EllipsizeMode.END)
-            widget.set_width_chars(1)
+            widget.set_wrap(False);widget.set_ellipsize(Pango.EllipsizeMode.END);widget.set_width_chars(1)
         child=widget.get_first_child()
         while child:
             WorkspaceMixin.compact_location_labels(child);child=child.get_next_sibling()
 
     def library_paths(self):
-        values=read_settings(self.config).get('library_paths',[str(self.sidebar.root)])
-        if not isinstance(values,list):return []
-        return list(dict.fromkeys(p for p in values if isinstance(p,str) and len(p)<=4096
-                                 and '\x00' not in p and Path(p).is_absolute()))[:100]
+        store=self.workspace_store()
+        return [str(store.path(i)) for i in store.records() if i['status']=='active' and i['kind']=='standard']
+
+    def workspace_status(self,item):
+        if item['kind']=='standard':return 'Not encrypted',False
+        path=self.workspace_store().path(item)
+        unlocked=any(not w.closed and w.vault_store.path==path for w in self.vault_launcher().windows)
+        return ('Encrypted — Unlocked' if unlocked else 'Encrypted — Locked'),unlocked
 
     def refresh_libraries(self):
         if not hasattr(self,'library_rows'):return
         child=self.library_rows.get_first_child()
-        while child:
-            self.library_rows.remove(child);child=self.library_rows.get_first_child()
-        if getattr(self,'libraries_trash_visible',False):return self.render_library_trash()
-        launcher=self.vault_launcher()
-        entries=[(p,False) for p in self.library_paths()]+[(p,True) for p in launcher.remembered()]
-        for value,is_vault in entries:
-            path=Path(value)
-            row=Adw.ActionRow(title=path.name or str(path),subtitle=('Locked vault · ' if is_vault else '')+str(path))
-            row.set_use_markup(False)
-            row.set_title_lines(1);row.set_subtitle_lines(1)
-            row.add_prefix(Gtk.Image(icon_name='changes-prevent-symbolic' if is_vault else 'folder-symbolic'))
-            row.set_activatable(True)
-            row.connect('activated',lambda _,p=path,v=is_vault:self.open_library_location(p,v))
-            remove=Gtk.Button(icon_name='user-trash-symbolic',tooltip_text='Move to Library Trash',
-                              valign=Gtk.Align.CENTER,css_classes=['flat'])
-            remove.connect('clicked',lambda _,p=value,v=is_vault:self.delete_library_location(p,v))
-            row.add_suffix(remove);self.compact_location_labels(row);self.library_rows.append(row)
-        if not entries:self.library_rows.append(Gtk.Label(label='No libraries added.',margin_top=12,margin_bottom=12))
+        while child:self.library_rows.remove(child);child=self.library_rows.get_first_child()
+        store=self.workspace_store();trashed=getattr(self,'libraries_trash_visible',False)
+        entries=[i for i in store.records() if i['status']==('trash' if trashed else 'active')]
+        for item in entries:
+            path=store.path(item);encrypted=item['kind']=='encrypted'
+            status,unlocked=self.workspace_status(item)
+            row=Adw.ActionRow(title=item['name'],subtitle=status);row.set_use_markup(False)
+            row.set_tooltip_text(status);row.set_title_lines(1);row.set_subtitle_lines(1)
+            icons=Gtk.Box(spacing=2)
+            icons.append(Gtk.Image(icon_name='changes-prevent-symbolic' if encrypted and not unlocked else 'changes-allow-symbolic'))
+            if encrypted and unlocked:icons.append(Gtk.Image(icon_name='security-high-symbolic'))
+            row.add_prefix(icons)
+            if not trashed:
+                row.set_activatable(True)
+                row.connect('activated',lambda _,p=path,v=encrypted:self.open_library_location(p,v))
+                operations=[('document-edit-symbolic','Rename workspace',lambda _,i=item:self.rename_workspace(i)),
+                            ('user-trash-symbolic','Move to Workspace Trash',lambda _,p=path,v=encrypted:self.delete_library_location(p,v))]
+            else:
+                operations=[('edit-undo-symbolic','Restore workspace',lambda _,i=item:self.library_trash_action(i)),
+                            ('user-trash-symbolic','Delete permanently',lambda _,i=item:self.library_trash_action(i,True))]
+            for icon,tooltip,callback in operations:
+                button=Gtk.Button(icon_name=icon,tooltip_text=tooltip,valign=Gtk.Align.CENTER,css_classes=['flat'])
+                button.connect('clicked',callback);row.add_suffix(button)
+            self.compact_location_labels(row);self.library_rows.append(row)
+        if not entries:self.library_rows.append(Gtk.Label(label='Workspace Trash is empty.' if trashed else 'Create a workspace to get started.',wrap=True,margin_top=12,margin_bottom=12))
+        current=store.find(self.sidebar.root)
+        self.sidebar.root_label.set_text(current['name'] if current else 'No workspace selected')
+        self.sidebar.root_label.set_tooltip_text('Not encrypted')
 
     def open_library_location(self,path,is_vault=False):
         if is_vault:return self.vault_launcher().unlock_path(path)
@@ -86,99 +100,72 @@ class WorkspaceMixin:
             except (OSError,ValueError) as exc:self.error(str(exc))
         self.guard(apply)
 
+    def rename_workspace(self,item):
+        dialog=Adw.MessageDialog(transient_for=self,heading='Rename workspace')
+        entry=Gtk.Entry(text=item['name'],activates_default=True)
+        dialog.set_extra_child(entry);dialog.add_response('cancel','Cancel');dialog.add_response('rename','Rename')
+        dialog.set_default_response('rename');dialog.set_close_response('cancel')
+        def respond(_,choice):
+            if choice!='rename':return
+            try:
+                self.workspace_store().rename(item,entry.get_text());self.refresh_libraries()
+                for window in self.vault_launcher().windows:
+                    if not window.closed and window.vault_store.path==self.workspace_store().path(item):
+                        window.sidebar.header.set_title_widget(Gtk.Label(label=entry.get_text().strip(),css_classes=['heading']))
+            except (OSError,ValueError) as exc:self.error(str(exc))
+        dialog.connect('response',respond);dialog.present();return dialog
+
     def toggle_library_trash(self,*_):
         self.libraries_trash_visible=not self.libraries_trash_visible
-        self.libraries_trash_button.set_label('Back to libraries' if self.libraries_trash_visible else 'Library Trash')
+        self.libraries_trash_button.set_label('Back to workspaces' if self.libraries_trash_visible else 'Workspace Trash')
         self.refresh_libraries()
 
     def library_trash_records(self):
-        values=read_settings(self.config).get('library_trash',[])
-        if not isinstance(values,list):return []
-        return [v for v in values if isinstance(v,dict) and isinstance(v.get('parent'),str)
-                and Path(v['parent']).is_absolute() and isinstance(v.get('key'),str)]
+        return [i for i in self.workspace_store().records() if i['status']=='trash']
 
     def library_trash_item(self,record):
-        import private_trash
-        return next((item for item in private_trash.items(record['parent'])
-                     if item['metadata'].name==record['key']),None)
-
-    def render_library_trash(self):
-        found=False
-        for record in self.library_trash_records():
-            item=self.library_trash_item(record)
-            if not item:continue
-            found=True
-            row=Adw.ActionRow(title=item['path'].name,subtitle=str(item['path']))
-            row.set_use_markup(False);row.set_title_lines(1);row.set_subtitle_lines(1)
-            row.add_prefix(Gtk.Image(icon_name='changes-prevent-symbolic' if record.get('vault') else 'folder-symbolic'))
-            for icon,label,delete in [('edit-undo-symbolic','Restore',False),('user-trash-symbolic','Delete permanently',True)]:
-                button=Gtk.Button(icon_name=icon,tooltip_text=label,valign=Gtk.Align.CENTER,css_classes=['flat'])
-                button.connect('clicked',lambda _,r=record,d=delete:self.library_trash_action(r,d))
-                row.add_suffix(button)
-            self.compact_location_labels(row);self.library_rows.append(row)
-        if not found:self.library_rows.append(Gtk.Label(label='Library Trash is empty.',margin_top=12,margin_bottom=12))
+        store=self.workspace_store()
+        current=next((i for i in store.records() if i['id']==record['id'] and i['status']=='trash'),None)
+        return {'payload':store.path(current),'path':store.folder/current['id']} if current else None
 
     def delete_library_location(self,path,is_vault=False):
-        dialog=Adw.MessageDialog(transient_for=self,heading='Move vault to Trash?' if is_vault else 'Move library to Trash?',
-            body=str(path)+'\nThe entire folder and its documents will move to Library Trash. You can restore it there or delete it permanently.')
+        store=self.workspace_store();item=store.find(path)
+        if item is None:self.error('Choose a managed workspace.');return
+        dialog=Adw.MessageDialog(transient_for=self,heading='Move workspace to Trash?',
+            body=item['name']+'\nThe entire workspace and its documents will move to Workspace Trash. You can restore it or delete it permanently there.')
         dialog.add_response('cancel','Cancel');dialog.add_response('trash','Move to Trash')
         dialog.set_response_appearance('trash',Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response('cancel');dialog.set_close_response('cancel')
-        def respond(_,choice):
-            if choice!='trash':return
-            self.trash_library_location(Path(path),is_vault)
-        dialog.connect('response',respond);dialog.present()
-        return dialog
+        dialog.connect('response',lambda _,choice:self.trash_library_location(path,is_vault) if choice=='trash' else None)
+        dialog.present();return dialog
 
     def trash_library_location(self,path,is_vault=False):
-        import private_trash
         from model import blank
-        from settings import write_settings
-        path=Path(path).absolute()
+        store=self.workspace_store();path=Path(path).absolute();item=store.find(path)
+        if item is None:self.error('Choose a managed workspace.');return
         if any(self.vault_launcher().pending.values()):
-            self.error('Unlock the vault and save its pending changes before moving libraries to Trash.');return
-        # Moving an open vault would leave its live store pointing at a missing
-        # directory. Locked vaults are moved as opaque encrypted folders.
+            self.error('Unlock the encrypted workspace and save its pending changes first.');return
         windows=list(self.get_application().get_windows())
         for window in windows:
-            if getattr(window,'is_vault',False) and not window.closed:
-                opened=window.vault_store.path
-                if opened==path or path in opened.parents:
-                    self.error('Lock this vault before moving its library to Trash.');return
-        if (self.config==path or path in self.config.parents) or path==Path.home() or path==Path('/'):
-            self.error('This folder contains application settings or your home folder and cannot be trashed as a library.');return
-        other=[Path(p) for p in self.library_paths() if Path(p)!=path]
-        vaults=[Path(p) for p in self.vault_launcher().remembered() if Path(p)!=path]
-        if any(path in p.parents for p in other+vaults):
-            self.error('This folder contains another registered library or vault. Move that nested location outside this folder first.');return
-        affected=[]
-        owners=[]
+            if getattr(window,'is_vault',False) and not window.closed and window.vault_store.path==path:
+                self.error('Lock this encrypted workspace before moving it to Trash.');return
+        affected=[];owners=[]
         for window in windows:
             if getattr(window,'is_vault',False) or not hasattr(window,'sidebar'):continue
-            if window.sidebar.root==path or path in window.sidebar.root.parents:owners.append(window)
+            if window.sidebar.root==path:owners.append(window)
             for pane in (window,getattr(window,'peer',None)):
-                if pane and pane.path and (Path(pane.path)==path or path in Path(pane.path).parents):affected.append(pane)
+                if pane and pane.path and path in Path(pane.path).parents:affected.append(pane)
         def perform():
-            item=None
             try:
-                item=private_trash.trash(path,path.parent)
-                record={'parent':str(path.parent),'key':item['metadata'].name,'vault':is_vault}
-                updates={'library_trash':self.library_trash_records()+[record],
-                         'vault_paths':[str(p) for p in vaults], 'library_paths':[str(p) for p in other]}
-                replacement=next((p for p in other if p.is_dir()),None)
-                if self.sidebar.root==path or path in self.sidebar.root.parents:updates['root']=str(replacement) if replacement else ''
-                write_settings(self.config,**updates)
-            except (OSError,ValueError) as exc:
-                if item:
-                    try:private_trash.restore(item,path.parent)
-                    except (OSError,ValueError) as restore_error:self.error('Could not restore library after preference failure: '+str(restore_error))
-                self.error(str(exc));return
+                moved=store.relocate(item)
+                remaining=self.library_paths();replacement=Path(remaining[0]) if remaining else store.home/'.no-workspace'
+                try:
+                    if self.sidebar.root==path:self.save_preferences(root=str(replacement) if remaining else '')
+                except (OSError,ValueError):store.relocate(moved,False);raise
+            except (OSError,ValueError) as exc:self.error(str(exc));return
             for pane in affected:
                 pane.path=None;pane.saved_stamp=None;pane.restore(blank(),reset=True)
-            for owner in owners:
-                owner.sidebar.set_root(replacement or owner.config.parent/'.no-library')
-                if replacement is None:owner.sidebar.root_label.set_text('No library selected')
-                owner.refresh_documents()
+            for owner in owners:owner.sidebar.set_root(replacement);owner.refresh_documents();owner.refresh_libraries()
             self.refresh_libraries()
         def check(index=0):
             if index<len(affected):affected[index].guard(lambda:check(index+1))
@@ -186,25 +173,16 @@ class WorkspaceMixin:
         check()
 
     def library_trash_action(self,record,delete=False):
-        import private_trash
-        from settings import write_settings
+        store=self.workspace_store()
         def perform():
             try:
-                item=self.library_trash_item(record)
-                if item is None:raise ValueError('This item is no longer in Library Trash.')
-                if delete:private_trash.delete(item,record['parent'])
-                else:private_trash.restore(item,record['parent'])
-                updates={'library_trash':[r for r in self.library_trash_records() if r!=record]}
-                if not delete:
-                    key='vault_paths' if record.get('vault') else 'library_paths'
-                    values=self.vault_launcher().remembered() if record.get('vault') else self.library_paths()
-                    updates[key]=list(dict.fromkeys(values+[str(item['path'])]))
-                write_settings(self.config,**updates)
+                if delete:store.delete(record)
+                else:store.relocate(record,False)
                 self.refresh_libraries()
             except (OSError,ValueError) as exc:self.error(str(exc))
         if not delete:perform();return
         dialog=Adw.MessageDialog(transient_for=self,heading='Delete permanently?',
-            body='The library or vault and all its documents will be permanently deleted. This cannot be undone.')
+            body='The workspace and all its documents will be permanently deleted. This cannot be undone.')
         dialog.add_response('cancel','Cancel');dialog.add_response('delete','Delete permanently')
         dialog.set_response_appearance('delete',Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response('cancel');dialog.set_close_response('cancel')

@@ -1,4 +1,4 @@
-"""Vault window: virtual documents, fail-closed storage overrides and GTK entry points."""
+"""Encrypted workspace window: virtual documents, fail-closed storage overrides and GTK entry points."""
 import copy
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,7 +21,7 @@ class VaultRef:
     proposed_name:str|None=None
     proposed_parent:str|None=None
     @property
-    def node(self):return self.store.catalog['nodes'][self.identity] if self.identity!='root' else {'name':'Vault','type':'folder','parent':'root'}
+    def node(self):return self.store.catalog['nodes'][self.identity] if self.identity!='root' else {'name':'Encrypted workspace','type':'folder','parent':'root'}
     @property
     def name(self):return self.proposed_name or self.node['name']
     @property
@@ -53,11 +53,13 @@ class VaultSidebar(Sidebar):
     def __init__(self,owner,root):
         self.store=owner.vault_store
         super().__init__(owner,root)
-        self.header.set_title_widget(Gtk.Label(label='Vault',css_classes=['heading']))
+        self.header.set_title_widget(Gtk.Label(label=owner.launcher.parent.workspace_store().name(owner.vault_store.path),css_classes=['heading']))
         self.vault_button.set_visible(False)
-        self.root_label.set_text('Encrypted documents');self.root_label.set_tooltip_text('Encrypted vault')
+        self.root_icon.set_tooltip_text('Encrypted — Unlocked')
+        self.root_protection.append(Gtk.Image(icon_name='security-high-symbolic'))
+        self.root_label.set_text('Encrypted documents');self.root_label.set_tooltip_text('Encrypted workspace — Unlocked')
         menu=Gio.Menu()
-        for label,action in [('New document','new'),('New folder','new-folder'),('Recover documents…','recover'),('Change password…','vault-password'),('Auto-lock…','vault-idle'),('Lock vault','vault-lock'),('Preferences…','preferences'),('Quit and lock','quit')]:menu.append(label,'win.'+action)
+        for label,action in [('New document','new'),('New folder','new-folder'),('Recover documents…','recover'),('Change password…','vault-password'),('Auto-lock…','vault-idle'),('Lock encrypted workspace','vault-lock'),('Preferences…','preferences'),('Quit and lock','quit')]:menu.append(label,'win.'+action)
         self.menu_button.set_menu_model(menu)
     def entries(self,folder):
         parent=folder.identity if isinstance(folder,VaultRef) else 'root';result=Gio.ListStore.new(VaultNode)
@@ -137,7 +139,7 @@ class VaultEditing:
         return self.vault_store.path
     def make_sidebar(self,root):return VaultSidebar(self,root)
     def document_reference(self,path):
-        if not isinstance(path,VaultRef) or path.store is not self.vault_store:raise VaultError('This file does not belong to this vault. Use Import HTML to create an encrypted copy.')
+        if not isinstance(path,VaultRef) or path.store is not self.vault_store:raise VaultError('This file does not belong to this encrypted workspace. Use Import HTML to create an encrypted copy.')
         return path
     def make_editor_pane(self):return VaultPane(self.get_application(),self.vault_store,self.vault_config,self)
     def finish_close_pane(self,editor):
@@ -268,7 +270,7 @@ class VaultEditing:
                 self.sidebar.refresh();self.sidebar.select_path(self.path);self.update_title()
                 if after:after()
             except (OSError,ValueError) as exc:self.error(str(exc))
-        self.name_dialog('Save inside vault',suggested_name or 'New document',named)
+        self.name_dialog('Save inside encrypted workspace',suggested_name or 'New document',named)
     def new(self,*_,folder=None):
         parent=folder if isinstance(folder,VaultRef) else self.sidebar.folder()
         def run():
@@ -297,7 +299,7 @@ class VaultEditing:
         if not ref:return
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8);parents=[VaultRef(self.vault_store,'root')]+[VaultRef(self.vault_store,k) for k,n in self.vault_store.catalog['nodes'].items() if n['type']=='folder' and not n.get('trash') and k not in self.vault_store.descendants(ref.identity)]
         picker=Gtk.DropDown.new_from_strings([r.name for r in parents]);box.append(picker)
-        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Destination folder in vault',extra_child=box)
+        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Destination folder in encrypted workspace',extra_child=box)
         dialog.add_response('cancel','Cancel');dialog.add_response('move','Move')
         dialog.connect('response',lambda _,r:self.sidebar.perform_move(ref,VaultRef(self.vault_store,ref.identity,proposed_parent=parents[picker.get_selected()].identity)) if r=='move' else None);dialog.present()
     def duplicate_document(self,*_,path=None):
@@ -346,7 +348,7 @@ class VaultEditing:
     def show_documents(self,*_):
         box=self.documents_page
         while box.get_first_child():box.remove(box.get_first_child())
-        entry=Gtk.SearchEntry(placeholder_text='Search vault documents');box.append(entry)
+        entry=Gtk.SearchEntry(placeholder_text='Search encrypted workspace documents');box.append(entry)
         rows=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4);scroll=Gtk.ScrolledWindow(vexpand=True);scroll.set_child(rows);box.append(scroll)
         def refresh(*_):
             while rows.get_first_child():rows.remove(rows.get_first_child())
@@ -361,7 +363,7 @@ class VaultEditing:
         def picked(path):
             suffix=path.suffix.lower()
             if suffix not in ('.html','.htm','.odt','.docx'):
-                self.error('Import HTML, ODT or DOCX. PDF import is not available inside a vault.');return
+                self.error('Import HTML, ODT or DOCX. PDF import is not available inside an encrypted workspace.');return
             def import_file(response):
                 if response!='import':return
                 def worker():
@@ -383,12 +385,12 @@ class VaultEditing:
                         return False
                     GLib.idle_add(complete)
                 Thread(target=worker,daemon=True).start()
-            self.ask('Import encrypted copy?','The original file remains unchanged outside the vault. ODT and DOCX are converted to Twinly HTML; formatting and later exports may differ.',[('cancel','Cancel'),('import','Import')],import_file)
+            self.ask('Import encrypted copy?','The original file remains unchanged outside the encrypted workspace. ODT and DOCX are converted to Twinly HTML; formatting and later exports may differ.',[('cancel','Cancel'),('import','Import')],import_file)
         self.file_chooser('Import HTML or Office as an encrypted copy',Gtk.FileChooserAction.OPEN,picked,import_office=True)
     import_office=open
     def open_document_link(self,link,beside=False,approved_target=None):
         if link.get('kind')=='external':
-            self.ask('Open external link?','The link will open outside the vault in your browser.',[('cancel','Cancel'),('open','Open')],lambda r:Gio.AppInfo.launch_default_for_uri(link['href'],None) if r=='open' else None);return
+            self.ask('Open external link?','The link will open outside the encrypted workspace in your browser.',[('cancel','Cancel'),('open','Open')],lambda r:Gio.AppInfo.launch_default_for_uri(link['href'],None) if r=='open' else None);return
         try:
             value=link['href'];identity=identifier(value[:-5] if value.endswith('.html') else '')
             node=self.vault_store.catalog['nodes'][identity]
@@ -396,12 +398,12 @@ class VaultEditing:
             ref=VaultRef(self.vault_store,identity)
             if beside:(self.workspace_owner or self).open_beside(ref)
             else:self.open_path(ref)
-        except (ValueError,KeyError):self.error('Vault document link not found.')
+        except (ValueError,KeyError):self.error('Encrypted workspace document link not found.')
     def link_dialog(self,*_):
         bounds=self.buffer.get_selection_bounds();cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert())
         start,end=(i.get_offset() for i in bounds) if bounds else (cursor.get_offset(),cursor.get_offset())
         choices=[(k,n['name']) for k,n in self.vault_store.catalog['nodes'].items() if n['type']=='document' and not n.get('trash')]
-        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Vault document link')
+        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Encrypted workspace document link')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
         text=Gtk.Entry(text=self.buffer.get_text(self.buffer.get_iter_at_offset(start),self.buffer.get_iter_at_offset(end),True),placeholder_text='Display text')
         picker=Gtk.DropDown.new_from_strings([n for _,n in choices] or ['No documents']);picker.set_enable_search(True)
@@ -412,12 +414,12 @@ class VaultEditing:
     def document_for_print(self,path=None):
         return self.vault_store.load(path.identity) if path and path!=self.path else self.snapshot()
     def disclosure(self,callback):
-        self.ask('Use outside the vault?','Exported files and print jobs are not encrypted by Twinly. Internal vault links do not work outside the vault.',[('cancel','Cancel'),('continue','Continue')],lambda r:callback() if r=='continue' else None)
+        self.ask('Use outside the encrypted workspace?','Exported files and print jobs are not encrypted by Twinly. Internal encrypted workspace links do not work outside the encrypted workspace.',[('cancel','Cancel'),('continue','Continue')],lambda r:callback() if r=='continue' else None)
     def validate_export_path(self,path):
         path=Path(path);resolved=path.resolve()
-        if self.vault_store.path.resolve() in (resolved,*resolved.parents):raise VaultError('Choose an export location outside the vault.')
+        if self.vault_store.path.resolve() in (resolved,*resolved.parents):raise VaultError('Choose an export location outside the encrypted workspace.')
         for parent in resolved.parents:
-            if (parent/'vault.json').is_file():raise VaultError('Do not export unencrypted files into a vault folder.')
+            if (parent/'vault.json').is_file():raise VaultError('Do not export unencrypted files into an encrypted workspace folder.')
         return path
     def file_chooser(self,title,action,callback,**kwargs):
         def checked(path):
@@ -492,9 +494,9 @@ class VaultEditor(VaultEditing,Editor):
             action=Gio.SimpleAction.new(name,None);action.connect('activate',callback);self.add_action(action)
         for name in ('root','new-root','back','forward','vault-create','vault-open','vaults'):self.lookup_action(name).set_enabled(False)
         menu=Gio.Menu()
-        for label,name in [('Import HTML / ODT / Word…','open'),('Export HTML copy…','vault-export-html'),('Export PDF…','export-pdf'),('Export ODT…','export-odt'),('Export Word…','export-docx'),('Make a copy in vault','duplicate'),('Document outline','outline'),('Find and replace','replace')]:menu.append(label,'win.'+name)
+        for label,name in [('Import HTML / ODT / Word…','open'),('Export HTML copy…','vault-export-html'),('Export PDF…','export-pdf'),('Export ODT…','export-odt'),('Export Word…','export-docx'),('Make a copy in encrypted workspace','duplicate'),('Document outline','outline'),('Find and replace','replace')]:menu.append(label,'win.'+name)
         self.document_menu_button.set_menu_model(menu)
-        lock=Gtk.Button(icon_name='changes-prevent-symbolic',tooltip_text='Lock vault');lock.connect('clicked',self.lock_vault);self.document_header.pack_end(lock)
+        lock=Gtk.Button(icon_name='changes-prevent-symbolic',tooltip_text='Lock encrypted workspace');lock.connect('clicked',self.lock_vault);self.document_header.pack_end(lock)
         self.set_sidebar_pixel_width(store.catalog['settings'].get('sidebar_width',290))
         self.vault_toplevels=Gtk.Window.get_toplevels()
         self.vault_toplevel_handler=self.vault_toplevels.connect('items-changed',lambda *_:self.defer(self.track_transient_activity))
@@ -560,7 +562,7 @@ class VaultEditor(VaultEditing,Editor):
             self.destroy_confidential_windows()
             self.closing_ready=True;self.close()
         except Exception as exc:
-            self.locking=False;self.error('Lock failed. The vault is still open: '+str(exc))
+            self.locking=False;self.error('Lock failed. The encrypted workspace is still open: '+str(exc))
     def destroy_confidential_windows(self):
         for window in list(Gtk.Window.get_toplevels()):
             current=window.get_transient_for()
@@ -585,8 +587,9 @@ class VaultEditor(VaultEditing,Editor):
         self.sidebar.base.remove_all()
         clear_image_cache();self.vault_store.close()
         self.launcher.windows.discard(self)
-        self.set_title('Twinly — Vault locked')
-        if self.launcher.pending.get(self.vault_store.vault_id):self.launcher.parent.error('The vault is locked, but some encrypted changes exist only in memory. Keep Twinly open and unlock it again to save them.')
+        self.launcher.parent.refresh_libraries()
+        self.set_title('Twinly — Encrypted workspace locked')
+        if self.launcher.pending.get(self.vault_store.vault_id):self.launcher.parent.error('The encrypted workspace is locked, but some encrypted changes exist only in memory. Keep Twinly open and unlock it again to save them.')
 
 # Credential entry and slow crypto run without placing passwords in preferences.
 def password_dialog(parent,title,callback,confirmation=False,recovery=False):
@@ -616,57 +619,28 @@ def password_dialog(parent,title,callback,confirmation=False,recovery=False):
 class VaultLauncher:
     def __init__(self,parent):self.parent=parent;self.windows=set();self.pending={}
     def remembered(self):
-        values=read_settings(self.parent.config).get('vault_paths',[])
-        if not isinstance(values,list):return []
-        return list(dict.fromkeys(p for p in values if isinstance(p,str) and len(p)<=4096 and '\x00' not in p and Path(p).is_absolute()))[:100]
+        store=self.parent.workspace_store()
+        return [str(store.path(i)) for i in store.records() if i['status']=='active' and i['kind']=='encrypted']
     def remember(self,path):
-        value=str(Path(path).absolute())
-        write_settings(self.parent.config,vault_paths=[value]+[p for p in self.remembered() if p!=value][:99])
+        store=self.parent.workspace_store()
+        item=store.find(path) or store.import_folder(path,True)
         self.parent.refresh_libraries()
-        if self.parent.document_stack.get_visible_child_name()=='vaults':self.show()
+        return store.path(item)
     def forget(self,path):
-        try:
-            write_settings(self.parent.config,vault_paths=[p for p in self.remembered() if p!=path])
-            self.parent.refresh_libraries();self.show()
-        except (OSError,ValueError) as exc:self.parent.error(str(exc))
-    def show(self,*_):
-        owner=self.parent
-        if not hasattr(self,'page'):
-            self.page=Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            owner.document_stack.add_named(self.page,'vaults')
-        child=self.page.get_first_child()
-        if child:self.page.remove(child)
-        box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=18,margin_start=24,margin_end=24,margin_top=24,margin_bottom=24)
-        box.append(Gtk.Label(label='Vault',xalign=0,css_classes=['title-1']))
-        box.append(Gtk.Label(label='Open a vault with your password. Documents remain encrypted until you unlock it.',wrap=True,xalign=0))
-        controls=Gtk.Box(spacing=8)
-        for label,callback in [('New vault…',self.create),('Add existing vault…',self.open)]:
-            button=Gtk.Button(label=label);button.connect('clicked',callback);controls.append(button)
-        box.append(controls)
-        rows=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE,css_classes=['boxed-list'])
-        paths=self.remembered()
-        for value in paths:
-            path=Path(value);available=(path/'vault.json').is_file()
-            row=Adw.ActionRow(title=path.name,subtitle=str(path) if available else 'Not found — '+str(path));row.set_use_markup(False)
-            row.add_prefix(Gtk.Image(icon_name='changes-prevent-symbolic'))
-            button=Gtk.Button(label='Unlock' if available else 'Locate folder…',valign=Gtk.Align.CENTER)
-            button.connect('clicked',lambda _,p=path,exists=available:self.unlock_path(p) if exists else self.open())
-            row.add_suffix(button);row.set_activatable_widget(button)
-            forget=Gtk.Button(icon_name='list-remove-symbolic',tooltip_text='Move vault to Library Trash',valign=Gtk.Align.CENTER,css_classes=['flat'])
-            forget.connect('clicked',lambda _,p=value:self.parent.delete_library_location(p,True));row.add_suffix(forget);rows.append(row)
-        if paths:box.append(rows)
-        else:box.append(Gtk.Label(label='No vaults yet. Create one or add an existing vault.',wrap=True,xalign=0,css_classes=['dim-label']))
-        scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER);scroll.set_child(Adw.Clamp(maximum_size=900,child=box));self.page.append(scroll)
-        owner.document_stack.set_visible_child_name('vaults');owner.record_navigation()
-        if owner.split.get_collapsed():owner.split.set_show_sidebar(False)
+        # Compatibility for old callers: removal now always uses recoverable Trash.
+        return self.parent.delete_library_location(path,True)
+    def show(self,*_):return self.parent.show_libraries()
     def unlock_path(self,path):
+        path=Path(path).absolute()
+        try:path=self.remember(path)
+        except (OSError,ValueError) as exc:self.parent.error(str(exc));return
         for window in self.windows:
             if not window.closed and window.vault_store.path==Path(path).absolute():window.present();return
         try:crypto()
         except ValueError as exc:self.parent.error(str(exc));return
-        password_dialog(self.parent,'Unlock vault',lambda password,recovery:self.busy(lambda:VaultStore(path).unlock(password,recovery),self.present),recovery=True)
+        password_dialog(self.parent,'Unlock encrypted workspace',lambda password,recovery:self.busy(lambda:VaultStore(path).unlock(password,recovery),self.present),recovery=True)
     def busy(self,work,finished):
-        progress=Adw.MessageDialog(transient_for=self.parent,heading='Preparing vault…',body='Password derivation may take a moment.')
+        progress=Adw.MessageDialog(transient_for=self.parent,heading='Preparing encrypted workspace…',body='Password derivation may take a moment.')
         progress.set_deletable(False);progress.present()
         def worker():
             result=None;error=None
@@ -683,21 +657,33 @@ class VaultLauncher:
                 return False
             GLib.idle_add(deliver)
         Thread(target=worker,daemon=True).start()
-    def create(self,*_):
-        try:crypto()
-        except ValueError as exc:self.parent.error(str(exc));return
-        def picked(path):
-            password_dialog(self.parent,'New encrypted vault',lambda password:self.busy(lambda:VaultStore.create(path,password),self.created),confirmation=True)
-        self.parent.file_chooser('New vault (choose a new folder name)',Gtk.FileChooserAction.SAVE,picked,name='Private.twinly-vault')
+    def create(self,*_):return self.parent.new_root()
+    def create_named(self,name):
+        from filesystem import private_directory
+        try:
+            crypto();manager=self.parent.workspace_store();item=manager.reserve(name,True)
+            private_directory(manager.folder)
+        except (OSError,ValueError) as exc:self.parent.error(str(exc));return
+        def create(password):
+            def work():
+                result=VaultStore.create(manager.path(item),password)
+                try:manager.publish(item)
+                except Exception:
+                    result[0].close()
+                    from filesystem import remove_tree
+                    remove_tree(manager.path(item));raise
+                return result
+            self.busy(work,self.created)
+        password_dialog(self.parent,'New encrypted workspace',create,confirmation=True)
     def created(self,result):
         store,recovery=result
         try:self.remember(store.path)
-        except (OSError,ValueError) as exc:self.parent.error('Vault created, but location not saved: '+str(exc))
-        dialog=Adw.MessageDialog(transient_for=self.parent,heading='Save your recovery key',body='This key gives access to the entire vault. Store it separately. If you lose both the password and recovery key, the data cannot be recovered.')
+        except (OSError,ValueError) as exc:self.parent.error('Encrypted workspace created, but location not saved: '+str(exc))
+        dialog=Adw.MessageDialog(transient_for=self.parent,heading='Save your recovery key',body='This key gives access to the entire encrypted workspace. Store it separately. If you lose both the password and recovery key, the data cannot be recovered.')
         label=Gtk.Label(label=recovery,selectable=True,wrap=True)
         acknowledged=Gtk.CheckButton(label='I have stored the recovery key separately')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12);box.append(label);box.append(acknowledged);dialog.set_extra_child(box)
-        dialog.add_response('cancel','Open later');dialog.add_response('ok','Open vault');dialog.set_close_response('cancel')
+        dialog.add_response('cancel','Open later');dialog.add_response('ok','Open encrypted workspace');dialog.set_close_response('cancel')
         dialog.set_response_enabled('ok',False);acknowledged.connect('toggled',lambda b:dialog.set_response_enabled('ok',b.get_active()))
         consumed=[False]
         def done(_,response):
@@ -711,19 +697,19 @@ class VaultLauncher:
         try:crypto()
         except ValueError as exc:self.parent.error(str(exc));return
         def picked(path):
-            if not (path/'vault.json').is_file():self.parent.error('This is not a Twinly vault. Choose an existing vault folder, or create a new one from Vault.');return
-            try:self.remember(path)
+            if not (path/'vault.json').is_file():self.parent.error('This is not an encrypted workspace.');return
+            try:path=self.remember(path)
             except (OSError,ValueError) as exc:self.parent.error(str(exc));return
             self.unlock_path(path)
-        self.parent.file_chooser('Open vault',Gtk.FileChooserAction.SELECT_FOLDER,picked)
+        self.parent.file_chooser('Open encrypted workspace',Gtk.FileChooserAction.SELECT_FOLDER,picked)
     def present(self,store):
         try:
             try:self.remember(store.path)
-            except (OSError,ValueError) as exc:self.parent.error('Vault location not saved: '+str(exc))
+            except (OSError,ValueError) as exc:self.parent.error('Encrypted workspace location not saved: '+str(exc))
             pending=self.pending.get(store.vault_id,[])
             for identity,cipher in pending:
                 value=unpack(store.decrypt(cipher,'pending',identity,identity));store.draft(identity,value['document'],value['title'])
             self.pending.pop(store.vault_id,None)
             window=VaultEditor(self.parent.get_application(),store,self.parent.config,self)
-            self.windows.add(window);window.present()
+            self.windows.add(window);window.present();self.parent.refresh_libraries()
         except Exception as exc:store.close();self.parent.error(str(exc))

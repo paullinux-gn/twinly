@@ -30,20 +30,14 @@ def locations():
     return config,data
 
 def default_root(config):
-    settings=read_settings(config)
-    saved=settings.get('root')
-    try:
-        if isinstance(saved,str) and Path(saved).is_dir():return Path(saved),None
-    except (OSError,ValueError):pass
-    _,root=locations();private_directory(root)
-    first=None
-    if not settings.get('getting_started_installed'):
-        for name,template in [('Getting Started.html','getting-started.html'),('Link Example.html','link-example.html')]:
-            target=root/name
-            content=(DATA_DIR/template).read_text(encoding='utf-8')
-            try:
-                atomic_write(target,content,overwrite=False,private=True)
-                if name=='Getting Started.html':first=target
-            except FileExistsError:pass
-        write_settings(config,root=str(root),getting_started_installed=True)
-    return root,first
+    from managed_workspaces import WorkspaceStore
+    _,legacy=locations()
+    store=WorkspaceStore(config,home=read_settings(config).get('workspace_home') or legacy.parent)
+    first=not store.catalog.exists()
+    store.initialize(DATA_DIR,legacy)
+    records=[i for i in store.records() if i['status']=='active' and i['kind']=='standard']
+    saved=read_settings(config).get('root')
+    current=next((i for i in records if str(store.path(i))==saved),records[0] if records else None)
+    if current is None:return store.home/'.no-workspace',None
+    root=store.path(current)
+    return root,(root/'Getting Started.html' if first and current.get('starter') else None)

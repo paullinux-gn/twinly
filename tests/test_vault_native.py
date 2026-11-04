@@ -31,7 +31,10 @@ class VaultNative(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
         self.ops=patch.object(vault,'DEFAULT_OPS',1);self.mem=patch.object(vault,'DEFAULT_MEMORY',8*1024*1024);self.ops.start();self.mem.start()
         self.normal=Editor(self.app,self.root);self.normal.config=self.root/'settings'/'preferences.json';self.normal.present();pump()
-        self.store,self.recovery=vault.VaultStore.create(self.root/'vault','long testing password')
+        manager=self.normal.workspace_store();item=manager.reserve('Private',True)
+        from filesystem import private_directory
+        private_directory(manager.folder)
+        self.store,self.recovery=vault.VaultStore.create(manager.path(item),'long testing password');manager.publish(item)
         self.launcher=VaultLauncher(self.normal);self.normal.vault_launch=self.launcher
         self.w=VaultEditor(self.app,self.store,self.normal.config,self.launcher);self.launcher.windows.add(self.w);self.w.present();pump()
     def tearDown(self):
@@ -88,7 +91,7 @@ class VaultNative(unittest.TestCase):
         identity=self.w.vault_draft_id
         self.assertIn(identity,self.store.catalog['drafts']);self.assertFalse((self.normal.config.parent/'recovery').exists())
         self.w.lock_vault();pump()
-        store=vault.VaultStore(self.root/'vault').unlock(self.recovery,True)
+        store=vault.VaultStore(self.store.path).unlock(self.recovery,True)
         self.assertEqual('VAULT SECRET CANARY 9f73',store.load_draft(identity)[0]['text']);store.close()
         self.assert_no_plaintext()
     def test_failed_disk_write_locks_with_encrypted_pending_state(self):
@@ -102,7 +105,7 @@ class VaultNative(unittest.TestCase):
         self.assertTrue(self.w.closed);self.assertIsNone(self.store.key)
         pending=self.launcher.pending[self.store.vault_id];self.assertTrue(pending)
         self.assertNotIn(b'VAULT SECRET CANARY 9f73',pending[0][1])
-        store=vault.VaultStore(self.root/'vault').unlock('long testing password')
+        store=vault.VaultStore(self.store.path).unlock('long testing password')
         self.launcher.present(store);pump()
         self.assertFalse(self.launcher.pending.get(self.store.vault_id))
         self.assertTrue(store.catalog['drafts']);self.assert_no_plaintext()
@@ -138,7 +141,7 @@ class VaultNative(unittest.TestCase):
         self.assertTrue(self.w.closed);self.assertIsNone(self.store.key)
     def test_recovery_key_dialog_is_parented_once(self):
         self.w.lock_vault();pump()
-        store=vault.VaultStore(self.root/'vault').unlock('long testing password')
+        store=vault.VaultStore(self.store.path).unlock('long testing password')
         self.launcher.created((store,self.recovery));pump()
         dialogs=[w for w in Gtk.Window.get_toplevels() if w.get_transient_for() is self.normal]
         self.assertTrue(dialogs)
@@ -150,7 +153,7 @@ class VaultNative(unittest.TestCase):
         from vault_ui import VaultLauncher
         self.launcher.remember(self.store.path);self.launcher.remember(self.store.path)
         self.launcher.show();pump()
-        self.assertEqual('vaults',self.normal.document_stack.get_visible_child_name())
+        self.assertTrue(self.normal.libraries_split.get_show_sidebar())
         fresh=VaultLauncher(self.normal)
         self.assertEqual([str(self.store.path)],fresh.remembered())
         values=read_settings(self.normal.config)
@@ -158,13 +161,12 @@ class VaultNative(unittest.TestCase):
         with patch('vault_ui.password_dialog') as credentials:
             fresh.unlock_path(self.store.path)
             self.assertTrue(credentials.called)
-        self.launcher.forget(str(self.store.path))
-        self.assertEqual([],fresh.remembered());self.assertTrue((self.store.path/'vault.json').is_file())
+        dialog=self.launcher.forget(str(self.store.path));dialog.response('cancel')
+        self.assertEqual([str(self.store.path)],fresh.remembered());self.assertTrue((self.store.path/'vault.json').is_file())
     def test_vault_view_navigation_and_existing_window(self):
         self.normal.record_navigation();self.launcher.show();pump()
-        self.assertEqual('vaults',self.normal.document_stack.get_visible_child_name())
-        self.normal.navigate(-1);pump();self.assertEqual('editor',self.normal.document_stack.get_visible_child_name())
-        self.normal.navigate(1);pump();self.assertEqual('vaults',self.normal.document_stack.get_visible_child_name())
+        self.assertTrue(self.normal.libraries_split.get_show_sidebar())
+        self.assertEqual('editor',self.normal.document_stack.get_visible_child_name())
         with patch('vault_ui.password_dialog') as credentials,patch.object(self.w,'present') as present:
             self.launcher.unlock_path(self.store.path);credentials.assert_not_called();present.assert_called_once()
     def test_transient_activity_and_suspend_elapsed_time(self):

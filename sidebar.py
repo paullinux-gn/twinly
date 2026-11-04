@@ -38,8 +38,7 @@ class Sidebar(CallbackOwner,Gtk.Box):
         menu=Gio.Menu()
         for entries in [
             [('New document','new'),('New folder','new-folder')],
-            [('Choose library…','root'),('New library…','new-root')],
-            [('Vault','vaults')],
+            [('Import workspace…','root'),('New workspace…','new-root')],
             [('Recover documents…','recover'),('Preferences…','preferences'),('Keyboard shortcuts','shortcuts'),('About Twinly','about')],
             [('Quit','quit')],
         ]:
@@ -53,7 +52,7 @@ class Sidebar(CallbackOwner,Gtk.Box):
         self.toolbar_view.add_top_bar(self.header)
         body=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=6)
         self.toolbar_view.set_content(body)
-        self.libraries_button=Gtk.Button(label='Libraries',margin_start=12,margin_end=12,margin_top=12)
+        self.libraries_button=Gtk.Button(label='Workspaces',margin_start=12,margin_end=12,margin_top=12)
         self.libraries_button.connect('clicked',lambda *_:self.owner.show_libraries())
         body.append(self.libraries_button)
         section=Gtk.Box(spacing=6)
@@ -63,6 +62,9 @@ class Sidebar(CallbackOwner,Gtk.Box):
         self.root_label=Gtk.Label(label=self.root.name,xalign=0,ellipsize=3,hexpand=True)
         self.root_label.add_css_class('caption-heading')
         self.root_label.add_css_class('dim-label')
+        self.root_protection=Gtk.Box(spacing=2)
+        self.root_icon=Gtk.Image(icon_name='changes-allow-symbolic',tooltip_text='Not encrypted')
+        self.root_protection.append(self.root_icon);section.append(self.root_protection)
         section.append(self.root_label)
         body.append(section)
         self.base=Gio.ListStore.new(Node)
@@ -89,8 +91,9 @@ class Sidebar(CallbackOwner,Gtk.Box):
         icons=Gtk.Box(spacing=8,homogeneous=True,margin_start=12,margin_end=12,margin_top=8,margin_bottom=8)
         self.search_button=Gtk.Button(icon_name='system-search-symbolic',action_name='win.search-documents',tooltip_text='Search documents',css_classes=['flat'])
         self.trash_button=Gtk.Button(icon_name='user-trash-symbolic',action_name='win.show-trash',tooltip_text='Trash',css_classes=['flat'])
-        self.vault_button=Gtk.Button(icon_name='changes-prevent-symbolic',action_name='win.vaults',tooltip_text='Vault',css_classes=['flat'])
-        for button in (self.search_button,self.trash_button,self.vault_button):icons.append(button)
+        self.vault_button=Gtk.Button(icon_name='changes-prevent-symbolic',action_name='win.vaults',tooltip_text='Encrypted workspace',css_classes=['flat'])
+        self.vault_button.set_visible(False)
+        for button in (self.search_button,self.trash_button):icons.append(button)
         bottom.append(icons)
         self.toolbar_view.add_bottom_bar(bottom)
         self.set_size_request(220,-1)
@@ -256,7 +259,7 @@ class Sidebar(CallbackOwner,Gtk.Box):
         if path is not None:
             entries += [('Rename…','rename'),('Move to…','move'),('Move to trash…','trash')]
         if document:entries += [('Open beside current document','open-beside'),('Make a copy','duplicate'),('Print preview…','preview'),('Print…','print-document')]
-        else:entries.append(('Choose library…','root'))
+        else:entries.append(('Import workspace…','root'))
         for label,name in entries:
             action=Gio.SimpleAction.new(name,None)
             def activate(action,param,key=name):
@@ -446,7 +449,7 @@ class Sidebar(CallbackOwner,Gtk.Box):
 
     def perform_move(self,src,dest):
         try:
-            if vault_container(dest.parent):raise ValueError('Do not move ordinary files into a vault; use Import inside the vault.')
+            if vault_container(dest.parent):raise ValueError('Do not move ordinary files into an encrypted workspace; use Import inside the encrypted workspace.')
             expanded=self.expanded()
             move_path(src,dest,self.root)
             self.owner.path_moved(src,dest)

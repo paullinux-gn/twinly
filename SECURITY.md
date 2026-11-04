@@ -69,9 +69,9 @@ access. Additional files/directories must be selected through the file portal.
 Wayland/fallback X11, graphics, IPC and CUPS are retained for display and printing.
 Fallback X11 and printing expose host integration; prefer Wayland when available.
 
-The Flatpak uses a recoverable `.twinly-trash` directory inside the chosen library.
+Managed standard workspaces use a recoverable `.twinly-trash` directory inside each workspace.
 It supports restoring without overwrite and emptying without following symlinks.
-The native app continues to use the GNOME system trash. This keeps trash usable
+Unmanaged legacy roots retain their GNOME system trash integration. This keeps trash usable
 without granting the sandbox access to the entire host trash service.
 
 A real Flatpak build/run and desktop portal/printing tests are still required. A
@@ -130,3 +130,25 @@ Imports do not erase their original files. Password changes do not revoke
 old backups, which may still be unlocked with the old password. Restoring an
 older authentic vault is not detected as rollback. Encryption is not a backup.
 This implementation is a preview and has not been independently audited.
+
+
+## Managed workspaces
+
+Workspaces and their files now live under Twinly’s XDG data folder, including
+standard recovery drafts and central Workspace Trash. Workspace IDs are stable;
+user-facing names are catalog metadata. Names and encryption/lock status are
+visible outside encrypted workspaces, but document names, passwords and recovery
+keys remain confidential. Standard workspaces are explicitly labelled Not encrypted.
+
+Migration copies regular files and folders, verifies SHA-256 hashes and checks
+that the source inventory did not change. Symlinks and special files are rejected.
+Original folders, including old root-local workspace trash, are retained. Plain
+recovery drafts are also copied into the managed folder. Encrypted storage is
+copied without decryption. Imported and newly created standard workspaces get
+Getting Started only when that filename is absent; existing guides are preserved.
+
+A process/thread lock serializes workspace catalog changes. Catalog publication
+is atomic; failed catalog updates roll back Trash/restore moves. Workspace Trash
+supports no-overwrite restore and explicit confirmed permanent deletion, using
+anchored directory operations. An encrypted workspace must be locked before it
+can be moved. The encryption format and key derivation are unchanged.

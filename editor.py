@@ -30,7 +30,7 @@ from editor_view import DocumentView,FontButton
 from actions import ActionsMixin
 from lifecycle import CallbackOwner
 from application import APP_ID,VERSION,DEVELOPER_NAME,COPYRIGHT,LICENSE_ID,WEBSITE,DESCRIPTION,DATA_DIR,locations,default_root
-from filesystem import read_text,read_bytes,move_path,create_directory,private_directory,vault_container
+from filesystem import read_text,read_bytes,read_import_bytes,move_path,create_directory,private_directory,vault_container
 import private_trash
 import logging
 
@@ -132,7 +132,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             for label,action in items:section.append(label,'win.'+action)
             document_menu.append_section(None,section)
         exports=Gio.Menu()
-        for label,action in [('PDF…','export-pdf'),('OpenDocument (.odt)…','export-odt'),('Word (.docx)…','export-docx')]:
+        for label,action in [('HTML copy…','export-html'),('PDF…','export-pdf'),('OpenDocument (.odt)…','export-odt'),('Word (.docx)…','export-docx')]:
             exports.append(label,'win.'+action)
         document_menu.append_submenu('Export as…',exports)
         document_menu.append('Document outline · Ctrl+Shift+L','win.outline')
@@ -514,9 +514,6 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.config,_=locations()
         self.initial_document=None
         if root:return Path(root).expanduser().resolve()
-        settings=read_settings(self.config)
-        if settings.get('library_paths')==[] and not settings.get('root'):
-            return self.config.parent/'.no-library'
         path,self.initial_document=default_root(self.config)
         return path
 
@@ -725,8 +722,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 target=(self.path.parent/unquote(urlsplit(link['href']).path)).resolve()
                 library=self.sidebar.root.resolve()
                 if target!=library and library not in target.parents and target!=approved_target:
-                    self.ask('Link outside the library',
-                             'This link opens a file outside your document library:\n'+str(target)+'\nContinue only if you trust this file.',
+                    self.ask('Link outside the workspace',
+                             'This link opens a file outside your document workspace:\n'+str(target)+'\nContinue only if you trust this file.',
                              [('cancel','Cancel'),('open','Open file')],
                              lambda response:self.open_document_link(link,beside,approved_target=target) if response=='open' else None)
                     return
@@ -1551,7 +1548,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         except (OSError,ValueError) as exc:self.error(str(exc))
 
     def create_document(self,folder,name):
-        if vault_container(folder):raise ValueError('Use Open vault to work in an encrypted vault.')
+        if vault_container(folder):raise ValueError('Use Open encrypted workspace to work in an encrypted workspace.')
         name=safe_name(name)
         if Path(name).suffix.lower() not in ('.html','.htm'):name+='.html'
         path=Path(folder)/name
@@ -1613,7 +1610,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 if file and file.get_path() and not self.closed:
                     selected=Path(file.get_path())
                     if action==Gtk.FileChooserAction.SAVE and vault_container(selected):
-                        self.error('Choose a location outside an encrypted vault.');return
+                        self.error('Choose a location outside an encrypted workspace.');return
                     callback(selected)
             except GLib.Error as exc:
                 cancelled=(exc.matches(Gtk.dialog_error_quark(),Gtk.DialogError.DISMISSED) or
@@ -1656,7 +1653,10 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.office_import_pending=False
             if error:self.error(error);return
             def destination_chosen(destination):
-                destination=Path(destination)
+                destination=Path(destination).resolve()
+                store=self.workspace_store()
+                if store.catalog.exists() and not any(i['status']=='active' and i['kind']=='standard' and store.path(i) in destination.parents for i in store.records()):
+                    self.error('Import documents into a standard workspace. Use Export for external copies.');return
                 if destination.suffix.lower() not in ('.html','.htm'):
                     destination=destination.with_name(destination.name+'.html')
                 def commit():
@@ -1687,13 +1687,30 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         Thread(target=work,daemon=True).start()
 
     def open_path(self,path):
-        if vault_container(path):self.error('Use Open vault for encrypted documents.');return
+        if vault_container(path):self.error('Use Open encrypted workspace for encrypted documents.');return
         owner=self.workspace_owner or self
         other=owner if self.workspace_owner else self.peer
         if other and other.path and Path(path).resolve()==other.path.resolve():
             owner.activate_pane(other);other.view.grab_focus();return
         def run():
+            nonlocal path
             try:
+                store=self.workspace_store()
+                if store.catalog.exists():
+                    for item in store.records():
+                        original=item.get('source')
+                        if item['status']=='active' and original and Path(original) in Path(path).absolute().parents:
+                            path=store.path(item)/Path(path).absolute().relative_to(original);break
+                    managed=any(item['status']=='active' and item['kind']=='standard' and store.path(item) in Path(path).resolve().parents for item in store.records())
+                    if not managed:
+                        current=store.find(self.sidebar.root)
+                        if current is None:raise ValueError('Create or select a standard workspace before importing a document.')
+                        content=read_import_bytes(path,MAX_DOCUMENT).decode('utf-8')
+                        imported,warnings=from_html(content)
+                        for image in imported['images']:pixbuf_for(image['src'])
+                        destination=self.sidebar.root/self.available_name(self.sidebar.root,Path(path).stem,'.html')
+                        atomic_write(destination,to_html(imported,Path(path).stem),overwrite=False,private=True)
+                        path=destination
                 if path.stat().st_size>MAX_DOCUMENT:raise ValueError('The document is larger than 64 MB.')
                 content,loaded_stamp=read_text(path,MAX_DOCUMENT,with_stamp=True)
                 doc,warnings=from_html(content)
@@ -1769,7 +1786,11 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                           self.path.parent if self.path else self.sidebar.folder())
 
     def write(self,path,after=None,automatic=False,allow_external=False):
-        if vault_container(path):self.error('Saving unencrypted files in a vault is not allowed.');return
+        path=Path(path).resolve()
+        if vault_container(path):self.error('Saving unencrypted files in an encrypted workspace is not allowed.');return
+        store=self.workspace_store()
+        if store.catalog.exists() and not any(i['status']=='active' and i['kind']=='standard' and store.path(i) in Path(path).absolute().parents for i in store.records()):
+            self.error('Save documents inside a standard workspace. Use Export for an external copy.');return
         self.save_problem='Saving…'
         self.update_title()
         try:
@@ -2133,7 +2154,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if entry:entry.emit('activate')
         folder=Path(folder) if folder is not None else self.sidebar.folder()
         try:
-            if vault_container(folder):raise ValueError('Use Open vault to work in this folder.')
+            if vault_container(folder):raise ValueError('Use Open encrypted workspace to work in this folder.')
             path=folder/self.available_name(folder,'new folder')
             create_directory(path)
             self.sidebar.refresh(self.sidebar.expanded()|{folder})
@@ -2155,7 +2176,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def move(self,*_):
         src=self.sidebar.selected()
         if not src:self.message('Select a folder or document first.');return
-        self.file_chooser('Choose a destination folder within the library',Gtk.FileChooserAction.SELECT_FOLDER,
+        self.file_chooser('Choose a destination folder within the workspace',Gtk.FileChooserAction.SELECT_FOLDER,
                           lambda folder:self.sidebar.perform_move(src,folder/src.name),folder=self.sidebar.root)
 
     def trash(self,*_):
@@ -2168,7 +2189,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         def confirmed(choice):
             if choice!='trash':return
             try:
-                if os.environ.get('FLATPAK_ID'):private_trash.trash(path,self.sidebar.root)
+                if self.workspace_store().catalog.exists() or os.environ.get('FLATPAK_ID'):private_trash.trash(path,self.sidebar.root)
                 else:Gio.File.new_for_path(str(path)).trash(None)
                 for editor in affected:
                     editor.path=None;editor.saved_stamp=None
@@ -2181,22 +2202,16 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         check()
 
     def apply_root(self,path,create=False):
-        if vault_container(path):self.error('Use Open vault to open this folder.');return
-        path=Path(path).expanduser()
-        if not path.is_absolute():raise ValueError('Enter a full folder path, for example /home/user/Documents/Writing.')
-        if create:
-            private_directory(path.parent);create_directory(path)
-        if not path.is_dir():raise ValueError('Choose a folder, not a file.')
-        path=path.resolve()
-        previous_libraries=self.library_paths()
-        self.sidebar.set_root(path)
-        self.refresh_documents()
-        self.record_navigation()
-        try:
-            private_directory(self.config.parent)
-            self.save_preferences(root=str(path),library_paths=[str(path)]+[p for p in previous_libraries if p!=str(path)][:99])
-            self.refresh_libraries()
-        except OSError as exc:self.message('Library selected, but preference not saved: '+str(exc))
+        from application import DATA_DIR
+        store=self.workspace_store();path=Path(path).expanduser()
+        if not path.is_absolute():raise ValueError('Choose an existing workspace folder.')
+        if create:item=store.create(path.name,DATA_DIR)
+        else:item=store.find(path) or store.import_folder(path)
+        if item['kind']=='encrypted':
+            self.refresh_libraries();self.vault_launcher().unlock_path(store.path(item));return
+        path=store.path(item)
+        self.sidebar.set_root(path);self.refresh_documents();self.record_navigation()
+        self.save_preferences(root=str(path));self.refresh_libraries()
 
     def search_documents(self,*_):
         self.show_documents()
@@ -2250,7 +2265,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if self.split.get_collapsed():self.split.set_show_sidebar(False)
 
     def load_trash_items(self):
-        if os.environ.get('FLATPAK_ID'):return private_trash.items(self.sidebar.root)
+        if self.workspace_store().catalog.exists() or os.environ.get('FLATPAK_ID'):return private_trash.items(self.sidebar.root)
         trash=Gio.File.new_for_uri('trash:///')
         enumerator=trash.enumerate_children('standard::name,standard::display-name,standard::type,trash::orig-path,trash::deletion-date',
                                             Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,None)
@@ -2301,9 +2316,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 restore.connect('clicked',lambda _,value=item:self.restore_trash_item(value))
                 row.add_suffix(restore);self.trash_list.append(row)
             if items:box.append(self.trash_list)
-            else:box.append(Gtk.Label(label='The trash for this library is empty.',xalign=0))
+            else:box.append(Gtk.Label(label='The trash for this workspace is empty.',xalign=0))
         except (GLib.Error,OSError):
-            problem=('Could not read the private trash. Check access to this library.' if os.environ.get('FLATPAK_ID') else 'Could not read the trash. Check that GNOME’s trash service (GVfs) is available.')
+            problem=('Could not read the private trash. Check access to this workspace.' if os.environ.get('FLATPAK_ID') else 'Could not read the trash. Check that GNOME’s trash service (GVfs) is available.')
             box.append(Gtk.Label(label=problem,
                                  wrap=True,xalign=0))
         scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
@@ -2341,7 +2356,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 errors=[]
                 for item in items:
                     try:
-                        if root not in item['path'].parents:raise ValueError('Item does not belong to this library.')
+                        if root not in item['path'].parents:raise ValueError('Item does not belong to this workspace.')
                         if item.get('managed'):private_trash.delete(item,root)
                         else:self.delete_trash_file(item['file'])
                     except (GLib.Error,OSError,ValueError) as exc:errors.append(str(exc))
@@ -2356,13 +2371,13 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             Thread(target=work,daemon=True).start()
         self.ask('Empty trash?',
                  'The deleted documents and folders in '+root.name+' will be permanently deleted. '
-                 'This cannot be undone. Items from other libraries will be kept.',
+                 'This cannot be undone. Items from other workspaces will be kept.',
                  [('cancel','Cancel'),('empty','Delete permanently')],confirmed)
 
     def restore_trash_item(self,item):
         try:
             destination=item['path']
-            if self.sidebar.root not in destination.parents:raise ValueError('This item does not belong to the current library.')
+            if self.sidebar.root not in destination.parents:raise ValueError('This item does not belong to the current workspace.')
             if destination.exists() or destination.is_symlink():raise ValueError('That name already exists. Rename or move the existing item first.')
             if item.get('managed'):private_trash.restore(item,self.sidebar.root)
             else:
@@ -2445,48 +2460,38 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.show_trash()
 
     def choose_root(self,*_):
-        return self.root_dialog(create=False)
+        return self.file_chooser('Import workspace folder',Gtk.FileChooserAction.SELECT_FOLDER,
+                                 lambda path:self.guard(lambda:self.apply_root(path)))
 
-    def new_root(self,*_):
-        return self.root_dialog(create=True)
+    def new_root(self,*_):return self.root_dialog()
 
-    def root_dialog(self,create=False):
-        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='New library' if create else 'Choose library',
-            body='Enter the full path for the new library.' if create else 'Choose an existing folder to use as your library.')
+    def root_dialog(self,create=True):
+        if not create:return self.choose_root()
+        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='New workspace',
+            body='Give your workspace a name and choose its protection. All its files stay in Twinly’s workspace folder.')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12)
-        initial=self.sidebar.root.parent/'new library' if create else self.sidebar.root
-        entry=Gtk.Entry(text=str(initial),activates_default=True,hexpand=True)
-        entry.set_tooltip_text('Full library path')
-        box.append(entry)
-        browse=Gtk.Button(label='Browse for existing folder…')
-        browse.connect('clicked',lambda *_:self.file_chooser('Choose existing library',
-            Gtk.FileChooserAction.SELECT_FOLDER,lambda path:entry.set_text(str(path)),folder=self.sidebar.root))
-        box.append(browse)
-        dialog.set_extra_child(box)
-        dialog.add_response('cancel','Cancel')
-        dialog.add_response('use','Use folder')
-        dialog.set_response_appearance('use',Adw.ResponseAppearance.SUGGESTED)
-        dialog.set_default_response('use')
-        dialog.set_close_response('cancel')
+        entry=Gtk.Entry(placeholder_text='Workspace name',activates_default=True)
+        kind=Gtk.DropDown.new_from_strings(['Choose workspace type…','Standard — Not encrypted','Encrypted — Password protected'])
+        kind.update_property([Gtk.AccessibleProperty.LABEL],['Workspace protection'])
+        box.append(entry);box.append(kind)
+        dialog.set_extra_child(box);dialog.add_response('cancel','Cancel');dialog.add_response('create','Create workspace')
+        dialog.set_default_response('create');dialog.set_close_response('cancel')
         def update(*_):
-            text=entry.get_text().strip()
-            path=Path(text).expanduser() if text else None
-            valid=bool(path and path.is_absolute() and ((not path.exists() and not path.is_symlink()) if create else path.is_dir()))
-            dialog.set_response_label('use','Create and use folder' if create else 'Use folder')
-            dialog.set_response_enabled('use',valid)
-        entry.connect('changed',update)
-        update()
-        def respond(d,choice):
-            if choice!='use':return
-            path=Path(entry.get_text().strip()).expanduser()
-            def apply():
-                try:self.apply_root(path,create=create)
+            try:self.workspace_store().validate_name(entry.get_text());valid=kind.get_selected() in (1,2)
+            except ValueError:valid=False
+            dialog.set_response_enabled('create',valid)
+        entry.connect('changed',update);kind.connect('notify::selected',update);update()
+        def respond(_,choice):
+            if choice!='create':return
+            if kind.get_selected()==2:self.vault_launcher().create_named(entry.get_text());return
+            def create_standard():
+                try:
+                    item=self.workspace_store().create(entry.get_text(),DATA_DIR)
+                    self.apply_root(self.workspace_store().path(item))
+                    self.open_path(self.sidebar.root/'Getting Started.html')
                 except (OSError,ValueError) as exc:self.error(str(exc))
-            self.guard(apply)
-        dialog.connect('response',respond)
-        dialog.present()
-        entry.grab_focus()
-        return dialog
+            self.guard(create_standard)
+        dialog.connect('response',respond);dialog.present();entry.grab_focus();return dialog
 
     def document_for_print(self,path=None):
         if path is None or Path(path)==self.path:return self.snapshot()
@@ -2495,6 +2500,29 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         doc,warnings=from_html(read_text(path,MAX_DOCUMENT))
         if warnings:self.message(' · '.join(warnings))
         return doc
+
+    def export_html(self,*_):
+        document=copy.deepcopy(self.snapshot());source=self.path
+        def picked(path):
+            path=Path(path)
+            if path.suffix.lower() not in ('.html','.htm'):path=path.with_suffix('.html')
+            if vault_container(path):self.error('Export outside encrypted workspaces.');return
+            if source and path.resolve()==source.resolve():self.error('Choose a separate file for the export.');return
+            expected=stamp(path)
+            def commit():
+                try:
+                    exported=copy.deepcopy(document)
+                    if source:
+                        for span in exported['spans']:
+                            link=span['style'].get('link')
+                            if link:span['style']['link']={**link,'href':relocated_href(link['href'],source,path,source,source)}
+                    atomic_write(path,to_html(exported,path.stem),expected=expected)
+                    self.message('HTML copy exported · '+path.name)
+                except (OSError,ValueError) as exc:self.error(str(exc))
+            if path.exists():self.ask('Replace export file?',str(path),[('cancel','Cancel'),('replace','Replace')],lambda choice:commit() if choice=='replace' else None)
+            else:commit()
+        self.file_chooser('Export HTML copy',Gtk.FileChooserAction.SAVE,picked,
+                          name=(source.stem if source else 'Document')+'.html')
 
     def export_pdf(self,*_):
         # The shared preview exposes page settings and the PDF save action.
@@ -2566,7 +2594,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             'libadwaita https://gnome.pages.gitlab.gnome.org/libadwaita/',
             'PyGObject https://pygobject.gnome.org',
             'pypdf https://github.com/py-pdf/pypdf',
-            'PyNaCl (optional vault support) https://pynacl.readthedocs.io',
+            'PyNaCl (optional encrypted workspace support) https://pynacl.readthedocs.io',
         ])
         window.add_acknowledgement_section('Bundled content',[
             'Writing-desk photo: AI-generated for Twinly and approved by its owner',
@@ -2583,7 +2611,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if getattr(self,'closing_ready',False):return False
         launcher=getattr(self,'vault_launch',None)
         if launcher and any(launcher.pending.values()):
-            self.error('A locked vault still has encrypted changes in memory. Unlock it and save before closing Twinly.');return True
+            self.error('A locked encrypted workspace still has encrypted changes in memory. Unlock it and save before closing Twinly.');return True
         if launcher:
             for window in list(launcher.windows):window.lock_vault()
             if any(launcher.pending.values()) or any(not window.closed for window in launcher.windows):return True
@@ -2632,15 +2660,21 @@ class App(Adw.Application):
     def do_activate(self):
         window=self.get_active_window()
         fresh=window is None
-        if fresh:window=Editor(self,self.root)
+        if fresh:
+            window=Editor(self)
+            if self.root:window.apply_root(Path(self.root).absolute())
         window.present()
         if fresh:
+            errors=read_settings(window.config).get('workspace_migration_errors',[])
+            if errors:window.error('Some workspaces could not be imported. Originals were kept unchanged.\n'+'\n'.join(errors[:10]))
             window.restore_workspace()
             if window.path is None and window.initial_document:window.open_path(window.initial_document)
 
     def do_open(self,files,count,hint):
         window=self.get_active_window()
-        if window is None or getattr(window,'is_vault',False):window=Editor(self,self.root)
+        if window is None or getattr(window,'is_vault',False):
+            window=Editor(self)
+            if self.root:window.apply_root(Path(self.root).absolute())
         window.present()
         for file in files:
             path=file.get_path()
@@ -2648,13 +2682,13 @@ class App(Adw.Application):
             if window.path is None:window.open_path(Path(path))
             elif window.peer is None:window.open_beside(Path(path))
             else:
-                window=Editor(self,self.root);window.present();window.open_path(Path(path))
+                window=Editor(self);window.present();window.open_path(Path(path))
 
 
 if __name__=='__main__':
     import argparse
     parser=argparse.ArgumentParser(description='Twinly — local rich text editor')
-    parser.add_argument('--root',type=Path,help='Library folder for the document tree')
+    parser.add_argument('--root',type=Path,help='Workspace folder for the document tree')
     parser.add_argument('--version',action='version',version=VERSION)
     parser.add_argument('files',nargs='*',help='HTML documents to open')
     args=parser.parse_args()

@@ -32,22 +32,24 @@ bash start.sh
 ```
 
 Use the distribution's Python, not a pip-only virtual environment. You can pass
-`--root /absolute/path` to use an existing library, or HTML filenames to open them.
+`--root /absolute/path` to import an existing workspace folder, or HTML filenames
+to import documents into the selected standard workspace.
 
 ## First start and storage
 
 A fresh installation copies `Getting Started.html` and `Link Example.html` to a
-writable initial library and opens Getting Started. The guide describes every
+writable Starter Workspace and opens Getting Started. The guide describes every
 current feature, its menu/toolbar entry or shortcut, and relevant limitations.
 The approved writing-desk photo is embedded in the HTML and works offline.
 Templates are copied once; existing user documents are never overwritten.
 
 Default native locations:
 
-- Documents: `$XDG_DATA_HOME/twinly/Documents` (usually `~/.local/share/...`).
+- Workspace data: `$XDG_DATA_HOME/twinly/Workspaces/` (usually `~/.local/share/...`).
+- Workspace Trash and recovery: alongside `Workspaces/` in the same Twinly folder.
 - Preferences: `$XDG_CONFIG_HOME/twinly/preferences.json` (usually `~/.config/...`).
 - A legacy source installation with `Instellingen/voorkeuren.json` keeps using its
-  existing portable settings/library. Packaged installs always use XDG locations.
+  existing portable settings/workspaces. Packaged installs always use XDG locations.
 
 Flatpak supplies private XDG directories under `~/.var/app/APP_ID/`. Choose another
 root through the sidebar menu when you want to keep your documents elsewhere.
@@ -80,9 +82,9 @@ not publish releases or submit to Flathub automatically.
 
 Permissions: Wayland/fallback X11, graphics/IPC and CUPS printing. The manifest
 requests no blanket Documents/home access, host-trash/GVfs grants or shared networking.
-Choose additional files and library directories through the file portal. In Flatpak,
-trash is recoverable inside the selected library's private `.twinly-trash` folder;
-native installations keep the GNOME system trash. Verify folder grants, trash,
+Choose additional files and workspace folders through the file portal. In Flatpak,
+workspace Trash stays inside Twinly’s managed data folder. Document trash uses
+`.twinly-trash` within each managed standard workspace, on native and Flatpak installs. Verify folder grants, trash,
 printing and blur in an actual sandbox before release.
 
 See [SECURITY.md](SECURITY.md) for import limits, safe file operations, private storage
@@ -103,7 +105,7 @@ permissions and remaining limitations. HTML documents are not encrypted.
 - Zoom, light/dark/system appearance and optional runtime/compositor-dependent blur.
 - Shortcut overview through the sidebar menu or Ctrl+?.
 
-No tables, fixed-page editing, nested lists, full-library body search, cloud sync or
+No tables, fixed-page editing, nested lists, full-workspace body search, cloud sync or
 crash recovery for never-saved documents are claimed. Simple lists use text prefixes.
 
 ## Tests
@@ -183,19 +185,37 @@ and both writing panes stay white with
 dark text and a dark caret. Selection retains the accent colour. The choice is
 saved and works with focus mode and blur; documents and exports are unchanged.
 
-### Libraries and vaults
+### Workspaces
 
-Click **Libraries** in the left sidebar to open the right-hand libraries panel.
-Create a new library, add an existing folder, or select a library to browse its
-documents. Vaults appear in the same panel with a lock icon; opening one requires
-its password. New and existing vaults can also be added from this panel.
+Click **Workspaces** in the left sidebar to open the right-hand workspace list.
+First launch includes one **Starter Workspace**, labelled **Not encrypted**, with
+the complete Getting Started document. Create your own workspace before storing
+personal documents: enter a name and explicitly choose **Standard — Not encrypted**
+or **Encrypted — Password protected**. Every standard workspace receives the full
+guide; encrypted workspaces start empty. There is no default encrypted workspace.
 
-The trash button beside a location asks before moving its entire folder and
-contents to **Library Trash**. From there, restore it to its original location or
-choose **Delete permanently**, which requires a separate confirmation. Vaults
-must be locked before moving them; their files remain encrypted in Trash.
-Library Trash is stored beside the original folder, so moving does not copy its
-contents to another disk. This is separate from the document Trash button.
+Protection icons appear beside each workspace name: an open padlock for standard,
+a closed padlock for encrypted and locked, and an open padlock with a shield for
+encrypted and unlocked. Labels and tooltips make the distinction explicit.
+Rename workspaces in the list; their storage IDs remain stable.
+
+All workspace data lives in Twinly’s XDG data folder (normally
+`~/.local/share/twinly`, or the corresponding Flatpak data directory):
+
+- `Workspaces/`: managed standard and encrypted workspace folders.
+- `Workspace Trash/`: deleted workspaces, with restore and permanent-delete controls.
+- `Recovery/`: recovery drafts for standard documents.
+- `workspaces.json`: names, protection types and storage IDs; no passwords or encrypted document names.
+
+Existing libraries and encrypted vaults are copied and verified during migration;
+originals remain untouched. **Import workspace** does the same for another folder.
+Copies reject symbolic links and special files, and abort if the source changes.
+Unavailable sources are reported; use Import workspace when they are available.
+External HTML documents open as managed copies; use Export for files outside Twinly.
+
+Moving a workspace to Trash requires confirmation. Permanent deletion requires a
+second warning. Encrypted workspaces must be locked first and remain encrypted in
+Trash. Document Trash remains separate from Workspace Trash.
 
 ### Reading and editing
 
@@ -233,26 +253,16 @@ the HTML document as validated data attributes plus ordinary inline formatting.
 Manual overrides retain heading semantics and show an asterisk in the style selector.
 Fonts are referenced by family name and are not embedded.
 
-### Optional encrypted vault (preview)
+### Encrypted workspaces (preview)
 
-On Arch Linux install the additional dependency: `sudo pacman -S python-pynacl`
-(PyNaCl 1.6.2 or newer). Ordinary HTML editing works without it.
-Use the sidebar menu → **Vault**, or the bottom lock icon, then choose
-New Vault or Add Existing Vault. Use Unlock beside a remembered vault. A vault uses its own window,
-with encrypted documents, folders, embedded pictures, recovery drafts, trash
-and custom styles. Keep the displayed recovery key separately and safely.
-The header lock icon locks it; inactivity locks after five minutes by default.
+On Arch Linux install `python-pynacl` (PyNaCl 1.6.2 or newer). Standard editing
+works without it. Choose **New workspace**, name it and select **Encrypted**.
+Set a password of at least 12 characters and save the recovery key separately.
+Documents, folders, embedded pictures, recovery drafts, trash and custom styles
+are encrypted at rest. The header lock icon locks the workspace; inactivity locks
+after five minutes by default. Unlocking uses its password or recovery key.
+Names of workspaces and their protection status are visible in the normal list;
+passwords, recovery keys and encrypted document names are never stored there.
+The existing encryption format and password/recovery behavior are unchanged.
 Read [docs/VAULT.md](docs/VAULT.md) before storing sensitive material.
 This preview has not undergone an independent security audit.
-
-### Remembered vaults
-
-In the regular Twinly window choose **Vault** in the sidebar menu or click
-the bottom lock icon. The right pane lists remembered vaults, with an Unlock
-button and controls to create a new vault or add an existing one. Newly created
-and added vaults are remembered automatically. Locate vaults created before
-this update once with Add Existing Vault. Removing a list entry leaves the
-vault files intact. Missing folders show Locate instead of Unlock.
-Only directory locations are saved in ordinary preferences, never passwords,
-recovery keys or private document names. Vault folder names and locations are
-therefore visible in the normal window.

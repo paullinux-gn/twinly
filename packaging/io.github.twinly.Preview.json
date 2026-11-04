@@ -132,6 +132,10 @@
         {
           "type": "file",
           "path": "../vault_ui.py"
+        },
+        {
+          "type": "file",
+          "path": "../managed_workspaces.py"
         }
       ],
       "modules": [

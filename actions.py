@@ -54,6 +54,7 @@ class ActionsMixin:
             'rename':(self.rename,[]), 'move':(self.move,[]), 'trash':(self.trash,[]),
             'photo':(self.insert_photo,[]), 'horizontal-rule':(self.insert_rule,[]), 'delete-photo':(self.delete_photo,[]),
             'print-direct':(self.print_document,[]),
+            'export-html':(self.export_html,[]),
             'export-pdf':(self.export_pdf,[]),
             'export-odt':(lambda *_:self.export_office('odt'),[]),
             'export-docx':(lambda *_:self.export_office('docx'),[]),

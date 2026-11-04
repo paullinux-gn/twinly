@@ -21,7 +21,8 @@ class Packaging(unittest.TestCase):
             root=Path(directory);config=root/'config'/'settings.json';documents=root/'data'/'Documents'
             with patch('application.locations',return_value=(config,documents)):
                 selected,first=default_root(config)
-                self.assertEqual(documents,selected)
+                self.assertTrue(selected.is_relative_to(root/'data/Workspaces'))
+                documents=selected
                 self.assertEqual(documents/'Getting Started.html',first)
                 doc,warnings=from_html(first.read_text())
                 self.assertFalse(warnings)
@@ -32,7 +33,7 @@ class Packaging(unittest.TestCase):
                 first.write_text('<p>My edited guide</p>')
                 self.assertEqual((documents,None),default_root(config))
                 self.assertEqual('<p>My edited guide</p>',first.read_text())
-                self.assertTrue(read_settings(config)['getting_started_installed'])
+                self.assertTrue(read_settings(config)['managed_workspaces_version']==1)
 
     def test_packaged_storage_uses_xdg_locations(self):
         with tempfile.TemporaryDirectory() as directory:
