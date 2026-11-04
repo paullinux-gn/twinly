@@ -77,6 +77,7 @@ class WorkspaceSwitching(unittest.TestCase):
 
 
     def test_more_opens_management_without_switching(self):
+        self.manager.rename(self.first,'Starter Workspace');self.w.refresh_libraries()
         self.w.set_default_size(1600,800);settle()
         self.assertFalse(self.w.libraries_split.get_show_sidebar())
         self.w.sidebar.libraries_button.popup();settle()
@@ -87,7 +88,12 @@ class WorkspaceSwitching(unittest.TestCase):
             while child:
                 result.extend(buttons(child));child=child.get_next_sibling()
             return result
-        menu=buttons(self.w.sidebar.libraries_button.get_popover())
+        popover=self.w.sidebar.libraries_button.get_popover()
+        self.assertGreaterEqual(popover.get_width(),280)
+        menu=buttons(popover)
+        workspace_label=menu[0].get_child().get_last_child()
+        self.assertEqual('Starter Workspace',workspace_label.get_text())
+        self.assertFalse(workspace_label.get_layout().is_ellipsized())
         labels=[button.get_label() for button in menu]
         self.assertIn('More…',labels);self.assertNotIn('New workspace…',labels)
         next(button for button in menu if button.get_label()=='More…').emit('clicked');settle()

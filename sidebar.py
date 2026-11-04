@@ -88,7 +88,7 @@ class Sidebar(CallbackOwner,Gtk.Box):
         bottom=Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         bottom.append(Gtk.Separator())
         icons=Gtk.Box(spacing=8,homogeneous=True,margin_start=12,margin_end=12,margin_top=8,margin_bottom=8)
-        self.search_button=Gtk.Button(icon_name='system-search-symbolic',action_name='win.search-documents',tooltip_text='Search documents',css_classes=['flat'])
+        self.search_button=Gtk.Button(icon_name='system-search-symbolic',action_name='win.toggle-search-documents',tooltip_text='Search documents',css_classes=['flat'])
         self.trash_button=Gtk.Button(icon_name='user-trash-symbolic',action_name='win.show-trash',tooltip_text='Trash',css_classes=['flat'])
         self.vault_button=Gtk.Button(icon_name='changes-prevent-symbolic',action_name='win.vaults',tooltip_text='Encrypted workspace',css_classes=['flat'])
         self.vault_button.set_visible(False)

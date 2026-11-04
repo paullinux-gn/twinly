@@ -109,11 +109,6 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                                         tooltip_text='Show or hide folders')
         self.sidebar_toggle=sidebar_toggle
         header.pack_start(sidebar_toggle)
-        self.focus_button=Gtk.ToggleButton(icon_name='view-fullscreen-symbolic',
-                                           tooltip_text='Toggle focus mode · F9',
-                                           action_name='win.focus-mode')
-        self.focus_button.update_property([Gtk.AccessibleProperty.LABEL],['Focus mode'])
-        header.pack_end(self.focus_button)
         self.toolbar_pin_button=Gtk.ToggleButton(icon_name='view-reveal-symbolic',
                                                  tooltip_text='Always show toolbar',focus_on_click=False)
         self.toolbar_pin_button.update_property([Gtk.AccessibleProperty.LABEL],['Always show toolbar'])
@@ -143,7 +138,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.document_menu_button.set_child(Gtk.Image.new_from_icon_name('open-menu-symbolic'))
         header.pack_end(self.document_menu_button)
         header.pack_end(save)
-        header.pack_end(self.button('system-search-symbolic','Find in document · Ctrl+F','win.find'))
+        header.pack_end(self.button('system-search-symbolic','Find in document · Ctrl+F','win.toggle-find'))
         self.toolbar=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=10)
         self.toolbar.add_css_class('format-toolbar')
         self.format_controls=Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,max_children_per_line=20,
@@ -578,6 +573,10 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 self.buffer.insert(cursor,'\n'+prefix)
         finally:self.loading=was_loading
         self.capture();return True
+
+    def toggle_search(self,*_):
+        if self.search_bar.get_search_mode():self.search_bar.set_search_mode(False)
+        else:self.open_search()
 
     def open_search(self,*_):
         self.show_editor()
@@ -2219,6 +2218,11 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.refresh_libraries();self.vault_launcher().unlock_path(store.path(item));return
         path=store.path(item)
         self.switch_standard_workspace(path)
+
+    def toggle_document_search(self,*_):
+        owner=self.workspace_owner or self
+        if owner.document_stack.get_visible_child_name()=='documents':owner.show_editor()
+        else:owner.search_documents()
 
     def search_documents(self,*_):
         self.show_documents()

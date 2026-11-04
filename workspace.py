@@ -21,11 +21,11 @@ class WorkspaceMixin:
         for item in store.records():
             if item['status']!='active':continue
             description,is_open=host.workspace_status(item)
-            button=Gtk.Button(css_classes=['flat'],tooltip_text=description)
+            button=Gtk.Button(css_classes=['flat'],tooltip_text=item['name']+' — '+description)
             row=Gtk.Box(spacing=8)
             row.append(Gtk.Image(icon_name='changes-prevent-symbolic' if item['kind']=='encrypted' and not is_open else 'changes-allow-symbolic'))
             if is_open:row.append(Gtk.Image(icon_name='security-high-symbolic'))
-            row.append(Gtk.Label(label=item['name'],xalign=0,hexpand=True,ellipsize=Pango.EllipsizeMode.END,max_width_chars=28))
+            row.append(Gtk.Label(label=item['name'],xalign=0,hexpand=True,ellipsize=Pango.EllipsizeMode.END,max_width_chars=40))
             button.set_child(row)
             button.connect('clicked',lambda _,p=store.path(item),v=item['kind']=='encrypted':(popover.popdown(),host.open_library_location(p,v)))
             choices.append(button)
@@ -34,7 +34,8 @@ class WorkspaceMixin:
             button=Gtk.Button(label=title,css_classes=['flat'])
             button.connect('clicked',lambda _,fn=callback:(popover.popdown(),fn()))
             choices.append(button)
-        scroll=Gtk.ScrolledWindow(max_content_height=420,propagate_natural_height=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
+        scroll=Gtk.ScrolledWindow(width_request=280,max_content_width=440,propagate_natural_width=True,
+                                  max_content_height=420,propagate_natural_height=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
         scroll.set_child(choices);popover.set_child(scroll);self.workspace_selector.set_popover(popover)
 
     def guard_workspace_switch(self,callback):

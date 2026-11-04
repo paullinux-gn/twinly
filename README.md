@@ -172,7 +172,7 @@ controls. It sits below the shared headerbar and uses the blur settings when
 supported. Appearance is instant, without animation. The minimum content width
 keeps the toolbar on one row. Menus and font dialogs remain usable.
 
-Use document menu → **Focus mode**, its persistent header icon, or **F9** to hide
+Use document menu → **Focus mode** or **F9** to hide
 the sidebar. Leaving focus mode restores the previous sidebar visibility; the
 floating toolbar behaves the same in both modes and across both document panes.
 
