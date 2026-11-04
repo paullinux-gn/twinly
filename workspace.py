@@ -17,7 +17,7 @@ class WorkspaceMixin:
         current=store.find(self.vault_store.path if getattr(self,'is_vault',False) else page.vault_store.path if page else host.sidebar.root)
         status,unlocked=host.workspace_status(current) if current else ('Not encrypted',False)
         self.workspace_selector.set_tooltip_text('Workspaces'+(' — '+current['name']+' — '+status if current else ''))
-        popover=Gtk.Popover();choices=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4)
+        popover=Gtk.Popover(css_classes=['workspace-switcher']);choices=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4)
         for item in store.records():
             if item['status']!='active':continue
             description,is_open=host.workspace_status(item)
@@ -162,7 +162,10 @@ class WorkspaceMixin:
         scroll.set_child(self.library_rows);panel.append(scroll)
         for label,callback in [('New workspace…',self.new_root),('Import workspace…',self.choose_root)]:
             button=Gtk.Button(label=label);button.connect('clicked',callback);panel.append(button)
-        self.libraries_split.set_sidebar(panel)
+        # Paint the entire pane; the content margins belong inside its surface.
+        surface=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,css_classes=['blur-sidebar'])
+        surface.append(panel)
+        self.libraries_split.set_sidebar(surface)
         self.libraries_trash_visible=False
         self.libraries_trash_button=Gtk.Button(label='Workspace Trash')
         self.libraries_trash_button.connect('clicked',self.toggle_library_trash)

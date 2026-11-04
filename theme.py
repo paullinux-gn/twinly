@@ -4,6 +4,9 @@ from gi.repository import Gtk
 from application import APP_ID
 
 BASE_CSS = r"""
+            .blur-sidebar {background:@sidebar_bg_color;color:@sidebar_fg_color;}
+            .blur-sidebar list.boxed-list {background:transparent;}
+            popover.workspace-switcher button, popover.workspace-switcher button label {font-weight:normal;}
             .blur-sidebar headerbar, .blur-sidebar headerbar:backdrop {
                 background:transparent;
                 }

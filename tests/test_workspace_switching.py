@@ -7,7 +7,7 @@ from editor import App,Editor
 from application import DATA_DIR
 from model import blank,to_html
 from settings import read_settings
-from gi.repository import Gtk,Gio,GLib
+from gi.repository import Gtk,Gio,GLib,Pango
 import vault
 
 
@@ -94,10 +94,16 @@ class WorkspaceSwitching(unittest.TestCase):
         workspace_label=menu[0].get_child().get_last_child()
         self.assertEqual('Starter Workspace',workspace_label.get_text())
         self.assertFalse(workspace_label.get_layout().is_ellipsized())
+        self.assertEqual(Pango.Weight.NORMAL,workspace_label.get_pango_context().get_font_description().get_weight())
+        more=next(button for button in menu if button.get_label()=='More…')
+        self.assertEqual(Pango.Weight.NORMAL,more.get_child().get_pango_context().get_font_description().get_weight())
         labels=[button.get_label() for button in menu]
         self.assertIn('More…',labels);self.assertNotIn('New workspace…',labels)
         next(button for button in menu if button.get_label()=='More…').emit('clicked');settle()
         self.assertTrue(self.w.libraries_split.get_show_sidebar())
+        surface=self.w.libraries_split.get_sidebar()
+        self.assertTrue(surface.has_css_class('blur-sidebar'))
+        self.assertEqual((0,0,0,0),(surface.get_margin_start(),surface.get_margin_end(),surface.get_margin_top(),surface.get_margin_bottom()))
         self.assertEqual(self.manager.path(self.first),self.w.sidebar.root)
 
     def test_cancel_unsaved_second_pane_keeps_workspace(self):
