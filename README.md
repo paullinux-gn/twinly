@@ -187,16 +187,17 @@ saved and works with focus mode and blur; documents and exports are unchanged.
 
 ### Workspaces
 
-Click **Workspaces** in the left sidebar to open the right-hand workspace list.
+Click **Workspaces** in the left sidebar to open a dropdown of existing workspaces.
+Choose **More…** to open the right-hand management pane.
 First launch includes one **Starter Workspace**, labelled **Not encrypted**, with
 the complete Getting Started document. Create your own workspace before storing
 personal documents: enter a name and explicitly choose **Standard — Not encrypted**
 or **Encrypted — Password protected**. Every standard workspace receives the full
 guide; encrypted workspaces start empty. There is no default encrypted workspace.
 
-The workspace name and lock icon in the header open a selector for switching in
-the **same window**, with **New workspace…** and **Manage workspaces…** entries.
-The right-hand panel remains available for naming, importing and Trash.
+The sidebar dropdown switches workspaces in the **same window**. Workspace names
+and protection icons appear in the dropdown. **More…** opens the right-hand panel
+for creating, naming, importing and Trash.
 Standard workspaces offer Save / Discard / Cancel for dirty documents in either
 pane. Leaving an encrypted workspace saves its documents and recovery drafts,
 locks it and wipes its editor. Failed saves block switching; cancelling an unlock

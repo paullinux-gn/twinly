@@ -6,8 +6,7 @@ from settings import read_settings,finite_number
 
 class WorkspaceMixin:
     def setup_workspace_selector(self):
-        self.workspace_selector=Gtk.MenuButton(tooltip_text='Switch workspace')
-        self.document_header.pack_end(self.workspace_selector)
+        self.workspace_selector=self.sidebar.libraries_button
         self.refresh_workspace_selector()
 
     def refresh_workspace_selector(self):
@@ -17,12 +16,7 @@ class WorkspaceMixin:
         page=getattr(host,'embedded_workspace',None)
         current=store.find(self.vault_store.path if getattr(self,'is_vault',False) else page.vault_store.path if page else host.sidebar.root)
         status,unlocked=host.workspace_status(current) if current else ('Not encrypted',False)
-        box=Gtk.Box(spacing=6)
-        box.append(Gtk.Image(icon_name='changes-prevent-symbolic' if current and current['kind']=='encrypted' and not unlocked else 'changes-allow-symbolic'))
-        if unlocked:box.append(Gtk.Image(icon_name='security-high-symbolic'))
-        label=Gtk.Label(label=current['name'] if current else 'Workspaces',ellipsize=Pango.EllipsizeMode.END,max_width_chars=12,width_chars=1)
-        box.append(label);self.workspace_selector.set_child(box)
-        self.workspace_selector.set_tooltip_text((current['name']+' — ' if current else '')+status)
+        self.workspace_selector.set_tooltip_text('Workspaces'+(' — '+current['name']+' — '+status if current else ''))
         popover=Gtk.Popover();choices=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4)
         for item in store.records():
             if item['status']!='active':continue
@@ -36,7 +30,7 @@ class WorkspaceMixin:
             button.connect('clicked',lambda _,p=store.path(item),v=item['kind']=='encrypted':(popover.popdown(),host.open_library_location(p,v)))
             choices.append(button)
         choices.append(Gtk.Separator())
-        for title,callback in [('New workspace…',host.new_root),('Manage workspaces…',host.show_libraries)]:
+        for title,callback in [('More…',host.show_libraries)]:
             button=Gtk.Button(label=title,css_classes=['flat'])
             button.connect('clicked',lambda _,fn=callback:(popover.popdown(),fn()))
             choices.append(button)
@@ -151,7 +145,7 @@ class WorkspaceMixin:
         owner.refresh_libraries();owner.libraries_split.set_show_sidebar(True)
 
     def setup_libraries(self):
-        self.libraries_split=Adw.OverlaySplitView(sidebar_position=Gtk.PackType.END,
+        self.libraries_split=Adw.OverlaySplitView(sidebar_position=Gtk.PackType.END,show_sidebar=False,
             min_sidebar_width=290,max_sidebar_width=360,sidebar_width_fraction=.24)
         self.libraries_split.set_content(self.split)
         panel=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12,

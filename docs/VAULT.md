@@ -1,6 +1,6 @@
 # Encrypted workspaces
 
-The interface now calls vaults **encrypted workspaces**. Use **Workspaces → New
+The interface now calls vaults **encrypted workspaces**. Use **Workspaces → More… → New
 workspace**, enter a name, and choose **Encrypted — Password protected**. There
 is no default encrypted workspace. Twinly stores its opaque encrypted folder
 inside the same managed main folder as standard workspaces. The existing vault
@@ -94,7 +94,8 @@ protection types, never passwords, recovery keys or private document names.
 
 ## Switching in the current window
 
-The header selector and Workspaces management panel use the same switching path.
+The sidebar Workspaces dropdown and management panel use the same switching path.
+Choose More… in the dropdown to open the right-hand management pane.
 Encrypted editors are embedded widgets, not additional application windows.
 Shortcuts, action groups, file dialogs, formatting and printing target that editor;
 dialogs are parented to the existing window. Before switching away, named dirty

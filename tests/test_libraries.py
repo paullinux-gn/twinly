@@ -45,7 +45,7 @@ class Libraries(unittest.TestCase):
         self.assertEqual({str(self.w.sidebar.root),str(self.folder)},set(self.w.library_paths()))
         self.assertEqual(str(self.w.sidebar.root),read_settings(self.w.config)['root'])
         self.assertEqual('New library',self.w.workspace_store().name(self.w.sidebar.root))
-        self.w.sidebar.libraries_button.emit('clicked');settle()
+        self.w.show_libraries();settle()
         self.assertTrue(self.w.libraries_split.get_show_sidebar())
 
     def test_trash_warning_restore_and_permanent_delete(self):
@@ -136,7 +136,7 @@ class Libraries(unittest.TestCase):
         self.assertEqual('No workspace selected',self.w.sidebar.root_label.get_text())
         self.assertFalse(self.folder.exists())
         self.assertIsNotNone(self.w.library_trash_item(record))
-        self.w.sidebar.libraries_button.emit('clicked');self.w.toggle_library_trash();settle()
+        self.w.show_libraries();self.w.toggle_library_trash();settle()
         self.assertIsNotNone(self.w.library_rows.get_first_child())
         self.w.library_trash_action(record)
         self.assertTrue(document.exists())

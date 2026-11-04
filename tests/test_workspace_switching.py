@@ -45,8 +45,10 @@ class WorkspaceSwitching(unittest.TestCase):
     def document(self,name,text='Text'):
         path=self.w.sidebar.root/name;doc=blank();doc['text']=text;path.write_text(to_html(doc,name));return path
 
-    def test_header_selector_and_standard_workspace_sessions(self):
-        self.assertIsNotNone(self.w.workspace_selector.get_parent())
+    def test_sidebar_dropdown_and_standard_workspace_sessions(self):
+        self.assertIs(self.w.sidebar.libraries_button,self.w.workspace_selector)
+        self.assertFalse(self.w.workspace_selector.is_ancestor(self.w.document_header))
+        self.assertEqual('Workspaces',self.w.workspace_selector.get_label())
         self.assertIn('First',self.w.workspace_selector.get_tooltip_text())
         first=self.document('One.html');second=self.document('Two.html')
         self.w.open_path(first);self.w.open_beside(second);self.w.peer.change_zoom(.5);self.w.swap_panes();settle()
@@ -74,6 +76,24 @@ class WorkspaceSwitching(unittest.TestCase):
         self.assertEqual(self.manager.path(self.first),self.w.sidebar.root)
 
 
+    def test_more_opens_management_without_switching(self):
+        self.w.set_default_size(1600,800);settle()
+        self.assertFalse(self.w.libraries_split.get_show_sidebar())
+        self.w.sidebar.libraries_button.popup();settle()
+        self.assertFalse(self.w.libraries_split.get_show_sidebar())
+        def buttons(widget):
+            result=[widget] if isinstance(widget,Gtk.Button) else []
+            child=widget.get_first_child()
+            while child:
+                result.extend(buttons(child));child=child.get_next_sibling()
+            return result
+        menu=buttons(self.w.sidebar.libraries_button.get_popover())
+        labels=[button.get_label() for button in menu]
+        self.assertIn('More…',labels);self.assertNotIn('New workspace…',labels)
+        next(button for button in menu if button.get_label()=='More…').emit('clicked');settle()
+        self.assertTrue(self.w.libraries_split.get_show_sidebar())
+        self.assertEqual(self.manager.path(self.first),self.w.sidebar.root)
+
     def test_cancel_unsaved_second_pane_keeps_workspace(self):
         first=self.document('One.html');second=self.document('Two.html')
         self.w.open_path(first);self.w.open_beside(second);self.w.peer.set_editing(True)
@@ -93,6 +113,8 @@ class WorkspaceSwitching(unittest.TestCase):
         self.w.vault_launcher().present(store);settle()
         page=self.w.embedded_workspace
         self.assertNotIsInstance(page,Gtk.Window);self.assertIs(self.w,page.get_root())
+        self.assertIs(page.sidebar.libraries_button,page.workspace_selector)
+        self.assertEqual('Workspaces',page.workspace_selector.get_label())
         self.assertEqual(before,set(self.app.get_windows()))
         page.open_path(__import__('vault_ui').VaultRef(store,identity));page.set_editing(True)
         page.buffer.insert_at_cursor('SECRET CONTENT CANARY');page.capture()
