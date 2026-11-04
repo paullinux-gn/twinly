@@ -9,18 +9,6 @@ from model import (blank,decode_image,validate_document,MAX_IMAGE_PIXELS,Resourc
                    DOCUMENT_DPI,POINTS_PER_PIXEL,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_HEIGHT_PX,fit_image_dimensions)
 from filesystem import atomic_write
 import io
-from settings import finite_number
-
-PAPER_SIZES_MM={'A4':(210,297),'A5':(148,210),'Letter':(215.9,279.4)}
-
-def normalized_page_setup(value):
-    value=value if isinstance(value,dict) else {}
-    paper=value.get('paper','A4')
-    return {'paper':paper if isinstance(paper,str) and paper in PAPER_SIZES_MM else 'A4',
-            'landscape':value.get('landscape',False) is True,
-            'margin_mm':finite_number(value.get('margin_mm'),15,5,40)}
-
-
 _image_cache=OrderedDict()
 _image_cache_bytes=0
 _IMAGE_CACHE_LIMIT=24*1024*1024
@@ -69,8 +57,8 @@ class Pages:
         self.span_cursor=0;self.active_spans=[];self.last_span_start=-1
         self.pages = [[]]
         self.y = margin
-        # Round the paper and margins separately, just as the GTK sheet does
-        # at 100% zoom, before converting back to printer points.
+        # Round paper and margins separately to keep pixel-based layout stable
+        # before converting back to printer points.
         self.content_width_pixels=max(1,round(width/POINTS_PER_PIXEL)-2*round(margin/POINTS_PER_PIXEL))
         self.content_height_pixels=max(1,round(height/POINTS_PER_PIXEL)-2*round(margin/POINTS_PER_PIXEL))
         self.content_width=self.content_width_pixels*POINTS_PER_PIXEL
@@ -289,10 +277,7 @@ class PrintPreview(Gtk.Window):
         self.paper = Gtk.DropDown.new_from_strings(['A4','A5','Letter'])
         self.orientation = Gtk.DropDown.new_from_strings(['Portrait','Landscape'])
         self.margin = Gtk.SpinButton.new_with_range(5,40,1)
-        setup=normalized_page_setup(getattr(parent,'page_setup',{}))
-        self.paper.set_selected(list(PAPER_SIZES_MM).index(setup['paper']))
-        self.orientation.set_selected(int(setup['landscape']))
-        self.margin.set_value(setup['margin_mm'])
+        self.margin.set_value(15)
         for label, widget in [('Paper', self.paper), ('Orientation',self.orientation), ('Margin (mm)',self.margin)]:
             controls.append(Gtk.Label(label=label))
             controls.append(widget)
@@ -328,9 +313,6 @@ class PrintPreview(Gtk.Window):
         view=getattr(editor,'view',None)
         self.pages=Pages(self.doc,w,h,self.margin.get_value()*72/25.4,
                          text_context=view.get_pango_context() if view else None)
-        update=getattr(self.get_transient_for(),'set_page_setup',None)
-        if update:update({'paper':self.paper.get_selected_item().get_string(),
-                          'landscape':bool(self.orientation.get_selected()),'margin_mm':self.margin.get_value()})
         self.index=min(self.index,len(self.pages.pages)-1)
         self.refresh()
 

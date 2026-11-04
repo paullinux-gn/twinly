@@ -1,4 +1,4 @@
-"""Compare actual GTK page geometry with print pagination, at 100% zoom."""
+"""Verify print layout and responsive editor rendering."""
 from pathlib import Path
 import sys,tempfile,time,unittest
 from unittest.mock import patch
@@ -24,64 +24,11 @@ class PrintLayout(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
         self.locations=patch('editor.locations',return_value=(self.root/'settings.json',self.root));self.locations.start()
-        self.w=Editor(self.app,self.root);self.w.present();self.w.toggle_page_view();settle()
+        self.w=Editor(self.app,self.root);self.w.present();settle()
 
     def tearDown(self):
         self.w.saved_doc=self.w.snapshot();self.w.destroy();settle()
         self.locations.stop();self.tmp.cleanup()
-
-    def compare_text(self,doc):
-        self.w.restore(doc,reset=True);settle()
-        preview=PrintPreview(self.w,doc)
-        try:
-            pages=preview.pages
-            self.assertEqual(1,len(pages.pages))
-            self.assertAlmostEqual(pages.content_width/POINTS_PER_PIXEL,
-                self.w.view.get_width()-self.w.view.get_left_margin()-self.w.view.get_right_margin(),delta=1)
-            editor=[];where=self.w.buffer.get_start_iter()
-            while True:
-                editor.append((where.get_offset(),self.w.view.get_iter_location(where).y))
-                if not self.w.view.forward_display_line(where):break
-            printed=[];previous=None;base=0;last_length=0
-            for kind,layout,line,y in pages.pages[0]:
-                self.assertEqual('line',kind)
-                if layout is not previous:
-                    if previous is not None:base+=last_length+1
-                    previous=layout;last_length=len(layout.get_text())
-                start=base+len(layout.get_text().encode()[:line.start_index].decode())
-                top=y+line.get_extents()[1].y/Pango.SCALE*POINTS_PER_PIXEL
-                printed.append((start,(top-pages.margin)/POINTS_PER_PIXEL))
-            # Page view is an approximate layout, not the same rendering engine.
-            # GTK/Pango versions can move one word to a neighboring visual line
-            # and round a line's vertical metrics by up to a logical pixel.
-            self.assertEqual(len(editor),len(printed))
-            paragraph_starts={0}|{i+1 for i,char in enumerate(doc['text']) if char=='\n'}
-            self.assertEqual(paragraph_starts & {offset for offset,y in editor},
-                             paragraph_starts & {offset for offset,y in printed})
-            for index,((offset,actual),(printed_offset,expected)) in enumerate(zip(editor,printed)):
-                lo,hi=sorted((offset,printed_offset))
-                boundary_text=doc['text'][lo:hi]
-                self.assertNotIn('\n',boundary_text,msg='Paragraph boundary moved')
-                self.assertLessEqual(len(boundary_text.split()),1,
-                                     msg='Wrap drift at '+str(offset)+' vs '+str(printed_offset))
-                # Include one pixel for the initial text box, then at most one
-                # accumulated pixel of rounding per preceding visual line.
-                self.assertAlmostEqual(actual,expected,delta=index+1,
-                                       msg='Vertical drift at '+str(offset))
-            output=self.root/'preview.pdf';pages.pdf(output)
-            self.assertTrue(output.read_bytes().startswith(b'%PDF'))
-        finally:preview.destroy()
-
-    def test_wrapped_text_and_paragraph_spacing_match(self):
-        doc=blank();doc['text']=('A calm writing space for connected documents, with steady line lengths and careful typography. '*7)+'\nSecond paragraph.\nThird paragraph.'
-        self.compare_text(doc)
-
-    def test_heading_font_variants_and_unicode_match(self):
-        doc=blank();heading='Café — a heading'
-        doc['text']=heading+'\n'+('Words with bold and italic accents café. '*7)+'\nNext paragraph.'
-        doc['spans']=[{'start':0,'end':len(heading),'style':{'paragraph':'h1'}},
-                      {'start':len(heading)+1,'end':len(doc['text']),'style':{'family':'Serif','size':14,'italic':True}}]
-        self.compare_text(doc)
 
     def test_preview_preserves_editor_hinting_settings(self):
         import cairo
@@ -113,10 +60,42 @@ class PrintLayout(unittest.TestCase):
             PangoCairo.context_set_font_options(context,original)
             context.set_round_glyph_positions(original_round)
 
-    def test_paper_orientation_and_margins_match(self):
-        self.w.set_page_setup({'paper':'Letter','landscape':True,'margin_mm':20})
-        doc=blank();doc['text']=('A predictable line length for the working sheet and print preview. '*8)+'\nNext.'
-        self.compare_text(doc)
+    def test_preview_paper_orientation_and_margins(self):
+        doc=blank();doc['text']='Print preview remains configurable.'
+        preview=PrintPreview(self.w,doc)
+        try:
+            preview.paper.set_selected(2)
+            preview.orientation.set_selected(1)
+            preview.margin.set_value(20)
+            self.assertEqual((792,612),(preview.pages.width,preview.pages.height))
+            self.assertAlmostEqual(20*72/25.4,preview.pages.margin)
+            output=self.root/'preview.pdf';preview.pages.pdf(output)
+            self.assertTrue(output.read_bytes().startswith(b'%PDF'))
+        finally:preview.destroy()
+
+    def test_obsolete_layout_settings_are_ignored(self):
+        from settings import write_settings
+        self.w.saved_doc=self.w.snapshot();self.w.destroy();settle()
+        write_settings(self.root/'settings.json',page_view=True,
+                       page_setup={'paper':'A5','landscape':True,'margin_mm':40})
+        self.w=Editor(self.app,self.root);self.w.present();settle()
+        self.assertIs(self.w.view,self.w.document_scroll.get_child())
+        self.assertEqual((-1,-1),self.w.view.get_size_request())
+        for action in ('page-view','fit-window-to-page'):
+            self.assertIsNone(self.w.lookup_action(action))
+        doc=blank();doc['text']='Flexible editing survives an upgrade.'
+        self.w.restore(doc,reset=True);settle()
+        self.w.set_default_size(1200,800);settle()
+        wide=self.w.view.get_width()
+        self.w.set_default_size(900,700);settle()
+        self.assertLess(self.w.view.get_width(),wide)
+        self.assertEqual(doc['text'],self.w.snapshot()['text'])
+        preview=PrintPreview(self.w,doc)
+        try:
+            self.assertEqual(0,preview.paper.get_selected())
+            self.assertEqual(0,preview.orientation.get_selected())
+            self.assertEqual(15,preview.margin.get_value())
+        finally:preview.destroy()
 
     def test_photo_size_and_caption_gap_match(self):
         doc=blank();doc['text']='\ufffc\nCaption.'
@@ -128,17 +107,16 @@ class PrintLayout(unittest.TestCase):
                          (round(image[4]/POINTS_PER_PIXEL),round(image[5]/POINTS_PER_PIXEL)))
         line=next(item for item in pages.pages[0] if item[0]=='line')
         top=line[3]+line[2].get_extents()[1].y/Pango.SCALE*POINTS_PER_PIXEL
-        actual=self.w.view.get_iter_location(self.w.buffer.get_iter_at_offset(2)).y
-        self.assertAlmostEqual(actual,(top-pages.margin)/POINTS_PER_PIXEL,delta=2)
+        self.assertAlmostEqual(top-pages.margin,image[5]+PARAGRAPH_SPACING_PX*POINTS_PER_PIXEL,delta=2)
 
-    def test_tall_photo_fits_same_printable_area(self):
+    def test_printed_tall_photo_fits_printable_area(self):
         doc=blank();doc['text']='\ufffc'
         doc['images']=[{'offset':0,'src':image_data(Path(__file__).parent/'fixtures/tiny.jpg'),
                         'width':600,'height':1600,'alt':'Tall photo'}]
         self.w.restore(doc,reset=True);settle();pages=Pages(doc)
         image=pages.pages[0][0]
-        self.assertEqual(self.w.anchors[0]['picture'].get_size_request(),
-                         (round(image[4]/POINTS_PER_PIXEL),round(image[5]/POINTS_PER_PIXEL)))
+        self.assertLessEqual(image[4],pages.content_width)
+        self.assertLessEqual(image[5],pages.content_height_pixels*POINTS_PER_PIXEL)
         self.assertEqual(1600,self.w.snapshot()['images'][0]['height'])
 
     def test_zoom_scales_paragraph_gap(self):

@@ -3,20 +3,6 @@ import logging
 from gi.repository import Gtk
 
 BASE_CSS = r"""
-            .page-desk, .page-view-scroll, .page-view-scroll > viewport {background:@view_bg_color;}
-            textview.document.page-sheet, textview.document.page-sheet text {
-                background:@view_bg_color;color:@view_fg_color;caret-color:@view_fg_color;}
-            textview.document.page-sheet {
-                box-shadow:0 0 0 1px alpha(@view_fg_color,.16),0 2px 6px alpha(black,.05);}
-            .page-dark textview.document.page-sheet {
-                box-shadow:0 0 0 1px alpha(@view_fg_color,.10);}
-            .light-document .page-desk, .light-document .page-view-scroll,
-            .light-document .page-view-scroll > viewport {background:#ffffff;}
-            .light-document textview.document.page-sheet {
-                box-shadow:0 0 0 1px alpha(black,.16),0 2px 6px alpha(black,.05);}
-            textview.document.page-sheet text selection {
-                background-color:@accent_bg_color;color:@accent_fg_color;}
-
             .blur-sidebar headerbar, .blur-sidebar headerbar:backdrop {
                 background:transparent;
                 }

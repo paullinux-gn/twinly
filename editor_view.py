@@ -1,7 +1,6 @@
 """Document rendering and responsive embedded-object sizing."""
-from gi.repository import Gtk,Gdk,Graphene,GObject,Pango,GLib
-import math
-from model import DOCUMENT_DPI,PARAGRAPH_SPACING_PX,RULE_PADDING_PX,fit_image_dimensions
+from gi.repository import Gtk,Gdk,Graphene,GObject,Pango
+from model import fit_image_dimensions
 
 class FontButton(Gtk.Button):
     """Font control with an explicitly owned asynchronous chooser."""
@@ -23,30 +22,9 @@ class FontButton(Gtk.Button):
     def set_font_desc(self,desc):self.props.font_desc=desc.copy()
 
 class DocumentView(Gtk.TextView):
-    def do_measure(self,orientation,for_size):
-        width=getattr(self,'page_width',None)
-        if width and orientation==Gtk.Orientation.HORIZONTAL:
-            return width,width,-1,-1
-        minimum,natural,min_base,nat_base=Gtk.TextView.do_measure(self,orientation,for_size)
-        if orientation==Gtk.Orientation.HORIZONTAL:min_base=nat_base=-1
-        return minimum,natural,min_base,nat_base
-
-    def scroll_to_iter(self,where,within_margin,use_align,xalign,yalign):
-        owner=getattr(self,'editor',None)
-        if owner and getattr(owner,'page_view',False):
-            owner.queue_page_scroll(where.get_offset(),use_align,yalign)
-            return True
-        return Gtk.TextView.scroll_to_iter(self,where,within_margin,use_align,xalign,yalign)
-
     def do_snapshot_layer(self,layer,snapshot):
         if layer!=Gtk.TextViewLayer.BELOW_TEXT:return
         visible=self.get_visible_rect()
-        if getattr(self,'page_width',None):
-            owner=self.editor
-            found,bounds=self.compute_bounds(owner.document_scroll)
-            if found:
-                _,visible.y=self.window_to_buffer_coords(Gtk.TextWindowType.WIDGET,0,max(0,round(-bounds.get_y())))
-                visible.height=owner.document_scroll.get_height()
         _,cursor=self.get_iter_at_location(visible.x,visible.y)
         cursor.set_line_offset(0)
         runs=[]
@@ -77,239 +55,20 @@ class DocumentView(Gtk.TextView):
             cr.close_path();cr.set_source_rgba(rgba.red,rgba.green,rgba.blue,1);cr.fill()
 
     def do_size_allocate(self,width,height,baseline):
-        margin=getattr(self,'page_margin',None)
-        if margin is None:margin=max(24,round((width-760)/2))
+        margin=max(24,round((width-760)/2))
         if self.get_left_margin()!=margin:
             self.set_left_margin(margin);self.set_right_margin(margin)
         Gtk.TextView.do_size_allocate(self,width,height,baseline)
         available=max(40,width-self.get_left_margin()-self.get_right_margin())
         child=self.get_first_child()
         while child:
-            if isinstance(child,Gtk.Separator):
-                zoom=self.editor.zoom if getattr(self,'page_width',None) else 1
-                padding=round(RULE_PADDING_PX*zoom)
-                child.set_margin_top(padding);child.set_margin_bottom(padding)
-                size=(available,max(1,round(zoom)))
-                if child.get_size_request()!=size:child.set_size_request(*size)
+            if isinstance(child,Gtk.Separator) and child.get_size_request()[0]!=available:
+                child.set_size_request(available,1)
             if hasattr(child,'photo_entry'):
                 entry=child.photo_entry
                 zoom=entry.get('display_zoom',1)
-                requested,height=fit_image_dimensions(entry['data']['width']*zoom,entry['data']['height']*zoom,
-                                                     available,getattr(self,'page_image_height',None))
+                requested,height=fit_image_dimensions(entry['data']['width']*zoom,entry['data']['height']*zoom,available)
                 if entry['picture'].get_size_request()!=(requested,height):
                     entry['picture'].set_size_request(requested,height)
             if isinstance(child,Gtk.Popover):child.present()
             child=child.get_next_sibling()
-
-
-
-
-class PageViewMixin:
-    """Optional continuous paper-width editor; pagination stays in Print preview."""
-    def setup_page_view(self):
-        from settings import read_settings
-        from printing import normalized_page_setup
-        owner=self.workspace_owner or self
-        if owner is self:
-            store=getattr(self,'vault_store',None)
-            settings=store.catalog['settings'] if store else read_settings(self.config)
-            self.page_view=settings.get('page_view',False) is True
-            self.page_setup=normalized_page_setup(settings.get('page_setup'))
-        else:
-            self.page_view=owner.page_view
-            self.page_setup=owner.page_setup
-        self.document_top_margin=28
-        self.document_inset=0
-        self.page_canvas=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,hexpand=True,vexpand=True)
-        self.page_canvas.add_css_class('page-desk')
-        self.view.editor=self
-        self.page_scroll_pending=0
-        self.page_layout_revision=0;self.page_buffer_revision=0
-        def changed(*_):self.page_buffer_revision+=1
-        self.buffer.connect('changed',changed)
-        self.apply_page_view()
-
-    def toggle_page_view(self,*_):
-        owner=self.workspace_owner or self
-        enabled=not owner.page_view
-        for pane in (owner,owner.peer):
-            if pane:
-                pane.page_view=enabled
-                pane.apply_page_view()
-        owner.queue_preferences(page_view=enabled)
-        owner.refresh_focus_layout()
-
-    def page_fit_bounds(self):
-        display=self.get_display();surface=self.get_surface()
-        monitor=display.get_monitor_at_surface(surface) if surface else None
-        if monitor is None:monitor=display.get_monitors().get_item(0)
-        if monitor is None:return 1600,1000
-        # Wayland exposes monitor geometry, not the compositor's work area.
-        # Leave room for shell panels and outer window decorations.
-        area=monitor.get_geometry()
-        return max(320,area.width-32),max(360,area.height-64)
-
-    def cancel_page_fit(self):
-        owner=self.workspace_owner or self
-        pending=getattr(owner,'page_fit_pending',0)
-        if pending:owner.remove_tick_callback(pending)
-        owner.page_fit_pending=0
-        balance=getattr(owner,'page_fit_balance',None)
-        if balance:balance[0].remove_tick_callback(balance[1])
-        owner.page_fit_balance=None
-
-    def fit_window_to_page(self,*_):
-        owner=self.workspace_owner or self
-        if not owner.page_view:owner.toggle_page_view()
-        owner.cancel_page_fit()
-        owner.unmaximize();owner.unfullscreen()
-        frames=[0]
-        def resize(widget,clock):
-            frames[0]+=1
-            if owner.closed:owner.page_fit_pending=0;return False
-            if frames[0]<2 or ((owner.is_maximized() or owner.is_fullscreen()) and frames[0]<12):return True
-            owner.page_fit_pending=0
-            owner.refresh_focus_layout()
-            panes=[pane for pane in (owner,owner.peer) if pane]
-            # Current allocations capture sidebar, pane divider, search and save
-            # banners without guessing their theme-dependent dimensions.
-            found,bounds=owner.compute_bounds(owner)
-            outer_width=math.ceil(bounds.get_width()) if found else owner.get_width()
-            outer_height=math.ceil(bounds.get_height()) if found else owner.get_height()
-            chrome=max(0,outer_width-sum(p.document_scroll.get_width() for p in panes))
-            width=chrome+sum(p.view.page_width+p.page_canvas.get_margin_start()+p.page_canvas.get_margin_end() for p in panes)
-            height=max(p.view.get_size_request()[1]+p.page_canvas.get_margin_top()+p.page_canvas.get_margin_bottom()
-                       +max(0,outer_height-p.document_scroll.get_height()) for p in panes)
-            minimum_width,minimum_height=owner.get_size_request()
-            limit_width,limit_height=owner.page_fit_bounds()
-            owner.set_default_size(min(limit_width,max(minimum_width,width)),
-                                   min(limit_height,max(minimum_height,height)))
-            if owner.peer:
-                allocation_frames=[0]
-                def balance(paned,clock):
-                    allocation_frames[0]+=1
-                    if owner.closed or not owner.peer or owner.panes is not paned:
-                        owner.page_fit_balance=None;return False
-                    if allocation_frames[0]<2:return True
-                    owner.page_fit_balance=None
-                    left=owner if paned.get_start_child() is owner.editor_toolbar_view else owner.peer
-                    widths={pane:pane.view.page_width+pane.page_canvas.get_margin_start()+pane.page_canvas.get_margin_end()
-                            for pane in (owner,owner.peer)}
-                    available=paned.get_start_child().get_width()+paned.get_end_child().get_width()
-                    paned.set_position(round(available*widths[left]/sum(widths.values())))
-                    return False
-                owner.page_fit_balance=(owner.panes,owner.panes.add_tick_callback(balance))
-            return False
-        owner.page_fit_pending=owner.add_tick_callback(resize)
-
-    def set_page_setup(self,value):
-        from printing import normalized_page_setup
-        owner=self.workspace_owner or self
-        setup=normalized_page_setup(value)
-        if setup==owner.page_setup:return
-        for pane in (owner,owner.peer):
-            if pane:
-                pane.page_setup=setup
-                pane.update_page_geometry()
-        owner.queue_preferences(page_setup=setup)
-
-    def apply_page_view(self):
-        self.page_layout_revision+=1
-        revision=self.page_layout_revision;content_revision=self.page_buffer_revision
-        scroll=self.document_scroll
-        value=scroll.get_vadjustment().get_value()
-        offsets=tuple(self.buffer.get_iter_at_mark(mark).get_offset()
-                      for mark in (self.buffer.get_insert(),self.buffer.get_selection_bound()))
-        if self.view.get_parent() is self.page_canvas:self.page_canvas.remove(self.view)
-        scroll.set_child(None)
-        self.view.set_halign(Gtk.Align.CENTER if self.page_view else Gtk.Align.FILL)
-        if self.page_view:
-            scroll.add_css_class('page-view-scroll')
-            self.view.add_css_class('page-sheet')
-            self.page_canvas.append(self.view)
-            scroll.set_child(self.page_canvas)
-        else:
-            scroll.remove_css_class('page-view-scroll')
-            self.view.remove_css_class('page-sheet')
-            scroll.set_child(self.view)
-        self.lookup_action('page-view').set_state(GLib.Variant.new_boolean(self.page_view))
-        self.update_page_geometry()
-        was_loading=self.loading;self.loading=True
-        try:self.buffer.select_range(*(self.buffer.get_iter_at_offset(i) for i in offsets))
-        finally:self.loading=was_loading
-        self.defer(lambda:(scroll.get_vadjustment().set_value(value),False)[1])
-        if offsets[0]!=offsets[1]:
-            # Unparenting releases GTK's primary selection asynchronously. Restore
-            # it after the remapped view has processed that ownership change.
-            frames=[0]
-            def restore_selection(widget,clock):
-                frames[0]+=1
-                if self.closed or revision!=self.page_layout_revision or content_revision!=self.page_buffer_revision:return False
-                if frames[0]<2:return True
-                cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert()).get_offset()
-                if not self.buffer.get_has_selection() and cursor==offsets[0]:
-                    was_loading=self.loading;self.loading=True
-                    try:self.buffer.select_range(*(self.buffer.get_iter_at_offset(i) for i in offsets))
-                    finally:self.loading=was_loading
-                return False
-            self.view.add_tick_callback(restore_selection)
-
-    def update_page_geometry(self):
-        from printing import PAPER_SIZES_MM
-        if self.page_view:
-            width,height=PAPER_SIZES_MM[self.page_setup['paper']]
-            if self.page_setup['landscape']:width,height=height,width
-            scale=DOCUMENT_DPI/25.4*self.zoom
-            content_height=round(height*DOCUMENT_DPI/25.4)-2*round(self.page_setup['margin_mm']*DOCUMENT_DPI/25.4)
-            self.view.page_image_height=max(1,content_height-PARAGRAPH_SPACING_PX)*self.zoom
-            self.view.page_width=round(width*scale)
-            self.view.page_margin=round(self.page_setup['margin_mm']*scale)
-            self.view.set_size_request(self.view.page_width,round(height*scale))
-        else:
-            self.view.page_width=None;self.view.page_margin=None;self.view.page_image_height=None
-            self.view.set_size_request(-1,-1)
-        self.update_document_inset(self.document_inset)
-        self.view.queue_resize()
-
-    def update_document_inset(self,inset):
-        self.document_inset=inset
-        if getattr(self,'page_view',False):
-            margin=self.view.page_margin
-            self.view.set_left_margin(margin);self.view.set_right_margin(margin)
-            self.view.set_top_margin(margin);self.view.set_bottom_margin(margin)
-            self.page_canvas.set_margin_top(round(inset)+24)
-            self.page_canvas.set_margin_bottom(24)
-            self.page_canvas.set_margin_start(24);self.page_canvas.set_margin_end(24)
-        else:
-            self.view.set_top_margin(self.document_top_margin+round(inset))
-            self.view.set_bottom_margin(40)
-
-    def queue_page_scroll(self,offset=None,use_align=False,yalign=0):
-        if not self.page_view or self.loading or self.closed:return
-        self.page_scroll_target=(offset,use_align,yalign)
-        if self.page_scroll_pending:return
-        def scroll():
-            self.page_scroll_pending=0
-            if not self.page_view or self.closed:return False
-            offset,align,yalign=self.page_scroll_target
-            where=(self.buffer.get_iter_at_offset(min(offset,self.buffer.get_char_count()))
-                   if offset is not None else self.buffer.get_iter_at_mark(self.buffer.get_insert()))
-            rect=self.view.get_iter_location(where)
-            x,y=self.view.buffer_to_window_coords(Gtk.TextWindowType.WIDGET,rect.x,rect.y)
-            found,bounds=self.view.compute_bounds(self.document_scroll)
-            if not found:return False
-            y+=bounds.get_y();x+=bounds.get_x()
-            adjustment=self.document_scroll.get_vadjustment()
-            height=self.document_scroll.get_height()
-            top=min(self.document_inset+8,max(8,height/3))
-            if align:delta=y-max(top,(height-rect.height)*yalign)
-            elif y<top:delta=y-top
-            elif y+rect.height>height-8:delta=y+rect.height-height+8
-            else:delta=0
-            adjustment.set_value(adjustment.get_value()+delta)
-            adjustment=self.document_scroll.get_hadjustment()
-            width=self.document_scroll.get_width()
-            if x<8:adjustment.set_value(adjustment.get_value()+x-8)
-            elif x+rect.width>width-8:adjustment.set_value(adjustment.get_value()+x+rect.width-width+8)
-            return False
-        self.page_scroll_pending=self.defer(scroll)

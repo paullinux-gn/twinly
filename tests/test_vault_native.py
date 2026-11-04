@@ -55,17 +55,6 @@ class VaultNative(unittest.TestCase):
         self.assertFalse(window.get_visible())
         self.assertTrue(window.closed)
 
-    def test_page_view_settings_stay_in_encrypted_preferences(self):
-        from settings import read_settings
-        before=read_settings(self.normal.config)
-        self.w.lookup_action('page-view').activate(None)
-        self.w.set_page_setup({'paper':'Letter','landscape':True,'margin_mm':20})
-        self.w.flush_preferences();pump()
-        self.assertTrue(self.w.page_view)
-        self.assertTrue(self.store.catalog['settings']['page_view'])
-        self.assertEqual('Letter',self.store.catalog['settings']['page_setup']['paper'])
-        self.assertEqual(before,read_settings(self.normal.config))
-
     def test_pencil_reads_and_saves_encrypted_documents(self):
         self.w.new();pump();path=self.w.path
         self.assertTrue(self.w.editing)

@@ -41,8 +41,6 @@ class ActionsMixin:
             'create-style':(self.create_custom_style_dialog,[]),
             'manage-styles':(self.manage_custom_styles,[]),
             'focus-mode':(self.toggle_focus,['F9']),
-            'page-view':(self.toggle_page_view,[]),
-            'fit-window-to-page':(self.fit_window_to_page,[]),
             'find-next':(lambda *_:self.step_search(1),['<Primary>g']),
             'find-previous':(lambda *_:self.step_search(-1),['<Primary><Shift>g']),
             'back':(lambda *_:self.navigate(-1),['<Alt>Left']),
@@ -100,7 +98,7 @@ class ActionsMixin:
         custom.connect('activate',apply_custom);self.add_action(custom)
         for name,(callback,keys) in bindings.items():
             action=(Gio.SimpleAction.new_stateful(name,None,GLib.Variant.new_boolean(False))
-                    if name in ('focus-mode','page-view') else Gio.SimpleAction.new(name,None))
+                    if name=='focus-mode' else Gio.SimpleAction.new(name,None))
             def dispatch(action,param,callback=callback,name=name):
                 active=getattr(self,'active_editor',self)
                 if self.edit_action(name) and not active.editing:return
