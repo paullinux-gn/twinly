@@ -183,6 +183,20 @@ and both writing panes stay white with
 dark text and a dark caret. Selection retains the accent colour. The choice is
 saved and works with focus mode and blur; documents and exports are unchanged.
 
+### Libraries and vaults
+
+Click **Libraries** in the left sidebar to open the right-hand libraries panel.
+Create a new library, add an existing folder, or select a library to browse its
+documents. Vaults appear in the same panel with a lock icon; opening one requires
+its password. New and existing vaults can also be added from this panel.
+
+The trash button beside a location asks before moving its entire folder and
+contents to **Library Trash**. From there, restore it to its original location or
+choose **Delete permanently**, which requires a separate confirmation. Vaults
+must be locked before moving them; their files remain encrypted in Trash.
+Library Trash is stored beside the original folder, so moving does not copy its
+contents to another disk. This is separate from the document Trash button.
+
 ### Reading and editing
 
 Existing documents open read-only. A persistent pencil beside each pane's title

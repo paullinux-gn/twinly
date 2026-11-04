@@ -37,6 +37,8 @@ def trash(path,root):
     try:move_path(path,payload,root)
     except Exception:
         remove_tree(metadata);raise
+    return {'path':path,'directory':info['directory'],'date':info['date'],
+            'managed':True,'payload':payload,'metadata':metadata}
 
 def items(root):
     root=Path(root);folder=_folder(root)

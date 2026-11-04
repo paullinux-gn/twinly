@@ -622,9 +622,12 @@ class VaultLauncher:
     def remember(self,path):
         value=str(Path(path).absolute())
         write_settings(self.parent.config,vault_paths=[value]+[p for p in self.remembered() if p!=value][:99])
+        self.parent.refresh_libraries()
         if self.parent.document_stack.get_visible_child_name()=='vaults':self.show()
     def forget(self,path):
-        try:write_settings(self.parent.config,vault_paths=[p for p in self.remembered() if p!=path]);self.show()
+        try:
+            write_settings(self.parent.config,vault_paths=[p for p in self.remembered() if p!=path])
+            self.parent.refresh_libraries();self.show()
         except (OSError,ValueError) as exc:self.parent.error(str(exc))
     def show(self,*_):
         owner=self.parent
@@ -649,8 +652,8 @@ class VaultLauncher:
             button=Gtk.Button(label='Unlock' if available else 'Locate folder…',valign=Gtk.Align.CENTER)
             button.connect('clicked',lambda _,p=path,exists=available:self.unlock_path(p) if exists else self.open())
             row.add_suffix(button);row.set_activatable_widget(button)
-            forget=Gtk.Button(icon_name='list-remove-symbolic',tooltip_text='Remove from this list (files are kept)',valign=Gtk.Align.CENTER,css_classes=['flat'])
-            forget.connect('clicked',lambda _,p=value:self.forget(p));row.add_suffix(forget);rows.append(row)
+            forget=Gtk.Button(icon_name='list-remove-symbolic',tooltip_text='Move vault to Library Trash',valign=Gtk.Align.CENTER,css_classes=['flat'])
+            forget.connect('clicked',lambda _,p=value:self.parent.delete_library_location(p,True));row.add_suffix(forget);rows.append(row)
         if paths:box.append(rows)
         else:box.append(Gtk.Label(label='No vaults yet. Create one or add an existing vault.',wrap=True,xalign=0,css_classes=['dim-label']))
         scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER);scroll.set_child(Adw.Clamp(maximum_size=900,child=box));self.page.append(scroll)

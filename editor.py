@@ -367,7 +367,10 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.outer_view.set_content(self.workspace_overlay)
         self.split.set_content(self.outer_view)
         self.split.set_vexpand(True)
-        content.append(self.split)
+        if not workspace_owner and not getattr(self,'is_vault',False):
+            self.setup_libraries()
+            content.append(self.libraries_split)
+        else:content.append(self.split)
         self.zoom_label=Gtk.MenuButton(label='100%',halign=Gtk.Align.END,valign=Gtk.Align.END,
                                        margin_end=16,margin_bottom=16,tooltip_text='Editor zoom')
         self.zoom_label.add_css_class('zoom-pill')
@@ -395,13 +398,21 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 arrowless(child);child=child.get_next_sibling()
         arrowless(content)
         if not workspace_owner:
+            if hasattr(self,'libraries_split'):
+                libraries_compact=Adw.Breakpoint.new(Adw.BreakpointCondition.parse('max-width: 1450px'))
+                libraries_compact.add_setter(self.libraries_split,'collapsed',True)
+                libraries_compact.add_setter(self.libraries_split,'show-sidebar',False)
+                self.add_breakpoint(libraries_compact)
             self.breakpoint=Adw.Breakpoint.new(Adw.BreakpointCondition.parse('max-width: 760px'))
             self.breakpoint.add_setter(self.split,'collapsed',True)
-            self.add_breakpoint(self.breakpoint)
             compact=Adw.Breakpoint.new(Adw.BreakpointCondition.parse('max-width: 650px'))
             compact.add_setter(self.split,'collapsed',True)
             compact.add_setter(header,'decoration-layout',':close')
-            self.add_breakpoint(compact)
+            for breakpoint in (self.breakpoint,compact):
+                if hasattr(self,'libraries_split'):
+                    breakpoint.add_setter(self.libraries_split,'collapsed',True)
+                    breakpoint.add_setter(self.libraries_split,'show-sidebar',False)
+                self.add_breakpoint(breakpoint)
             sidebar_toggle.connect('toggled',lambda b:self.split.set_show_sidebar(b.get_active()))
             self.split.connect('notify::show-sidebar',lambda s,p:sidebar_toggle.set_active(s.get_show_sidebar()))
             self.connect('close-request',self.close_requested)
@@ -503,6 +514,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.config,_=locations()
         self.initial_document=None
         if root:return Path(root).expanduser().resolve()
+        settings=read_settings(self.config)
+        if settings.get('library_paths')==[] and not settings.get('root'):
+            return self.config.parent/'.no-library'
         path,self.initial_document=default_root(self.config)
         return path
 
@@ -1529,6 +1543,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             number+=1
 
     def new(self,*_,folder=None):
+        if not getattr(self,'is_vault',False) and not self.sidebar.root.is_dir():return (self.workspace_owner or self).new_root()
         entry=getattr(self.sidebar,'active_rename_entry',None)
         if entry:entry.emit('activate')
         folder=Path(folder) if folder is not None else self.sidebar.folder()
@@ -2113,6 +2128,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         entry.grab_focus()
 
     def new_folder(self,*_,folder=None):
+        if not getattr(self,'is_vault',False) and not self.sidebar.root.is_dir():return (self.workspace_owner or self).new_root()
         entry=getattr(self.sidebar,'active_rename_entry',None)
         if entry:entry.emit('activate')
         folder=Path(folder) if folder is not None else self.sidebar.folder()
@@ -2172,12 +2188,14 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             private_directory(path.parent);create_directory(path)
         if not path.is_dir():raise ValueError('Choose a folder, not a file.')
         path=path.resolve()
+        previous_libraries=self.library_paths()
         self.sidebar.set_root(path)
         self.refresh_documents()
         self.record_navigation()
         try:
             private_directory(self.config.parent)
-            self.save_preferences(root=str(path))
+            self.save_preferences(root=str(path),library_paths=[str(path)]+[p for p in previous_libraries if p!=str(path)][:99])
+            self.refresh_libraries()
         except OSError as exc:self.message('Library selected, but preference not saved: '+str(exc))
 
     def search_documents(self,*_):
