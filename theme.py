@@ -1,6 +1,7 @@
 """Shared application styling; document zoom uses a narrowly scoped provider."""
 import logging
 from gi.repository import Gtk
+from application import APP_ID
 
 BASE_CSS = r"""
             .blur-sidebar headerbar, .blur-sidebar headerbar:backdrop {
@@ -100,6 +101,62 @@ def watch_css(provider):
         location=section.get_start_location()
         logging.getLogger('twinly.css').warning('CSS line %s, column %s: %s',location.lines+1,location.line_chars+1,error)
     provider.connect('parsing-error',error)
+
+# GTK 4.12/4.14 has a weak icon-paintable cache. An asynchronous preload can
+# release its last reference while another lookup still sees the cached pointer
+# (object_ref: !object_already_finalized). Keep this finite set alive for the
+# display lifetime. Widgets still use icon names, preserving symbolic recoloring.
+ICON_NAMES=tuple('''changes-allow-symbolic changes-prevent-symbolic checkbox-checked-symbolic
+color-select-symbolic document-edit-symbolic document-print-symbolic edit-clear-symbolic
+edit-delete-symbolic edit-find-replace-symbolic edit-redo-symbolic edit-undo-symbolic
+emblem-ok-symbolic folder-symbolic font-select-symbolic format-justify-left-symbolic
+format-text-bold-symbolic format-text-italic-symbolic format-text-strikethrough-symbolic
+format-text-underline-symbolic go-down-symbolic go-next-symbolic go-previous-symbolic
+go-up-symbolic insert-image-symbolic insert-link-symbolic list-remove-symbolic
+media-floppy-symbolic open-menu-symbolic pan-down-symbolic security-high-symbolic
+sidebar-show-symbolic system-search-symbolic text-x-generic-symbolic user-trash-symbolic
+view-fullscreen-symbolic view-list-bullet-symbolic view-list-ordered-symbolic
+view-list-symbolic view-pin-symbolic view-refresh-symbolic view-reveal-symbolic
+window-close-symbolic window-minimize-symbolic window-maximize-symbolic
+window-restore-symbolic image-missing'''.split())+(APP_ID,)
+_icon_caches={}
+
+class IconKeepalive:
+    def __init__(self,display):
+        from gi.repository import Gio
+        self.theme=Gtk.IconTheme.get_for_display(display)
+        self.scales=set();self.paintables={}
+        self.icons=[Gio.ThemedIcon.new(name) for name in ICON_NAMES]
+        self.theme.connect('changed',self.changed)
+
+    def retain(self,scale):
+        if scale in self.scales:return
+        self.scales.add(scale);self._load(scale)
+
+    def _load(self,scale):
+        for icon in self.icons:
+            if not self.theme.has_icon(icon.get_names()[0]):continue
+            sizes=(16,24,32,64,128) if icon.get_names()[0]==APP_ID else (16,24,32)
+            for size in sizes:
+                for direction in (Gtk.TextDirection.LTR,Gtk.TextDirection.RTL):
+                    for flags in (Gtk.IconLookupFlags(0),Gtk.IconLookupFlags.PRELOAD,
+                                  Gtk.IconLookupFlags.FORCE_SYMBOLIC,
+                                  Gtk.IconLookupFlags.PRELOAD|Gtk.IconLookupFlags.FORCE_SYMBOLIC):
+                        key=(icon.get_names()[0],size,scale,direction,flags)
+                        self.paintables[key]=self.theme.lookup_by_gicon(icon,size,scale,direction,flags)
+
+    def changed(self,*_):
+        # GTK has invalidated its native cache before emitting 'changed'.
+        # Release obsolete-theme icons and retain replacements for known scales.
+        self.paintables={}
+        for scale in self.scales:self._load(scale)
+
+def retain_themed_icons(widget):
+    if Gtk.get_major_version()!=4 or Gtk.get_minor_version()>=16:return
+    display=widget.get_display()
+    cache=_icon_caches.get(display)
+    if cache is None:cache=_icon_caches.setdefault(display,IconKeepalive(display))
+    cache.retain(max(1,widget.get_scale_factor()))
 
 class Theme:
     def __init__(self,display):

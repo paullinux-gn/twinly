@@ -20,7 +20,7 @@ from printing import pixbuf_for, PrintPreview,clear_image_cache
 from sidebar import Sidebar
 from settings import finite_number,read_settings
 from session import DocumentSession
-from theme import Theme,watch_css
+from theme import Theme,watch_css,retain_themed_icons
 from workspace import WorkspaceMixin
 from writing import WritingMixin
 from styles import CustomStylesMixin
@@ -39,6 +39,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def __init__(self,app,root=None,workspace_owner=None):
         if workspace_owner or getattr(self,'embedded_host',None):super().__init__(orientation=Gtk.Orientation.VERTICAL)
         else:super().__init__(application=app,title='Twinly · Preview',default_width=1120,default_height=800,width_request=420,height_request=360)
+        retain_themed_icons(self)
+        self.connect('notify::scale-factor',lambda widget,*_:retain_themed_icons(widget))
         self.session=DocumentSession()
         self.closed=False
         self.workspace_owner=workspace_owner
