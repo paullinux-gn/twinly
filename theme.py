@@ -4,6 +4,8 @@ from gi.repository import Gtk
 from application import APP_ID
 
 BASE_CSS = r"""
+            searchbar.document-search > revealer > box {
+                background:@view_bg_color;color:@view_fg_color;}
             .blur-sidebar {background:@sidebar_bg_color;color:@sidebar_fg_color;}
             .blur-sidebar list.boxed-list {background:transparent;}
             popover.workspace-switcher button, popover.workspace-switcher button label {font-weight:normal;}

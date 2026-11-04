@@ -249,7 +249,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.search_updating=False
         self.search_pending=0
         self.search_tag=self.buffer.create_tag('search-result',background='#fff099',foreground='#202020')
-        self.search_bar=Gtk.SearchBar(show_close_button=True)
+        self.search_bar=Gtk.SearchBar(show_close_button=True,css_classes=['document-search'])
         search_box=Gtk.Box(spacing=6)
         self.search_entry=Gtk.SearchEntry(placeholder_text='Find in document…',hexpand=True)
         self.search_entry.connect('changed',self.refresh_search)

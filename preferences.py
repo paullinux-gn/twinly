@@ -97,6 +97,21 @@ class PreferencesMixin:
         if self.appearance_mode=='dark-light':
             css+='''
                 .light-document headerbar.document-header {background:alpha(#fafafa,.88);color:#202020;}
+                .light-document searchbar.document-search > revealer > box {
+                    background:#ffffff;color:#202020;}
+                .light-document searchbar.document-search entry,
+                .light-document searchbar.document-search button,
+                .light-document searchbar.document-search checkbutton {
+                    color:#202020;}
+                .light-document searchbar.document-search entry {
+                    background:alpha(#202020,.06);caret-color:#202020;}
+                .light-document searchbar.document-search button {
+                    background:alpha(#202020,.06);box-shadow:none;}
+                .light-document searchbar.document-search button:hover {
+                    background:alpha(#202020,.12);}
+                .light-document searchbar.document-search button:checked,
+                .light-document searchbar.document-search button:active {
+                    background:alpha(#202020,.18);}
                 .light-document textview.document, .light-document textview.document text {
                     background:#ffffff;color:#202020;caret-color:#202020;}
                 .light-document textview.document text selection {
