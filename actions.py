@@ -21,6 +21,11 @@ class ActionsMixin:
             target=owner.active_editor if pane is owner else pane
             for name in pane.list_actions():
                 if pane.edit_action(name):pane.lookup_action(name).set_enabled(target.editing)
+        host=getattr(owner,'embedded_host',None)
+        if host and getattr(host,'embedded_workspace',None) is owner and not owner.closed:
+            for name in owner.list_actions():
+                action=host.lookup_action(name)
+                if action and owner.edit_action(name):action.set_enabled(owner.lookup_action(name).get_enabled())
 
     def build_actions(self,app):
         bindings={
@@ -94,13 +99,20 @@ class ActionsMixin:
         self.shortcut_bindings={name:keys for name,(_,keys) in bindings.items() if keys}
         custom=Gio.SimpleAction.new('apply-custom-style',GLib.VariantType.new('s'))
         def apply_custom(action,param):
-            active=getattr(self,'active_editor',self)
+            controller=getattr(self,'embedded_workspace',None) or self
+            active=getattr(controller,'active_editor',controller)
             if active.editing:active.activate_custom_style(action,param)
         custom.connect('activate',apply_custom);self.add_action(custom)
         for name,(callback,keys) in bindings.items():
             action=(Gio.SimpleAction.new_stateful(name,None,GLib.Variant.new_boolean(False))
                     if name=='focus-mode' else Gio.SimpleAction.new(name,None))
             def dispatch(action,param,callback=callback,name=name):
+                embedded=getattr(self,'embedded_workspace',None)
+                if embedded and not embedded.closed:
+                    if name=='quit':self.close();return
+                    target=embedded.lookup_action(name)
+                    if target:target.activate(param)
+                    return
                 active=getattr(self,'active_editor',self)
                 if self.edit_action(name) and not active.editing:return
                 if active is not self and name not in ('close','quit','switch-pane','swap-panes','preferences','shortcuts','about','root','new-root','search-documents','show-trash','new-folder','rename','move','trash','vaults','vault-create','vault-open'):

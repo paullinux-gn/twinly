@@ -230,7 +230,7 @@ class WritingMixin:
     def show_recovery(self,*_):
         owner=self.workspace_owner or self
         entries=RecoveryDraft.available(owner.recovery_folder())
-        window=Adw.Window(transient_for=owner,modal=True,title='Recover documents',default_width=440,default_height=360)
+        window=Adw.Window(transient_for=owner.dialog_parent(),modal=True,title='Recover documents',default_width=440,default_height=360)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8,margin_start=16,margin_end=16,margin_top=16,margin_bottom=16)
         header=Adw.HeaderBar();box.append(header)
         if not entries:box.append(Gtk.Label(label='No recovery drafts available.',wrap=True))

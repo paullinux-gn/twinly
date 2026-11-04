@@ -52,6 +52,11 @@ class PreferencesMixin:
         enabled=self.blur_requested and self.blur_available
         if enabled:self.add_css_class('twinly-blur')
         else:self.remove_css_class('twinly-blur')
+        host=getattr(self,'embedded_host',None)
+        if host and getattr(host,'embedded_workspace',None) is self:
+            for name in ('light-document','twinly-blur'):
+                if self.has_css_class(name):host.add_css_class(name)
+                else:host.remove_css_class(name)
         for window in getattr(self,'preferences_windows',()):
             if enabled:window.add_css_class('twinly-blur')
             else:window.remove_css_class('twinly-blur')
@@ -102,7 +107,7 @@ class PreferencesMixin:
         self.appearance_provider.load_from_string(css)
 
     def show_preferences(self,*_):
-        window=Adw.PreferencesWindow(transient_for=(self.workspace_owner or self),modal=True,title='Preferences',default_width=420,default_height=800)
+        window=Adw.PreferencesWindow(transient_for=self.dialog_parent(),modal=True,title='Preferences',default_width=420,default_height=800)
         window.add_css_class('preferences-surface')
         if not hasattr(self,'preferences_windows'):self.preferences_windows=weakref.WeakSet()
         self.preferences_windows.add(window)
@@ -182,7 +187,7 @@ class PreferencesMixin:
         return window
 
     def show_shortcuts(self,*_):
-        window=Adw.Window(transient_for=(self.workspace_owner or self),modal=True,title='Keyboard shortcuts',default_width=580,default_height=640)
+        window=Adw.Window(transient_for=self.dialog_parent(),modal=True,title='Keyboard shortcuts',default_width=580,default_height=640)
         toolbar=Adw.ToolbarView();toolbar.add_top_bar(Adw.HeaderBar())
         scroll=Gtk.ScrolledWindow(vexpand=True)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=18,margin_top=18,margin_bottom=24,margin_start=24,margin_end=24)

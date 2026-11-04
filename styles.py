@@ -158,7 +158,7 @@ class CustomStylesMixin:
             cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert());selection=(cursor,cursor)
         offsets=tuple(i.get_offset() for i in selection);original=self.snapshot();path=self.path
         owner=self.workspace_owner or self
-        window=Adw.Window(transient_for=owner,modal=True,title='Custom paragraph style',default_width=440)
+        window=Adw.Window(transient_for=owner.dialog_parent(),modal=True,title='Custom paragraph style',default_width=440)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12,margin_start=18,margin_end=18,margin_top=12,margin_bottom=18)
         box.append(Adw.HeaderBar())
         name=Gtk.Entry(text=definition['name'],placeholder_text='Style name',max_length=80);box.append(name)
@@ -202,7 +202,7 @@ class CustomStylesMixin:
 
     def manage_custom_styles(self,*_):
         owner=self.workspace_owner or self
-        window=Adw.Window(transient_for=owner,modal=True,title='Manage custom styles',default_width=440,default_height=400)
+        window=Adw.Window(transient_for=owner.dialog_parent(),modal=True,title='Manage custom styles',default_width=440,default_height=400)
         outer=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10);outer.append(Adw.HeaderBar())
         outer.append(Gtk.Label(label='Changes apply when you choose the style again. Styles in existing documents are preserved.',wrap=True,margin_start=16,margin_end=16))
         rows=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=6,margin_start=16,margin_end=16,margin_bottom=16)

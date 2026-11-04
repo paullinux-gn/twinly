@@ -17,7 +17,7 @@ of at least 12 characters and save the recovery key separately before opening it
 Losing both credentials means losing the data; Twinly has no password reset
 service. Select its locked entry to enter the password or recovery key.
 
-Each encrypted workspace opens in a separate window. Create, rename, move, search, duplicate
+Each encrypted workspace opens inside the existing Twinly window. Create, rename, move, search, duplicate
 and trash documents/folders there. Both editing panes, photos, formatting,
 custom styles, autosave and recovery remain inside encrypted storage. Links
 use stable document IDs and survive moves and renames within the same encrypted workspace.
@@ -90,3 +90,17 @@ locked. Trash is inside Twinly’s main folder. Restore returns it to the manage
 workspace list; permanent deletion requires another confirmation. Files stay
 encrypted throughout. The workspace catalog records public names, IDs and
 protection types, never passwords, recovery keys or private document names.
+
+
+## Switching in the current window
+
+The header selector and Workspaces management panel use the same switching path.
+Encrypted editors are embedded widgets, not additional application windows.
+Shortcuts, action groups, file dialogs, formatting and printing target that editor;
+dialogs are parented to the existing window. Before switching away, named dirty
+documents are saved and unnamed drafts are persisted in encrypted storage. A save
+failure keeps the workspace open. Locking closes confidential dialogs, wipes
+buffers/history, clears the owned clipboard and releases the encryption key and
+writer lease. Per-workspace pane/session metadata is stored in the encrypted
+catalog, never ordinary preferences. Cancelled or failed unlocks leave the active
+workspace intact.

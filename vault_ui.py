@@ -6,7 +6,7 @@ import time
 import uuid
 from threading import Thread
 from gi.repository import Gtk,Adw,Gio,GLib,Gdk,GObject
-from editor import Editor,EditorPane
+from editor import Editor,EditorPane,EmbeddedEditor
 from sidebar import Sidebar,Node
 from model import blank,from_html,to_html,MAX_DOCUMENT,safe_name
 from filesystem import read_text,atomic_write
@@ -174,8 +174,58 @@ class VaultEditing:
     def save_preferences(self,**updates):
         if self.vault_store.key is not None:self.vault_store.settings(updates)
     def save_workspace(self):
-        self.save_preferences(last_document=self.path.identity if self.path else None)
-    def restore_workspace(self):pass
+        def entry(pane):
+            return {'identity':pane.path.identity if pane.path else None,'draft':pane.vault_draft_id,
+                    'cursor':pane.buffer.get_iter_at_mark(pane.buffer.get_insert()).get_offset(),
+                    'scroll':pane.document_scroll.get_vadjustment().get_value(),
+                    'zoom':pane.zoom,'pinned':pane.pinned,'editing':pane.editing,'dirty':pane.dirty()}
+        session={'documents':[entry(self)],'active':int(self.active_editor is self.peer),'swapped':self.swapped}
+        if self.peer:
+            session['documents'].append(entry(self.peer));session['ratio']=self.panes.get_position()/max(1,self.panes.get_width())
+        self.save_preferences(last_document=self.path.identity if self.path else None,workspace_session=session)
+
+    def restore_workspace(self):
+        from settings import finite_number
+        session=self.vault_store.catalog['settings'].get('workspace_session',{})
+        if not isinstance(session,dict) or not isinstance(session.get('documents'),list):return
+        restored=[];self.vault_preserve_recovery=True
+        try:
+            for item in session['documents'][:2]:
+                if not isinstance(item,dict):continue
+                identity=item.get('identity');draft=item.get('draft')
+                if not (identity is None or isinstance(identity,str)) or not (draft is None or isinstance(draft,str)):continue
+                if identity in self.vault_store.catalog['nodes'] and not self.vault_store.catalog['nodes'][identity].get('trash'):
+                    ref=VaultRef(self.vault_store,identity)
+                    if restored:self.open_beside(ref);pane=self.peer
+                    else:self.open_path(ref);pane=self
+                elif draft in self.vault_store.catalog['drafts']:
+                    if restored:
+                        self.open_beside(None,_restore=lambda pane:setattr(pane,'path',None));pane=self.peer
+                    else:pane=self;pane.path=None
+                else:continue
+                if pane is None:continue
+                baseline=copy.deepcopy(pane.saved_doc)
+                if item.get('dirty') and draft in self.vault_store.catalog['drafts']:
+                    document,title=self.vault_store.load_draft(draft)
+                    pane.restore(document,reset=True);pane.saved_doc=baseline;pane.vault_draft_id=draft
+                pane.change_zoom(finite_number(item.get('zoom'),1,.5,2.5)-pane.zoom)
+                pane.set_pinned(item.get('pinned') is True);pane.set_editing(item.get('editing') is True)
+                pane.buffer.place_cursor(pane.buffer.get_iter_at_offset(round(finite_number(item.get('cursor'),0,0,pane.buffer.get_char_count()))))
+                restored.append((pane,item))
+            if self.peer and session.get('swapped'):self.swap_panes()
+        finally:self.vault_preserve_recovery=False
+        frames=[0]
+        def position(widget,clock):
+            frames[0]+=1
+            if self.closed:return False
+            if frames[0]<3:return True
+            if self.peer:
+                self.panes.set_position(round(self.panes.get_width()*finite_number(session.get('ratio'),.5,.15,.85)))
+                self.activate_pane(self.peer if session.get('active')==1 else self)
+            for pane,item in restored:pane.document_scroll.get_vadjustment().set_value(finite_number(item.get('scroll'),0,0,1e9))
+            return False
+        self.add_tick_callback(position)
+
     def check_external(self,*_):pass
     def record_navigation(self):pass
     def navigate(self,step):pass
@@ -200,7 +250,7 @@ class VaultEditing:
         return False
     def show_recovery(self,*_):
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
-        window=Adw.Window(transient_for=self.workspace_owner or self,modal=True,title='Recover encrypted documents',default_width=420,default_height=320)
+        window=Adw.Window(transient_for=self.dialog_parent(),modal=True,title='Recover encrypted documents',default_width=420,default_height=320)
         box.append(Adw.HeaderBar())
         live={pane.vault_draft_id for pane in ((self.workspace_owner or self),(self.workspace_owner or self).peer) if pane and pane.dirty()}
         found=False
@@ -299,7 +349,7 @@ class VaultEditing:
         if not ref:return
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8);parents=[VaultRef(self.vault_store,'root')]+[VaultRef(self.vault_store,k) for k,n in self.vault_store.catalog['nodes'].items() if n['type']=='folder' and not n.get('trash') and k not in self.vault_store.descendants(ref.identity)]
         picker=Gtk.DropDown.new_from_strings([r.name for r in parents]);box.append(picker)
-        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Destination folder in encrypted workspace',extra_child=box)
+        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),heading='Destination folder in encrypted workspace',extra_child=box)
         dialog.add_response('cancel','Cancel');dialog.add_response('move','Move')
         dialog.connect('response',lambda _,r:self.sidebar.perform_move(ref,VaultRef(self.vault_store,ref.identity,proposed_parent=parents[picker.get_selected()].identity)) if r=='move' else None);dialog.present()
     def duplicate_document(self,*_,path=None):
@@ -403,7 +453,7 @@ class VaultEditing:
         bounds=self.buffer.get_selection_bounds();cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert())
         start,end=(i.get_offset() for i in bounds) if bounds else (cursor.get_offset(),cursor.get_offset())
         choices=[(k,n['name']) for k,n in self.vault_store.catalog['nodes'].items() if n['type']=='document' and not n.get('trash')]
-        dialog=Adw.MessageDialog(transient_for=self.workspace_owner or self,heading='Encrypted workspace document link')
+        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),heading='Encrypted workspace document link')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
         text=Gtk.Entry(text=self.buffer.get_text(self.buffer.get_iter_at_offset(start),self.buffer.get_iter_at_offset(end),True),placeholder_text='Display text')
         picker=Gtk.DropDown.new_from_strings([n for _,n in choices] or ['No documents']);picker.set_enable_search(True)
@@ -473,7 +523,7 @@ class VaultPane(VaultEditing,EditorPane):
         if self.closed:return
         super().cleanup();self.wipe_editor()
 
-class VaultEditor(VaultEditing,Editor):
+class VaultController(VaultEditing):
     def __init__(self,app,store,config,launcher):
         self.vault_store=store;self.vault_config=config;self.vault_draft_id=uuid.uuid4().hex;self.launcher=launcher;self.locking=False
         from model import validate_custom_style
@@ -505,7 +555,9 @@ class VaultEditor(VaultEditing,Editor):
         app=self.get_application();self.vault_application=app
         self.vault_screen_handler=app.connect('notify::screensaver-active',self.desktop_lock_changed)
         last=store.catalog['settings'].get('last_document')
-        if last in store.catalog['nodes'] and not store.catalog['nodes'][last].get('trash'):self.open_path(VaultRef(store,last))
+        if 'workspace_session' in store.catalog['settings']:
+            if not getattr(self,'embedded_host',None):self.restore_workspace()
+        elif last in store.catalog['nodes'] and not store.catalog['nodes'][last].get('trash'):self.open_path(VaultRef(store,last))
     def note_activity(self,*_):
         self.last_vault_activity=time.monotonic();self.last_vault_wall_activity=time.time()
         return False
@@ -519,7 +571,7 @@ class VaultEditor(VaultEditing,Editor):
         for window in self.vault_toplevels:
             current=window.get_transient_for()
             while current:
-                if current is self:self.track_activity(window);break
+                if current is self.dialog_parent():self.track_activity(window);break
                 current=current.get_transient_for()
     def auto_lock(self):
         if self.closed:return False
@@ -529,7 +581,7 @@ class VaultEditor(VaultEditing,Editor):
     def desktop_lock_changed(self,app,*_):
         if app.get_property('screensaver-active'):self.lock_vault()
     def configure_auto_lock(self,*_):
-        dialog=Adw.MessageDialog(transient_for=self,heading='Auto-lock')
+        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),heading='Auto-lock')
         values=[1,5,15,30];picker=Gtk.DropDown.new_from_strings([str(v)+' minutes' for v in values]);picker.set_selected(values.index(self.idle_minutes))
         dialog.set_extra_child(picker);dialog.add_response('cancel','Cancel');dialog.add_response('save','Save')
         def changed(_,response):
@@ -567,7 +619,7 @@ class VaultEditor(VaultEditing,Editor):
         for window in list(Gtk.Window.get_toplevels()):
             current=window.get_transient_for()
             while current:
-                if current is self:
+                if current is self.dialog_parent():
                     if hasattr(window,'doc'):window.doc=blank()
                     if hasattr(window,'pages'):window.pages=None
                     window.close();break
@@ -591,9 +643,17 @@ class VaultEditor(VaultEditing,Editor):
         self.set_title('Twinly — Encrypted workspace locked')
         if self.launcher.pending.get(self.vault_store.vault_id):self.launcher.parent.error('The encrypted workspace is locked, but some encrypted changes exist only in memory. Keep Twinly open and unlock it again to save them.')
 
+class VaultEditor(VaultController,Editor):
+    """Standalone controller retained for low-level integrations."""
+
+class EmbeddedVaultEditor(VaultController,EmbeddedEditor):
+    def __init__(self,app,store,config,launcher):
+        self.embedded_host=launcher.parent
+        super().__init__(app,store,config,launcher)
+
 # Credential entry and slow crypto run without placing passwords in preferences.
 def password_dialog(parent,title,callback,confirmation=False,recovery=False):
-    dialog=Adw.MessageDialog(transient_for=parent,heading=title)
+    dialog=Adw.MessageDialog(transient_for=parent.dialog_parent(),heading=title)
     box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
     first=Gtk.PasswordEntry(show_peek_icon=True,hexpand=True);box.append(first)
     second=Gtk.PasswordEntry(show_peek_icon=True,hexpand=True) if confirmation else None
@@ -638,7 +698,7 @@ class VaultLauncher:
             if not window.closed and window.vault_store.path==Path(path).absolute():window.present();return
         try:crypto()
         except ValueError as exc:self.parent.error(str(exc));return
-        password_dialog(self.parent,'Unlock encrypted workspace',lambda password,recovery:self.busy(lambda:VaultStore(path).unlock(password,recovery),self.present),recovery=True)
+        self.parent.guard_workspace_switch(lambda:password_dialog(self.parent,'Unlock encrypted workspace',lambda password,recovery:self.busy(lambda:VaultStore(path).unlock(password,recovery),self.present),recovery=True))
     def busy(self,work,finished):
         progress=Adw.MessageDialog(transient_for=self.parent,heading='Preparing encrypted workspace…',body='Password derivation may take a moment.')
         progress.set_deletable(False);progress.present()
@@ -674,7 +734,7 @@ class VaultLauncher:
                     remove_tree(manager.path(item));raise
                 return result
             self.busy(work,self.created)
-        password_dialog(self.parent,'New encrypted workspace',create,confirmation=True)
+        self.parent.guard_workspace_switch(lambda:password_dialog(self.parent,'New encrypted workspace',create,confirmation=True))
     def created(self,result):
         store,recovery=result
         try:self.remember(store.path)
@@ -710,6 +770,5 @@ class VaultLauncher:
             for identity,cipher in pending:
                 value=unpack(store.decrypt(cipher,'pending',identity,identity));store.draft(identity,value['document'],value['title'])
             self.pending.pop(store.vault_id,None)
-            window=VaultEditor(self.parent.get_application(),store,self.parent.config,self)
-            self.windows.add(window);window.present();self.parent.refresh_libraries()
+            self.parent.enter_encrypted_workspace(store)
         except Exception as exc:store.close();self.parent.error(str(exc))

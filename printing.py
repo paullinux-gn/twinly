@@ -262,7 +262,8 @@ class Pages:
 
 class PrintPreview(Gtk.Window):
     def __init__(self, parent, doc):
-        super().__init__(title='Print preview', transient_for=parent, default_width=850, default_height=800)
+        self.document_owner=parent
+        super().__init__(title='Print preview', transient_for=parent.dialog_parent() if hasattr(parent,'dialog_parent') else parent, default_width=850, default_height=800)
         self.closed=False;self.file_dialogs=[];self.print_operation=None
         self.set_destroy_with_parent(True)
         self.connect('close-request',self.close_requested)
@@ -308,7 +309,7 @@ class PrintPreview(Gtk.Window):
     def rebuild(self,*_):
         w,h={'A4':(595.276,841.89),'A5':(419.528,595.276),'Letter':(612,792)}[self.paper.get_selected_item().get_string()]
         if self.orientation.get_selected(): w,h=h,w
-        parent=self.get_transient_for()
+        parent=self.document_owner
         editor=getattr(parent,'active_editor',parent)
         view=getattr(editor,'view',None)
         self.pages=Pages(self.doc,w,h,self.margin.get_value()*72/25.4,

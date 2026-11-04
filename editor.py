@@ -37,7 +37,7 @@ import logging
 
 class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,PreferencesMixin,ActionsMixin,CallbackOwner):
     def __init__(self,app,root=None,workspace_owner=None):
-        if workspace_owner:super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        if workspace_owner or getattr(self,'embedded_host',None):super().__init__(orientation=Gtk.Orientation.VERTICAL)
         else:super().__init__(application=app,title='Twinly · Preview',default_width=1120,default_height=800,width_request=420,height_request=360)
         self.session=DocumentSession()
         self.closed=False
@@ -415,7 +415,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 self.add_breakpoint(breakpoint)
             sidebar_toggle.connect('toggled',lambda b:self.split.set_show_sidebar(b.get_active()))
             self.split.connect('notify::show-sidebar',lambda s,p:sidebar_toggle.set_active(s.get_show_sidebar()))
-            self.connect('close-request',self.close_requested)
+            if not getattr(self,'embedded_host',None):self.connect('close-request',self.close_requested)
             self.connect('unrealize',self.cleanup)
         self.setup_writing()
         self.view.set_name('twinly-document-'+str(id(self)))
@@ -441,12 +441,17 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             hover.connect('leave',lambda *_:self.header_title_hover(False))
             self.document_header.add_controller(hover)
             self.update_header_title()
+            self.setup_workspace_selector()
             self.setup_focus_mode()
             self.toolbar_pin_button.connect('toggled',self.toolbar_visibility_toggled)
         self.set_editing(True)
         self.font_button.connect('notify::font-desc',lambda *_:
             (self.workspace_owner or self).refresh_focus_layout()
             if hasattr(self.workspace_owner or self,'focus_overlay_slot') else None)
+
+    def dialog_parent(self):
+        owner=self.workspace_owner or self
+        return getattr(owner,'embedded_host',None) or owner
 
     def set_editing(self,enabled):
         self.editing=bool(enabled)
@@ -495,6 +500,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
 
     def vault_launcher(self):
         owner=self.workspace_owner or self
+        if getattr(owner,'is_vault',False):return owner.launcher
         if not hasattr(owner,'vault_launch'):
             from vault_ui import VaultLauncher
             owner.vault_launch=VaultLauncher(owner)
@@ -771,7 +777,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         elif selected:start,end=(i.get_offset() for i in selected)
         else:start=end=self.buffer.get_iter_at_mark(self.buffer.get_insert()).get_offset()
         text=self.buffer.get_text(self.buffer.get_iter_at_offset(start),self.buffer.get_iter_at_offset(end),True)
-        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='Edit link' if link else 'Insert link')
+        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),heading='Edit link' if link else 'Insert link')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10)
         mode=Gtk.DropDown.new_from_strings(['Document link','External link'])
         mode.set_selected(1 if link and link[2]['kind']=='external' else 0)
@@ -999,7 +1005,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.buffer.select_range(*(self.buffer.get_iter_at_offset(i) for i in offsets))
             self.remember_text_color(colour)
             self.set_text_color(colour)
-        dialog.choose_rgba(self.workspace_owner or self,initial,cancellable,finished)
+        dialog.choose_rgba(self.dialog_parent(),initial,cancellable,finished)
 
     def set_text_color(self,colour):
         if not self.editing:return
@@ -1169,7 +1175,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.buffer.select_range(*(self.buffer.get_iter_at_offset(i) for i in selection))
             button.set_font_desc(desc)
             self.view.grab_focus()
-        dialog.choose_font(self.workspace_owner or self,button.get_font_desc(),cancellable,finished)
+        dialog.choose_font(self.dialog_parent(),button.get_font_desc(),cancellable,finished)
 
     def apply_typing_font(self,buffer,end,text,length):
         if self.loading or not text:return
@@ -1509,12 +1515,12 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         else:logger.debug('%s',message)
 
     def error(self,message):
-        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='Something went wrong',body=str(message))
+        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),heading='Something went wrong',body=str(message))
         dialog.add_response('ok','Close')
         dialog.present()
 
     def ask(self,heading,body,choices,callback,default='cancel'):
-        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading=heading,body=body)
+        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),heading=heading,body=body)
         for key,label in choices:
             dialog.add_response(key,label)
             if key=='empty':dialog.set_response_appearance(key,Adw.ResponseAppearance.DESTRUCTIVE)
@@ -1617,7 +1623,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                            exc.matches(Gtk.dialog_error_quark(),Gtk.DialogError.CANCELLED) or
                            exc.matches(Gio.io_error_quark(),Gio.IOErrorEnum.CANCELLED))
                 if not cancelled and not self.closed:self.error(str(exc))
-        getattr(dialog,method)(self.workspace_owner or self,cancellable,finished)
+        getattr(dialog,method)(self.dialog_parent(),cancellable,finished)
 
     def open(self,*_):
         self.file_chooser('Open document',Gtk.FileChooserAction.OPEN,self.open_path,folder=self.sidebar.root)
@@ -2133,7 +2139,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.capture()
 
     def name_dialog(self,heading,initial,callback):
-        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading=heading)
+        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),heading=heading)
         entry=Gtk.Entry(text=initial,activates_default=True)
         dialog.set_extra_child(entry)
         dialog.add_response('cancel','Cancel')
@@ -2210,8 +2216,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if item['kind']=='encrypted':
             self.refresh_libraries();self.vault_launcher().unlock_path(store.path(item));return
         path=store.path(item)
-        self.sidebar.set_root(path);self.refresh_documents();self.record_navigation()
-        self.save_preferences(root=str(path));self.refresh_libraries()
+        self.switch_standard_workspace(path)
 
     def search_documents(self,*_):
         self.show_documents()
@@ -2467,7 +2472,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
 
     def root_dialog(self,create=True):
         if not create:return self.choose_root()
-        dialog=Adw.MessageDialog(transient_for=(self.workspace_owner or self),heading='New workspace',
+        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),heading='New workspace',
             body='Give your workspace a name and choose its protection. All its files stay in Twinly’s workspace folder.')
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12)
         entry=Gtk.Entry(placeholder_text='Workspace name',activates_default=True)
@@ -2577,7 +2582,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             window.present();return window
         icons=Gtk.IconTheme.get_for_display(owner.get_display())
         if not icons.has_icon(APP_ID):icons.add_search_path(str(DATA_DIR))
-        window=Adw.AboutWindow(transient_for=owner,modal=True,destroy_with_parent=True,
+        window=Adw.AboutWindow(transient_for=owner.dialog_parent(),modal=True,destroy_with_parent=True,
             application_name='Twinly',application_icon=APP_ID,developer_name=DEVELOPER_NAME,
             version=VERSION,comments=DESCRIPTION,website=WEBSITE,
             support_url=WEBSITE+'/issues',issue_url=WEBSITE+'/issues',
@@ -2651,6 +2656,30 @@ class EditorPane(EditorCore,Gtk.Box):
     def close(self):self.workspace_owner.close_pane(self)
 
 
+class EmbeddedEditor(EditorCore,Gtk.Box):
+    """An editor controller rooted in the existing application window."""
+    def add_action(self,action):
+        EditorPane.add_action(self,action)
+        self.insert_action_group('win',self.pane_actions)
+    lookup_action=EditorPane.lookup_action
+    list_actions=EditorPane.list_actions
+    def get_application(self):return self.embedded_host.get_application()
+    def get_focus(self):return self.embedded_host.get_focus()
+    def set_title(self,title):
+        if getattr(self.embedded_host,'embedded_workspace',None) is self:self.embedded_host.set_title(title)
+    def set_content(self,content):
+        self.breakpoint_bin=Adw.BreakpointBin(hexpand=True,vexpand=True,width_request=420,height_request=360)
+        self.breakpoint_bin.set_child(content);self.append(self.breakpoint_bin)
+    def add_breakpoint(self,breakpoint):self.breakpoint_bin.add_breakpoint(breakpoint)
+    def present(self):self.embedded_host.present()
+    def close(self):
+        if not getattr(self,'closing_ready',False):self.embedded_host.close();return
+        self.embedded_host.leave_encrypted_workspace(self)
+    def destroy(self):
+        self.cleanup()
+        if getattr(self.embedded_host,'embedded_workspace',None) is self:self.embedded_host.leave_encrypted_workspace(self)
+
+
 class App(Adw.Application):
     def __init__(self,root=None):
         super().__init__(application_id=APP_ID,flags=Gio.ApplicationFlags.NON_UNIQUE|Gio.ApplicationFlags.HANDLES_OPEN)
@@ -2672,6 +2701,12 @@ class App(Adw.Application):
 
     def do_open(self,files,count,hint):
         window=self.get_active_window()
+        page=getattr(window,'embedded_workspace',None)
+        if page:
+            def open_standard():
+                page.lock_vault()
+                if page.closed:self.do_open(files,count,hint)
+            window.guard_workspace_switch(open_standard);return
         if window is None or getattr(window,'is_vault',False):
             window=Editor(self)
             if self.root:window.apply_root(Path(self.root).absolute())

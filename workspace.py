@@ -5,6 +5,137 @@ from gi.repository import Gtk,Gio,Gdk,Adw,Pango
 from settings import read_settings,finite_number
 
 class WorkspaceMixin:
+    def setup_workspace_selector(self):
+        self.workspace_selector=Gtk.MenuButton(tooltip_text='Switch workspace')
+        self.document_header.pack_end(self.workspace_selector)
+        self.refresh_workspace_selector()
+
+    def refresh_workspace_selector(self):
+        if not hasattr(self,'workspace_selector'):return
+        host=getattr(self,'embedded_host',None) or (self.launcher.parent if getattr(self,'is_vault',False) else self)
+        store=host.workspace_store()
+        page=getattr(host,'embedded_workspace',None)
+        current=store.find(self.vault_store.path if getattr(self,'is_vault',False) else page.vault_store.path if page else host.sidebar.root)
+        status,unlocked=host.workspace_status(current) if current else ('Not encrypted',False)
+        box=Gtk.Box(spacing=6)
+        box.append(Gtk.Image(icon_name='changes-prevent-symbolic' if current and current['kind']=='encrypted' and not unlocked else 'changes-allow-symbolic'))
+        if unlocked:box.append(Gtk.Image(icon_name='security-high-symbolic'))
+        label=Gtk.Label(label=current['name'] if current else 'Workspaces',ellipsize=Pango.EllipsizeMode.END,max_width_chars=12,width_chars=1)
+        box.append(label);self.workspace_selector.set_child(box)
+        self.workspace_selector.set_tooltip_text((current['name']+' — ' if current else '')+status)
+        popover=Gtk.Popover();choices=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4)
+        for item in store.records():
+            if item['status']!='active':continue
+            description,is_open=host.workspace_status(item)
+            button=Gtk.Button(css_classes=['flat'],tooltip_text=description)
+            row=Gtk.Box(spacing=8)
+            row.append(Gtk.Image(icon_name='changes-prevent-symbolic' if item['kind']=='encrypted' and not is_open else 'changes-allow-symbolic'))
+            if is_open:row.append(Gtk.Image(icon_name='security-high-symbolic'))
+            row.append(Gtk.Label(label=item['name'],xalign=0,hexpand=True,ellipsize=Pango.EllipsizeMode.END,max_width_chars=28))
+            button.set_child(row)
+            button.connect('clicked',lambda _,p=store.path(item),v=item['kind']=='encrypted':(popover.popdown(),host.open_library_location(p,v)))
+            choices.append(button)
+        choices.append(Gtk.Separator())
+        for title,callback in [('New workspace…',host.new_root),('Manage workspaces…',host.show_libraries)]:
+            button=Gtk.Button(label=title,css_classes=['flat'])
+            button.connect('clicked',lambda _,fn=callback:(popover.popdown(),fn()))
+            choices.append(button)
+        scroll=Gtk.ScrolledWindow(max_content_height=420,propagate_natural_height=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
+        scroll.set_child(choices);popover.set_child(scroll);self.workspace_selector.set_popover(popover)
+
+    def guard_workspace_switch(self,callback):
+        page=getattr(self,'embedded_workspace',None)
+        if page and not page.closed:
+            try:
+                for pane in (page,page.peer):
+                    if not pane or not pane.dirty():continue
+                    if pane.path:
+                        pane.write(pane.path)
+                        if pane.dirty():return
+                    else:page.vault_store.draft(pane.vault_draft_id,pane.snapshot(),'New document')
+                page.save_workspace();page.flush_preferences()
+                if getattr(page,'preference_updates',{}):return
+            except (OSError,ValueError) as exc:self.error(str(exc));return
+            callback();return
+        panes=[p for p in (self,self.peer) if p]
+        def check(index=0):
+            if index==len(panes):callback();return
+            pane=panes[index]
+            if not pane.dirty():check(index+1);return
+            def response(choice):
+                if choice=='save':pane.save(after=lambda:check(index+1))
+                elif choice=='discard':
+                    pane.restore(copy.deepcopy(pane.saved_doc),reset=True);pane.clear_recovery();check(index+1)
+            self.ask('Save changes?','This document has unsaved changes.',
+                     [('cancel','Cancel'),('discard','Discard'),('save','Save')],response,'save')
+        check()
+
+    def enter_encrypted_workspace(self,store):
+        from vault_ui import EmbeddedVaultEditor
+        old=getattr(self,'embedded_workspace',None)
+        if old:
+            old.lock_vault()
+            if not old.closed:store.close();return
+        else:self.save_workspace()
+        try:page=EmbeddedVaultEditor(self.get_application(),store,self.config,self.vault_launcher())
+        except Exception:store.close();raise
+        self.embedded_workspace=page
+        page.apply_appearance()
+        self.vault_launcher().windows.add(page)
+        self.libraries_split.set_content(page)
+        self.libraries_split.set_show_sidebar(False)
+        try:page.restore_workspace();page.update_title();page.view.grab_focus()
+        except Exception:
+            page.locking=True;self.leave_encrypted_workspace(page);raise
+        page.refresh_edit_actions();self.refresh_libraries();page.refresh_workspace_selector()
+
+    def leave_encrypted_workspace(self,page):
+        if getattr(self,'embedded_workspace',None) is not page:
+            page.cleanup();return
+        # Wipe buffers and release the writer lease before exposing another workspace.
+        page.cleanup()
+        self.embedded_workspace=None
+        self.apply_appearance()
+        self.libraries_split.set_content(self.split)
+        self.update_title();self.refresh_edit_actions();self.refresh_libraries();self.view.grab_focus()
+        current=self.workspace_store().find(self.sidebar.root)
+        sessions=read_settings(self.config).get('workspace_sessions',{})
+        session=sessions.get(current['id'],{}) if current and isinstance(sessions,dict) else {}
+        root=self.sidebar.root;frames=[0]
+        def resume(widget,clock):
+            if self.closed or self.sidebar.root!=root or getattr(self,'embedded_workspace',None):return False
+            frames[0]+=1
+            if frames[0]<3:return True
+            active=self.peer if self.peer and session.get('active')==1 else self
+            self.activate_pane(active);active.view.grab_focus()
+            for pane,item in zip((self,self.peer),session.get('documents',[])):
+                if pane and str(pane.path)==item.get('path'):
+                    pane.document_scroll.get_vadjustment().set_value(finite_number(item.get('scroll'),0,0,1e9))
+            return False
+        self.add_tick_callback(resume)
+
+    def switch_standard_workspace(self,path):
+        from model import blank
+        path=Path(path)
+        def switch():
+            try:
+                page=getattr(self,'embedded_workspace',None)
+                if page:
+                    page.lock_vault()
+                    if not page.closed:return
+                if self.sidebar.root==path:
+                    self.refresh_libraries();return
+                self.save_workspace()
+                self.save_preferences(root=str(path))
+                if self.peer:self.finish_close_pane(self.peer)
+                self.path=None;self.saved_stamp=None;self.set_pinned(False)
+                self.restore(blank(),reset=True)
+                self.sidebar.set_root(path);self.refresh_documents()
+                self.restore_workspace()
+                self.refresh_libraries();self.record_navigation()
+            except (OSError,ValueError) as exc:self.error(str(exc))
+        self.guard_workspace_switch(switch)
+
     def workspace_store(self):
         from managed_workspaces import WorkspaceStore
         owner=self.workspace_owner or self
@@ -62,6 +193,9 @@ class WorkspaceMixin:
         return ('Encrypted — Unlocked' if unlocked else 'Encrypted — Locked'),unlocked
 
     def refresh_libraries(self):
+        self.refresh_workspace_selector()
+        page=getattr(self,'embedded_workspace',None)
+        if page and not page.closed:page.refresh_workspace_selector()
         if not hasattr(self,'library_rows'):return
         child=self.library_rows.get_first_child()
         while child:self.library_rows.remove(child);child=self.library_rows.get_first_child()
@@ -268,18 +402,21 @@ class WorkspaceMixin:
         self.file_chooser('Open document beside',Gtk.FileChooserAction.OPEN,
                           (self.workspace_owner or self).open_beside,folder=self.sidebar.root)
 
-    def open_beside(self,path):
+    def open_beside(self,path,_restore=None):
         owner=self.workspace_owner or self
-        if owner is not self:return owner.open_beside(path)
-        path=self.document_reference(path)
-        if self.path and path==self.document_reference(self.path):
+        if owner is not self:return owner.open_beside(path,_restore=_restore)
+        if _restore is None:path=self.document_reference(path)
+        if _restore is None and self.path and path==self.document_reference(self.path):
             self.activate_pane(self);self.view.grab_focus();return
         if self.peer:
-            self.peer.open_path(path);return
+            if _restore:_restore(self.peer)
+            else:self.peer.open_path(path)
+            return
         peer=self.make_editor_pane()
         self.peer=peer
-        peer.open_path(path)
-        if peer.path is None:
+        if _restore:_restore(peer)
+        else:peer.open_path(path)
+        if peer.path is None and _restore is None:
             peer.cleanup();peer.destroy();self.peer=None;return
         # Each document keeps its controller; only the active toolbar is displayed.
         self.release_focus_toolbar()
@@ -500,10 +637,17 @@ class WorkspaceMixin:
             session['documents'].append(entry(self.peer))
             session['active']=int(self.active_editor is self.peer)
             session['ratio']=self.panes.get_position()/max(1,self.panes.get_width())
-        self.save_preferences(workspace=session)
+        sessions=read_settings(self.config).get('workspace_sessions',{})
+        if not isinstance(sessions,dict):sessions={}
+        current=self.workspace_store().find(self.sidebar.root)
+        if current:sessions[current['id']]=session
+        self.save_preferences(workspace=session,workspace_sessions=sessions)
 
     def restore_workspace(self):
-        session=read_settings(self.config).get('workspace',{})
+        settings=read_settings(self.config)
+        current=self.workspace_store().find(self.sidebar.root)
+        sessions=settings.get('workspace_sessions',{})
+        session=sessions.get(current['id'],{}) if current and isinstance(sessions,dict) and sessions else settings.get('workspace',{})
         if not isinstance(session,dict):return
         entries=session.get('documents',[])
         if not isinstance(entries,list):return
@@ -511,7 +655,7 @@ class WorkspaceMixin:
         for index,item in enumerate(entries[:2]):
             if not isinstance(item,dict) or not isinstance(item.get('path'),str):continue
             path=Path(item['path'])
-            if not path.is_file():continue
+            if not path.is_file() or self.sidebar.root not in path.parents:continue
             if not restored:self.open_path(path);editor=self
             else:
                 self.open_beside(path);editor=self.peer

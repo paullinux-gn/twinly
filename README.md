@@ -194,6 +194,16 @@ personal documents: enter a name and explicitly choose **Standard — Not encryp
 or **Encrypted — Password protected**. Every standard workspace receives the full
 guide; encrypted workspaces start empty. There is no default encrypted workspace.
 
+The workspace name and lock icon in the header open a selector for switching in
+the **same window**, with **New workspace…** and **Manage workspaces…** entries.
+The right-hand panel remains available for naming, importing and Trash.
+Standard workspaces offer Save / Discard / Cancel for dirty documents in either
+pane. Leaving an encrypted workspace saves its documents and recovery drafts,
+locks it and wipes its editor. Failed saves block switching; cancelling an unlock
+or entering a wrong password leaves the current workspace open. Open documents,
+pane layout, zoom and scroll positions are remembered per workspace; encrypted
+session state stays inside encrypted storage.
+
 Protection icons appear beside each workspace name: an open padlock for standard,
 a closed padlock for encrypted and locked, and an open padlock with a shield for
 encrypted and unlocked. Labels and tooltips make the distinction explicit.
