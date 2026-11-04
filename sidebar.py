@@ -254,6 +254,8 @@ class Sidebar(CallbackOwner,Gtk.Box):
         menu=Gio.Menu()
         group=Gio.SimpleActionGroup()
         document=path is not None and not path.is_dir()
+        workspace=self.owner.workspace_owner or self.owner
+        beside=workspace.active_editor
         entries=[] if document else [('New folder','new-folder'),('New document','new')]
         if path is not None:
             entries += [('Rename…','rename'),('Move to…','move'),('Move to trash…','trash')]
@@ -270,7 +272,7 @@ class Sidebar(CallbackOwner,Gtk.Box):
                     if key=='new':self.owner.new(folder=folder)
                     elif key=='new-folder':self.owner.new_folder(folder=folder)
                     elif key=='root':self.owner.choose_root()
-                    elif key=='open-beside':self.owner.open_beside_from_sidebar(path)
+                    elif key=='open-beside':self.owner.open_beside_from_sidebar(path,beside=beside)
                     elif key=='duplicate':self.owner.duplicate_document(path=path)
                     elif key=='preview':self.owner.print_preview(path=path)
                     elif key=='print-document':self.owner.print_document(path=path)

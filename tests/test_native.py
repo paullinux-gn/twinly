@@ -1789,6 +1789,8 @@ class Native(unittest.TestCase):
         self.w.activate_pane(self.w.peer)
         pop=self.w.sidebar.context_menu(third)
         pop.set_parent(self.w.sidebar.list);pop.popup();pump()
+        # Reproduce a hover change while GTK is closing/dispatching the menu.
+        self.w.hover_document();self.assertIs(self.w,self.w.active_editor)
         self.assertTrue(pop.activate_action('context.open-beside',None));pump()
         self.assertEqual(third,self.w.path)
         self.assertEqual(second,self.w.peer.path)

@@ -448,7 +448,7 @@ class WorkspaceMixin:
         self.activate_pane(peer)
         peer.view.grab_focus()
 
-    def open_beside_from_sidebar(self,path):
+    def open_beside_from_sidebar(self,path,beside=None):
         owner=self.workspace_owner or self
         path=Path(path).resolve()
         for editor in (owner,owner.peer):
@@ -460,7 +460,10 @@ class WorkspaceMixin:
                 return
         if not owner.peer:owner.open_beside(path)
         else:
-            target=owner if owner.active_editor is owner.peer else owner.peer
+            # Menu closure can generate hover events before its deferred action.
+            # Use the pane captured when that menu opened, not the later hover.
+            selected=beside if beside in (owner,owner.peer) and not beside.closed else owner.active_editor
+            target=owner if selected is owner.peer else owner.peer
             target.open_path(path)
 
     def clear_workspace_layout(self):
