@@ -1236,13 +1236,17 @@ class Native(unittest.TestCase):
     def test_trash_button_position_and_navigation(self):
         self.w.load_trash_items=lambda:[]
         self.assertEqual(self.w.sidebar.trash_button,self.w.sidebar.search_button.get_next_sibling())
-        self.assertEqual('win.show-trash',self.w.sidebar.trash_button.get_action_name())
+        self.assertEqual('win.toggle-trash',self.w.sidebar.trash_button.get_action_name())
         self.w.show_documents()
         self.w.lookup_action('show-trash').activate(None)
         self.assertEqual('trash',self.w.right_panel_kind())
         self.w.navigate(-1)
         self.assertEqual('documents',self.w.right_panel_kind())
         self.w.navigate(1)
+        self.assertEqual('trash',self.w.right_panel_kind())
+        self.w.lookup_action('toggle-trash').activate(None);pump()
+        self.assertFalse(self.w.libraries_split.get_show_sidebar())
+        self.w.lookup_action('toggle-trash').activate(None);pump()
         self.assertEqual('trash',self.w.right_panel_kind())
 
     def test_trash_restore_and_name_conflict(self):

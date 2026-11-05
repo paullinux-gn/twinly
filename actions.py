@@ -36,6 +36,7 @@ class ActionsMixin:
             'toggle-check':(self.toggle_check,[]),
             'search-documents':(self.search_documents,[]),
             'toggle-search-documents':(self.toggle_document_search,[]),
+            'toggle-trash':(self.toggle_document_trash,[]),
             'preferences':(self.show_preferences,[]),
             'vault-create':(lambda *_:self.vault_launcher().create(),[]),
             'vault-open':(lambda *_:self.vault_launcher().open(),[]),
@@ -115,7 +116,7 @@ class ActionsMixin:
                     return
                 active=getattr(self,'active_editor',self)
                 if self.edit_action(name) and not active.editing:return
-                if active is not self and name not in ('close','quit','switch-pane','swap-panes','preferences','shortcuts','about','root','new-root','search-documents','show-trash','new-folder','rename','move','trash','vaults','vault-create','vault-open'):
+                if active is not self and name not in ('close','quit','switch-pane','swap-panes','preferences','shortcuts','about','root','new-root','search-documents','show-trash','toggle-trash','new-folder','rename','move','trash','vaults','vault-create','vault-open'):
                     active.lookup_action(name).activate(param)
                 else:callback(action,param)
             action.connect('activate',dispatch)

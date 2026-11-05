@@ -2221,6 +2221,11 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if owner.right_panel_kind()=='documents':owner.close_workspace_panel()
         else:owner.search_documents()
 
+    def toggle_document_trash(self,*_):
+        owner=self.workspace_owner or self
+        if owner.right_panel_kind()=='trash':owner.close_workspace_panel()
+        else:owner.show_trash()
+
     def search_documents(self,*_):
         self.show_documents()
         self.document_search_entry.set_visible(True)
