@@ -378,14 +378,17 @@ class VaultEditing:
             else:run()
         next_guard()
     def show_trash(self,*_):
-        box=self.trash_page
-        while box.get_first_child():box.remove(box.get_first_child())
+        page=self.trash_page
+        while page.get_first_child():page.remove(page.get_first_child())
+        box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=6,margin_start=12,margin_end=12,margin_bottom=12)
+        scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
+        scroll.set_child(box);page.append(scroll)
         empty=Gtk.Button(label='Empty trash');empty.connect('clicked',self.empty_trash);box.append(empty)
         nodes=self.vault_store.catalog['nodes']
         for key,node in nodes.items():
             if node.get('trash') and (node['parent']=='root' or not nodes[node['parent']].get('trash')):
-                row=Gtk.Button(label='Restore: '+node['name']);row.connect('clicked',lambda _,i=key:self.restore_trash_item(i));box.append(row)
-        self.document_stack.set_visible_child_name('trash')
+                row=Gtk.Button(label='Restore: '+node['name']);row.connect('clicked',lambda _,i=key:self.restore_trash_item(i));self.compact_location_labels(row);box.append(row)
+        self.show_workspace_panel('trash',self.trash_page)
     def restore_trash_item(self,identity):
         try:self.vault_store.trash(identity,restore=True);self.sidebar.refresh();self.show_trash()
         except (OSError,ValueError) as exc:self.error('Recovery failed: '+str(exc))
@@ -398,15 +401,16 @@ class VaultEditing:
     def show_documents(self,*_):
         box=self.documents_page
         while box.get_first_child():box.remove(box.get_first_child())
-        entry=Gtk.SearchEntry(placeholder_text='Search encrypted workspace documents');box.append(entry)
-        rows=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4);scroll=Gtk.ScrolledWindow(vexpand=True);scroll.set_child(rows);box.append(scroll)
+        entry=Gtk.SearchEntry(placeholder_text='Search documents…',margin_start=12,margin_end=12);box.append(entry)
+        rows=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4);scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER,margin_start=12,margin_end=12,margin_bottom=12);scroll.set_child(rows);box.append(scroll)
         def refresh(*_):
             while rows.get_first_child():rows.remove(rows.get_first_child())
+            if self.closed or self.vault_store.key is None:return
             query=entry.get_text().casefold()
             for key,node in self.vault_store.catalog['nodes'].items():
                 if node['type']=='document' and not node.get('trash') and query in node['name'].casefold():
-                    button=Gtk.Button(label=node['name']);button.connect('clicked',lambda _,i=key:self.open_path(VaultRef(self.vault_store,i)));rows.append(button)
-        entry.connect('search-changed',refresh);refresh();self.document_stack.set_visible_child_name('documents');entry.grab_focus()
+                    button=Gtk.Button(label=node['name']);button.connect('clicked',lambda _,i=key:self.open_path(VaultRef(self.vault_store,i)));self.compact_location_labels(button);rows.append(button)
+        self.document_search_handler=entry.connect('search-changed',refresh);refresh();self.document_search_entry=entry;self.show_workspace_panel('documents',self.documents_page);entry.grab_focus()
     def search_documents(self,*_):self.show_documents()
     def choose_beside(self,*_):self.show_documents()
     def open(self,*_):
@@ -600,6 +604,7 @@ class VaultController(VaultEditing):
         password_dialog(self,'Change password',changed,confirmation=True)
     def lock_vault(self,*_):
         if self.locking or self.closed:return
+        self.close_workspace_panel(owner=self)
         self.locking=True;pending=[]
         try:
             for pane in (self,self.peer):

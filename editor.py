@@ -344,10 +344,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.title_row.add_controller(title_context)
         self.document_stack=Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
         self.document_stack.add_named(editor_box,'editor')
-        self.documents_page=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=16)
-        self.document_stack.add_named(self.documents_page,'documents')
-        self.trash_page=Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.document_stack.add_named(self.trash_page,'trash')
+        self.documents_page=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=16,vexpand=True)
+        self.trash_page=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,vexpand=True)
         self.editor_toolbar_view.set_content(self.document_stack)
         editor_box.remove(self.toolbar)
         self.workspace_layout=Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1285,6 +1283,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         for image in doc['images']:pixbuf_for(image['src'])
         if hasattr(self,'title_stack'):self.title_stack.set_visible_child_name('title')
         if hasattr(self,'document_stack'):self.document_stack.set_visible_child_name('editor')
+        if reset and hasattr(self,'sidebar') and hasattr(self.workspace_panel_host(),'right_panel_stack'):
+            self.close_workspace_panel(owner=self.workspace_owner or self)
         if reset and self.autosave_pending:
             GLib.source_remove(self.autosave_pending)
             self.autosave_pending=0
@@ -2220,7 +2220,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
 
     def toggle_document_search(self,*_):
         owner=self.workspace_owner or self
-        if owner.document_stack.get_visible_child_name()=='documents':owner.show_editor()
+        if owner.right_panel_kind()=='documents':owner.close_workspace_panel()
         else:owner.search_documents()
 
     def search_documents(self,*_):
@@ -2229,6 +2229,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.document_search_entry.grab_focus()
 
     def show_documents(self,*_):
+        entry=getattr(self,'document_search_entry',None)
+        query=entry.get_text() if entry and self.right_panel_kind()=='documents' else ''
         child=self.documents_page.get_first_child()
         while child:
             following=child.get_next_sibling()
@@ -2236,10 +2238,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             child=following
         scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=16)
-        for margin in ('start','end','top','bottom'):getattr(box,'set_margin_'+margin)(24)
-        title=Gtk.Label(label='Documents',xalign=0,css_classes=['title-1'])
-        box.append(title)
-        box.append(Gtk.Label(label=str(self.sidebar.root),xalign=0,ellipsize=Pango.EllipsizeMode.MIDDLE,
+        for margin in ('start','end','top','bottom'):getattr(box,'set_margin_'+margin)(12)
+        box.append(Gtk.Label(label=self.workspace_store().name(self.sidebar.root),xalign=0,ellipsize=Pango.EllipsizeMode.MIDDLE,
                              css_classes=['dim-label']))
         paths=[]
         for folder,dirs,files in os.walk(self.sidebar.root,followlinks=False):
@@ -2250,7 +2250,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                          and not (Path(folder)/name).is_symlink())
         self.documents_list=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.documents_list.add_css_class('boxed-list')
-        self.document_search_entry=Gtk.SearchEntry(placeholder_text='Search documents…',visible=False)
+        self.document_search_entry=Gtk.SearchEntry(placeholder_text='Search documents…')
+        self.document_search_entry.set_text(query)
         self.document_search_entry.connect('changed',lambda entry:self.documents_list.invalidate_filter())
         self.documents_list.set_filter_func(lambda row:self.document_search_entry.get_text().casefold() in str(row.document_path.relative_to(self.sidebar.root)).casefold())
         box.append(self.document_search_entry)
@@ -2259,6 +2260,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             row.set_use_markup(False)
             row.add_prefix(Gtk.Image(icon_name='text-x-generic-symbolic'))
             row.add_suffix(Gtk.Image(icon_name='go-next-symbolic'))
+            self.compact_location_labels(row)
             row.document_path=path
             self.documents_list.append(row)
         self.documents_list.connect('row-activated',lambda _,row:self.open_path(row.document_path))
@@ -2269,7 +2271,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         clamp=Adw.Clamp(maximum_size=900,child=box)
         scroll.set_child(clamp)
         self.documents_page.append(scroll)
-        self.document_stack.set_visible_child_name('documents')
+        self.show_workspace_panel('documents',self.documents_page)
         self.record_navigation()
         self.message(f'{len(paths)} HTML documents · Click a document to open it in Twinly.')
         if self.split.get_collapsed():self.split.set_show_sidebar(False)
@@ -2300,9 +2302,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         while child:
             following=child.get_next_sibling();self.trash_page.remove(child);child=following
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=16)
-        for margin in ('start','end','top','bottom'):getattr(box,'set_margin_'+margin)(24)
+        for margin in ('start','end','top','bottom'):getattr(box,'set_margin_'+margin)(12)
         heading=Gtk.Box(spacing=12)
-        heading.append(Gtk.Label(label='Trash',xalign=0,hexpand=True,css_classes=['title-1']))
         refresh=Gtk.Button(icon_name='view-refresh-symbolic',tooltip_text='Refresh trash')
         refresh.connect('clicked',self.show_trash);heading.append(refresh)
         self.empty_trash_button=Gtk.Button(label='Empty trash',sensitive=False)
@@ -2324,7 +2325,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 row.add_prefix(Gtk.Image(icon_name='folder-symbolic' if item['directory'] else 'text-x-generic-symbolic'))
                 restore=Gtk.Button(icon_name='edit-undo-symbolic',tooltip_text='Restore',valign=Gtk.Align.CENTER)
                 restore.connect('clicked',lambda _,value=item:self.restore_trash_item(value))
-                row.add_suffix(restore);self.trash_list.append(row)
+                row.add_suffix(restore);self.compact_location_labels(row);self.trash_list.append(row)
             if items:box.append(self.trash_list)
             else:box.append(Gtk.Label(label='The trash for this workspace is empty.',xalign=0))
         except (GLib.Error,OSError):
@@ -2333,7 +2334,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                                  wrap=True,xalign=0))
         scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
         scroll.set_child(Adw.Clamp(maximum_size=900,child=box));self.trash_page.append(scroll)
-        self.document_stack.set_visible_child_name('trash');self.record_navigation()
+        self.show_workspace_panel('trash',self.trash_page);self.record_navigation()
         self.message('Trash · Restore returns an item to its original location.')
         if self.split.get_collapsed():self.split.set_show_sidebar(False)
 
@@ -2398,12 +2399,13 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         except (GLib.Error,OSError,ValueError) as exc:self.error(str(exc))
 
     def show_editor(self):
+        self.close_workspace_panel(owner=self.workspace_owner or self)
         self.document_stack.set_visible_child_name('editor')
         self.record_navigation()
 
     def record_navigation(self):
         if self.navigation_replaying:return
-        kind=self.document_stack.get_visible_child_name()
+        kind=self.right_panel_kind() or self.document_stack.get_visible_child_name()
         location={'kind':kind,'path':self.path if kind=='editor' else None,'root':self.sidebar.root}
         if self.navigation_index<0 or self.navigation[self.navigation_index]!=location:
             self.navigation=self.navigation[:self.navigation_index+1]+[location]
@@ -2451,6 +2453,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                         self.saved_stamp=loaded_stamp if self.path else None
                         self.restore(doc,reset=True)
                         self.set_editing(self.path is None)
+                    self.close_workspace_panel(owner=self.workspace_owner or self)
                     self.document_stack.set_visible_child_name('editor')
                     if self.path:self.sidebar.select_path(self.path)
                     if self.split.get_collapsed():self.split.set_show_sidebar(False)
@@ -2464,9 +2467,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         else:perform()
 
     def refresh_documents(self):
-        if hasattr(self,'document_stack') and self.document_stack.get_visible_child_name()=='documents':
+        if hasattr(self,'document_stack') and self.right_panel_kind()=='documents':
             self.show_documents()
-        elif hasattr(self,'document_stack') and self.document_stack.get_visible_child_name()=='trash':
+        elif hasattr(self,'document_stack') and self.right_panel_kind()=='trash':
             self.show_trash()
 
     def choose_root(self,*_):

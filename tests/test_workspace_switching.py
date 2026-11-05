@@ -95,6 +95,44 @@ class WorkspaceSwitching(unittest.TestCase):
         button.emit('clicked');settle()
         self.assertEqual(self.manager.path(self.first),self.w.sidebar.root)
 
+    def test_search_and_trash_share_management_panel_without_replacing_documents(self):
+        first=self.document('One.html');second=self.document('Two.html')
+        self.w.open_path(first);self.w.open_beside(second);self.w.activate_pane(self.w.peer)
+        peer=self.w.peer;before=(self.w.snapshot(),peer.snapshot())
+        for action,kind,page in [('search-documents','documents',self.w.documents_page),('show-trash','trash',self.w.trash_page)]:
+            self.w.lookup_action(action).activate(None);settle()
+            self.assertEqual(kind,self.w.right_panel_kind())
+            self.assertTrue(page.is_ancestor(self.w.libraries_split.get_sidebar()))
+            self.assertEqual('editor',self.w.document_stack.get_visible_child_name())
+            self.assertEqual('editor',peer.document_stack.get_visible_child_name())
+            self.assertIs(peer,self.w.active_editor);self.assertIs(peer,self.w.peer)
+            self.assertEqual((first,second),(self.w.path,peer.path))
+            self.assertEqual(before,(self.w.snapshot(),peer.snapshot()))
+        self.w.show_libraries();settle()
+        self.assertEqual('workspaces',self.w.right_panel_stack.get_visible_child_name())
+        self.w.toggle_document_search();settle();self.w.toggle_document_search();settle()
+        self.assertFalse(self.w.libraries_split.get_show_sidebar())
+
+    def test_encrypted_search_panel_is_removed_on_lock(self):
+        item,store=self.encrypted();store.add('Private canary.html')
+        self.w.vault_launcher().present(store);settle();page=self.w.embedded_workspace
+        page.search_documents();settle()
+        page.document_search_entry.set_text('Private canary');settle()
+        self.assertEqual('documents',page.right_panel_kind())
+        self.assertEqual('editor',page.document_stack.get_visible_child_name())
+        self.assertTrue(page.documents_page.is_ancestor(self.w.libraries_split.get_sidebar()))
+        page.show_trash();settle()
+        self.assertEqual('trash',page.right_panel_kind())
+        self.assertTrue(page.trash_page.is_ancestor(self.w.libraries_split.get_sidebar()))
+        page.search_documents();settle()
+        self.assertIsNotNone(page.document_search_handler)
+        page.document_search_entry.set_text('Private canary')
+        page.lock_vault();settle()
+        self.assertFalse(self.w.libraries_split.get_show_sidebar())
+        self.assertIsNone(self.w.utility_panel_page);self.assertIsNone(self.w.utility_panel_owner)
+        self.assertIsNone(page.documents_page.get_first_child())
+        self.assertEqual('',page.document_search_entry.get_text())
+
 
     def test_more_opens_management_without_switching(self):
         self.manager.rename(self.first,'Starter Workspace');self.w.refresh_libraries()
@@ -121,7 +159,7 @@ class WorkspaceSwitching(unittest.TestCase):
         self.assertIn('More…',labels);self.assertNotIn('New workspace…',labels)
         next(button for button in menu if button.get_label()=='More…').emit('clicked');settle()
         self.assertTrue(self.w.libraries_split.get_show_sidebar())
-        surface=self.w.libraries_split.get_sidebar()
+        surface=self.w.right_panel_stack.get_visible_child()
         self.assertTrue(surface.has_css_class('blur-sidebar'))
         self.assertEqual((0,0,0,0),(surface.get_margin_start(),surface.get_margin_end(),surface.get_margin_top(),surface.get_margin_bottom()))
         self.assertEqual(self.manager.path(self.first),self.w.sidebar.root)

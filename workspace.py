@@ -5,6 +5,56 @@ from gi.repository import Gtk,Gio,Gdk,Adw,Pango
 from settings import read_settings,finite_number
 
 class WorkspaceMixin:
+    def workspace_panel_host(self):
+        owner=self.workspace_owner or self
+        return getattr(owner,'embedded_host',None) or (owner.launcher.parent if getattr(owner,'is_vault',False) else owner)
+
+    def right_panel_kind(self):
+        host=self.workspace_panel_host()
+        if (getattr(host,'utility_panel_owner',None) is (self.workspace_owner or self)
+            and host.libraries_split.get_show_sidebar()):return host.utility_panel_kind
+        return None
+
+    def close_workspace_panel(self,owner=None):
+        host=self.workspace_panel_host()
+        if not hasattr(host,'right_panel_stack'):return
+        if owner is not None and getattr(host,'utility_panel_owner',None) is not owner:return
+        surface=getattr(host,'utility_panel_surface',None)
+        if surface:
+            page=host.utility_panel_page
+            surface.remove(page)
+            host.right_panel_stack.remove(surface)
+            if getattr(host.utility_panel_owner,'is_vault',False):
+                entry=(getattr(host.utility_panel_owner,'document_search_entry',None)
+                       if page is host.utility_panel_owner.documents_page else None)
+                if entry:
+                    handler=getattr(host.utility_panel_owner,'document_search_handler',None)
+                    if handler:
+                        entry.disconnect(handler);host.utility_panel_owner.document_search_handler=None
+                    entry.set_text('')
+                while page.get_first_child():page.remove(page.get_first_child())
+        host.utility_panel_owner=None;host.utility_panel_surface=None
+        host.utility_panel_page=None;host.utility_panel_kind=None
+        host.right_panel_stack.set_visible_child_name('workspaces')
+        host.libraries_split.set_show_sidebar(False)
+
+    def show_workspace_panel(self,kind,page):
+        owner=self.workspace_owner or self
+        host=self.workspace_panel_host()
+        if getattr(host,'utility_panel_page',None) is not page or getattr(host,'utility_panel_surface',None) is None:
+            host.close_workspace_panel()
+            surface=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=6,css_classes=['blur-sidebar'])
+            heading=Gtk.Box(spacing=6,margin_start=12,margin_end=12,margin_top=12)
+            heading.append(Gtk.Label(label='Search' if kind=='documents' else 'Trash',xalign=0,hexpand=True,css_classes=['title-3']))
+            close=Gtk.Button(icon_name='window-close-symbolic',tooltip_text='Close panel',css_classes=['flat'])
+            close.connect('clicked',lambda *_:host.close_workspace_panel())
+            heading.append(close);surface.append(heading);surface.append(page)
+            host.utility_panel_surface=surface;host.utility_panel_page=page
+            host.right_panel_stack.add_named(surface,'utility')
+        host.utility_panel_owner=owner;host.utility_panel_kind=kind
+        host.right_panel_stack.set_visible_child_name('utility')
+        host.libraries_split.set_show_sidebar(True)
+
     def setup_workspace_selector(self):
         self.workspace_selector=self.sidebar.libraries_button
         self.refresh_workspace_selector()
@@ -67,6 +117,7 @@ class WorkspaceMixin:
 
     def enter_encrypted_workspace(self,store):
         from vault_ui import EmbeddedVaultEditor
+        self.close_workspace_panel()
         old=getattr(self,'embedded_workspace',None)
         if old:
             old.lock_vault()
@@ -85,6 +136,7 @@ class WorkspaceMixin:
         page.refresh_edit_actions();self.refresh_libraries();page.refresh_workspace_selector()
 
     def leave_encrypted_workspace(self,page):
+        self.close_workspace_panel(owner=page)
         if getattr(self,'embedded_workspace',None) is not page:
             page.cleanup();return
         # Wipe buffers and release the writer lease before exposing another workspace.
@@ -121,6 +173,7 @@ class WorkspaceMixin:
                 if self.sidebar.root==path:
                     self.refresh_libraries();return
                 self.save_workspace()
+                self.close_workspace_panel()
                 self.save_preferences(root=str(path))
                 if self.peer:self.finish_close_pane(self.peer)
                 self.path=None;self.saved_stamp=None;self.set_pinned(False)
@@ -141,6 +194,7 @@ class WorkspaceMixin:
         owner=self.workspace_owner or self
         if getattr(owner,'is_vault',False):
             owner.launcher.parent.present();return owner.launcher.parent.show_libraries()
+        owner.close_workspace_panel()
         owner.libraries_trash_visible=False
         owner.libraries_trash_button.set_label('Workspace Trash')
         owner.refresh_libraries();owner.libraries_split.set_show_sidebar(True)
@@ -165,7 +219,9 @@ class WorkspaceMixin:
         # Paint the entire pane; the content margins belong inside its surface.
         surface=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,css_classes=['blur-sidebar'])
         surface.append(panel)
-        self.libraries_split.set_sidebar(surface)
+        self.right_panel_stack=Gtk.Stack()
+        self.right_panel_stack.add_named(surface,'workspaces')
+        self.libraries_split.set_sidebar(self.right_panel_stack)
         self.libraries_trash_visible=False
         self.libraries_trash_button=Gtk.Button(label='Workspace Trash')
         self.libraries_trash_button.connect('clicked',self.toggle_library_trash)

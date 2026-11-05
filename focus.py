@@ -124,8 +124,6 @@ class FocusMixin:
             for pane in (self,self.peer):
                 if pane:
                     pane.search_bar.set_margin_top(header_height+4 if pane.search_bar.get_search_mode() else 0)
-                    pane.documents_page.set_margin_top(header_height)
-                    pane.trash_page.set_margin_top(header_height)
                     if not hasattr(pane,'document_top_margin'):pane.document_top_margin=pane.view.get_top_margin()
                     # Keep controls clear of the scrollable document content.
                     pane.view.set_top_margin(pane.document_top_margin+round(inset))

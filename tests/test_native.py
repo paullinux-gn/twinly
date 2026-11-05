@@ -282,7 +282,7 @@ class Native(unittest.TestCase):
         self.assertEqual('win.toggle-search-documents',self.w.sidebar.search_button.get_action_name())
         with patch('editor.Gio.AppInfo.launch_default_for_uri') as launch:
             self.w.lookup_action('search-documents').activate(None)
-            self.assertEqual('documents',self.w.document_stack.get_visible_child_name())
+            self.assertEqual('documents',self.w.right_panel_kind())
             row=self.w.documents_list.get_first_child()
             while row and row.document_path!=path:row=row.get_next_sibling()
             self.assertIsNotNone(row)
@@ -398,7 +398,7 @@ class Native(unittest.TestCase):
         self.assertEqual(first,self.w.path)
         self.assertEqual('Eerste',self.w.snapshot()['text'])
         self.w.navigate(-1)
-        self.assertEqual('documents',self.w.document_stack.get_visible_child_name())
+        self.assertEqual('documents',self.w.right_panel_kind())
         self.w.navigate(1)
         self.assertEqual('editor',self.w.document_stack.get_visible_child_name())
         self.assertEqual(first,self.w.path)
@@ -1239,11 +1239,11 @@ class Native(unittest.TestCase):
         self.assertEqual('win.show-trash',self.w.sidebar.trash_button.get_action_name())
         self.w.show_documents()
         self.w.lookup_action('show-trash').activate(None)
-        self.assertEqual('trash',self.w.document_stack.get_visible_child_name())
+        self.assertEqual('trash',self.w.right_panel_kind())
         self.w.navigate(-1)
-        self.assertEqual('documents',self.w.document_stack.get_visible_child_name())
+        self.assertEqual('documents',self.w.right_panel_kind())
         self.w.navigate(1)
-        self.assertEqual('trash',self.w.document_stack.get_visible_child_name())
+        self.assertEqual('trash',self.w.right_panel_kind())
 
     def test_trash_restore_and_name_conflict(self):
         from unittest.mock import Mock
@@ -1480,7 +1480,7 @@ class Native(unittest.TestCase):
         self.w.lookup_action('toggle-find').activate(None);pump()
         self.assertFalse(self.w.search_bar.get_search_mode())
         self.w.lookup_action('toggle-search-documents').activate(None);pump()
-        self.assertEqual('documents',self.w.document_stack.get_visible_child_name())
+        self.assertEqual('documents',self.w.right_panel_kind())
         self.w.lookup_action('toggle-search-documents').activate(None);pump()
         self.assertEqual('editor',self.w.document_stack.get_visible_child_name())
 
