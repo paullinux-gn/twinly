@@ -668,6 +668,7 @@ class Native(unittest.TestCase):
         self.assertNotIn('Focus mode',[label for section in sections for label in labels(section)])
 
     def test_floating_toolbar_survives_dual_pane_switch_and_close(self):
+        self.w.toolbar_pin_button.set_active(True)
         self.w.toolbar_pin_button.set_active(False);pump()
         target=self.root/'Other.html';target.write_text('<p>Other</p>')
         self.w.open_beside(target);pump()
@@ -704,6 +705,7 @@ class Native(unittest.TestCase):
         self.assertEqual(count,flow.get_min_children_per_line())
 
     def test_floating_toolbar_timer_is_cancelled_and_dialog_keeps_controls(self):
+        self.w.toolbar_pin_button.set_active(True)
         self.w.toolbar_pin_button.set_active(False);pump()
         from gi.repository import Gio
         self.w.focus_motion(None,self.w.get_width()-50,0)
@@ -717,6 +719,7 @@ class Native(unittest.TestCase):
         self.w.cancel_focus_hide();self.assertEqual(0,self.w.focus_hide_timer)
 
     def test_normal_mode_uses_floating_toolbar_without_hiding_sidebar(self):
+        self.w.toolbar_pin_button.set_active(True)
         self.w.toolbar_pin_button.set_active(False);pump()
         self.assertTrue(self.w.split.get_show_sidebar())
         self.assertIs(self.w.toolbar.get_parent(),self.w.focus_revealer)
@@ -885,6 +888,7 @@ class Native(unittest.TestCase):
 
     def test_header_toolbar_pin_stays_visible_and_respects_search(self):
         from settings import read_settings
+        self.w.toolbar_pin_button.set_active(True)
         self.w.toolbar_pin_button.set_active(False);pump()
         self.w.toolbar_pin_button.set_active(True);pump()
         self.assertTrue(self.w.toolbar_always_visible)
@@ -901,6 +905,7 @@ class Native(unittest.TestCase):
         self.w.search_bar.set_search_mode(False);pump()
         self.assertTrue(self.w.focus_revealer.get_reveal_child())
         self.w.refresh_focus_layout();self.assertTrue(self.w.focus_revealer.get_reveal_child())
+        self.w.toolbar_pin_button.set_active(True)
         self.w.toolbar_pin_button.set_active(False);pump()
         self.assertFalse(self.w.focus_revealer.get_reveal_child())
         self.assertEqual(0,self.w.workspace_layout.get_margin_top())
@@ -916,6 +921,7 @@ class Native(unittest.TestCase):
         target=self.root/'Other.html';target.write_text('<p>Other</p>')
         self.w.open_beside(target);pump()
         self.assertGreater(self.w.peer.view.get_top_margin(),self.w.peer.document_top_margin)
+        self.w.toolbar_pin_button.set_active(True)
         self.w.toolbar_pin_button.set_active(False);pump()
         self.assertGreater(self.w.view.get_top_margin(),baseline)
         self.assertGreater(self.w.peer.view.get_top_margin(),self.w.peer.document_top_margin)

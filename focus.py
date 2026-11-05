@@ -25,7 +25,7 @@ class FocusMixin:
     def setup_floating_toolbar(self):
         self.focus_toolbar_visible=False
         self.focus_hide_timer=0;self.focus_pointer_top=False;self.focus_overlay_slot=None
-        self.toolbar_always_visible=read_settings(self.config).get('toolbar_always_visible',True) is True
+        self.toolbar_always_visible=read_settings(self.config).get('toolbar_always_visible',False) is True
         self.toolbar_pin_button.set_active(self.toolbar_always_visible)
         motion=Gtk.EventControllerMotion(propagation_phase=Gtk.PropagationPhase.CAPTURE)
         motion.connect('motion',self.focus_motion)
