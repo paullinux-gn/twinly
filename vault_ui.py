@@ -751,7 +751,13 @@ class VaultLauncher:
             if response=='ok':self.present(store)
             else:store.close()
         dialog.connect('response',done)
-        dialog.connect('unrealize',lambda *_:store.close() if not consumed[0] else None)
+        def release_unclaimed():
+            if not consumed[0]:
+                consumed[0]=True;label.set_text('');store.close()
+            return False
+        # A response-button click can unrealize the dialog before emitting
+        # response. Let that handler transfer ownership before cleanup runs.
+        dialog.connect('unrealize',lambda *_:GLib.idle_add(release_unclaimed))
         dialog.set_destroy_with_parent(True);dialog.present()
     def open(self,*_):
         try:crypto()

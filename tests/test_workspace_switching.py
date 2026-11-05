@@ -7,7 +7,7 @@ from editor import App,Editor
 from application import DATA_DIR
 from model import blank,to_html
 from settings import read_settings
-from gi.repository import Gtk,Gio,GLib,Pango
+from gi.repository import Gtk,Gio,GLib,Pango,Adw
 import vault
 
 
@@ -116,6 +116,48 @@ class WorkspaceSwitching(unittest.TestCase):
         self.assertEqual(self.manager.path(self.first),self.w.sidebar.root)
         self.assertEqual(second,self.w.peer.path)
         self.assertIn('Unsaved',self.w.peer.snapshot()['text'])
+
+    def recovery_dialog(self):
+        item,store=self.encrypted()
+        self.w.vault_launcher().created((store,'Recovery key for dialog test'));settle()
+        dialog=next(w for w in Gtk.Window.get_toplevels()
+                    if isinstance(w,Adw.MessageDialog)
+                    and w.get_heading()=='Save your recovery key')
+        return store,dialog
+
+    @staticmethod
+    def click_dialog_button(widget,label):
+        if isinstance(widget,Gtk.Button) and widget.get_label()==label:
+            widget.emit('clicked');return True
+        child=widget.get_first_child()
+        while child:
+            if WorkspaceSwitching.click_dialog_button(child,label):return True
+            child=child.get_next_sibling()
+        return False
+
+    def test_created_encrypted_workspace_opens_from_recovery_button(self):
+        store,dialog=self.recovery_dialog()
+        dialog.get_extra_child().get_last_child().set_active(True)
+        with patch.object(self.w,'error') as error:
+            self.assertTrue(self.click_dialog_button(dialog,'Open encrypted workspace'));settle()
+            error.assert_not_called()
+        page=self.w.embedded_workspace
+        self.assertIs(store,page.vault_store);self.assertIsNotNone(store.key)
+        page.new();settle()
+        self.assertIn(page.path.identity,store.catalog['nodes'])
+
+    def test_created_encrypted_workspace_open_later_releases_key(self):
+        store,dialog=self.recovery_dialog();path=store.path
+        self.assertTrue(self.click_dialog_button(dialog,'Open later'));settle()
+        self.assertIsNone(store.key);self.assertIsNone(store.catalog)
+        reopened=vault.VaultStore(path).unlock('a strong password')
+        self.w.vault_launcher().present(reopened);settle()
+        self.assertIs(reopened,self.w.embedded_workspace.vault_store)
+
+    def test_destroyed_recovery_dialog_releases_unclaimed_key(self):
+        store,dialog=self.recovery_dialog()
+        dialog.destroy();settle()
+        self.assertIsNone(store.key);self.assertIsNone(store.catalog)
 
     def test_encrypted_editor_uses_same_window_and_host_actions(self):
         public=self.document('Public.html','Public text');self.w.open_path(public)
