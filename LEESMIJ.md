@@ -27,7 +27,7 @@ De bestaande HTML-bestanden en voorkeuren blijven bruikbaar.
    bash start.sh
    ```
 
-4. Bij een nieuwe installatie opent `Getting Started.html` automatisch. Dit Engelstalige document bevat alle functies en een ingebedde foto.
+4. Bij een nieuwe installatie opent `Start to note.html` automatisch. Dit Engelstalige document bevat alle functies en een ingebedde foto.
 
 Gebruik de systeem-Python; geen pip of virtualenv nodig. Vereist GTK ≥ 4.12 en
 libadwaita ≥ 1.4. De broncode hoeft niet gecompileerd te worden.

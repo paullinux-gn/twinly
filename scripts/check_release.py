@@ -8,7 +8,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root))
-from application import APP_ID
+from application import APP_ID,STARTER_NOTE
 from model import from_html
 parser=argparse.ArgumentParser();parser.add_argument('--publication',action='store_true');args=parser.parse_args()
 errors=[]
@@ -35,12 +35,19 @@ try:
     if not (root/'data'/(APP_ID+'.svg')).is_file():errors.append('Missing application icon.')
 except (OSError,ET.ParseError) as exc:errors.append('Invalid AppStream metadata: '+str(exc));component=None
 try:
-    document,warnings=from_html((root/'data'/'getting-started.html').read_text(encoding='utf-8'))
+    document,warnings=from_html((root/'data'/STARTER_NOTE).read_text(encoding='utf-8'))
     if warnings:errors.extend(warnings)
-    if not document['images'] or not all(image['src'].startswith('data:image/') for image in document['images']):errors.append('Getting Started must include an embedded photo.')
+    if not document['images'] or not all(image['src'].startswith('data:image/') for image in document['images']):errors.append('The starter note must include embedded images.')
     for term in ('Ctrl+N','Ctrl+K','Ctrl+P','Ctrl+Q','F6','Ctrl+Shift+O','Blur','Save As','checkbox','PDF','pin','Trash'):
         if term.lower() not in document['text'].lower():errors.append('Guide coverage missing: '+term)
-    example,_=from_html((root/'data'/'link-example.html').read_text())
+    example,example_warnings=from_html((root/'data'/'link-example.html').read_text())
+    errors.extend(example_warnings)
+    from urllib.parse import unquote,urlsplit
+    for note in (document,example):
+        for span in note['spans']:
+            link=span['style'].get('link')
+            if link and link['kind']=='document' and unquote(urlsplit(link['href']).path) not in (STARTER_NOTE,'Link Example.html'):
+                errors.append('Bundled note has a non-portable or missing link target: '+link['href'])
 except (OSError,ValueError) as exc:errors.append('Invalid introduction: '+str(exc))
 if args.publication:
     if not (root/'packaging'/'publication.json').is_file():errors.append('Configure your public application identity first.')

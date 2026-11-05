@@ -234,7 +234,7 @@ class Native(unittest.TestCase):
         dialog.response('create');dialog.destroy();pump()
         item=self.w.workspace_store().find(self.w.sidebar.root)
         self.assertEqual('New writing',item['name'])
-        self.assertTrue((self.w.sidebar.root/'Getting Started.html').exists())
+        self.assertTrue((self.w.sidebar.root/'Start to note.html').exists())
         self.assertTrue(self.w.config.exists())
 
     def test_context_import_never_creates_missing_source(self):
@@ -2185,9 +2185,11 @@ class Native(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with patch.dict(os.environ,{'FLATPAK_ID':'io.github.twinly.Preview','XDG_CONFIG_HOME':directory+'/config','XDG_DATA_HOME':directory+'/data'}):
                 fresh=Editor(self.app)
-                self.assertEqual('Getting Started.html',fresh.initial_document.name)
+                self.assertEqual('Start to note.html',fresh.initial_document.name)
                 fresh.open_path(fresh.initial_document)
-                self.assertEqual(1,len(fresh.snapshot()['images']))
+                from application import DATA_DIR,STARTER_NOTE
+                source,_=from_html((DATA_DIR/STARTER_NOTE).read_text())
+                self.assertEqual(source['images'],fresh.snapshot()['images'])
                 self.assertIn('Getting Started with Twinly',fresh.snapshot()['text'])
                 self.assertTrue(str(fresh.config).startswith(directory+'/config'))
                 fresh.cleanup();fresh.destroy()

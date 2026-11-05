@@ -17,10 +17,10 @@ class ManagedWorkspaces(unittest.TestCase):
     def test_first_launch_has_one_standard_starter_and_complete_guide(self):
         with patch('application.locations',return_value=(self.config,self.home/'Documents')):
             root,first=default_root(self.config)
-            self.assertEqual(root/'Getting Started.html',first)
+            self.assertEqual(root/'Start to note.html',first)
             items=self.store.records();self.assertEqual(1,len(items))
             self.assertEqual(('Starter Workspace','standard'),(items[0]['name'],items[0]['kind']))
-            self.assertEqual((DATA_DIR/'getting-started.html').read_bytes(),first.read_bytes())
+            self.assertEqual((DATA_DIR/'Start to note.html').read_bytes(),first.read_bytes())
             first.write_text('Personal edits')
             self.assertEqual((root,None),default_root(self.config))
             self.assertEqual('Personal edits',first.read_text())
@@ -30,7 +30,7 @@ class ManagedWorkspaces(unittest.TestCase):
     def test_new_standard_gets_guide_and_rename_keeps_paths(self):
         item=self.store.create('My writing',DATA_DIR);path=self.store.path(item)
         self.assertTrue(path.is_relative_to(self.home/'Workspaces'))
-        self.assertEqual((DATA_DIR/'getting-started.html').read_bytes(),(path/'Getting Started.html').read_bytes())
+        self.assertEqual((DATA_DIR/'Start to note.html').read_bytes(),(path/'Start to note.html').read_bytes())
         self.store.rename(item,'Research')
         self.assertEqual(path,self.store.path(self.store.records()[0]))
         self.assertEqual('Research',self.store.records()[0]['name'])
@@ -112,7 +112,7 @@ class ManagedWorkspaces(unittest.TestCase):
             before={str(p.relative_to(source)):p.read_bytes() for p in source.rglob('*') if p.is_file()}
             item=self.store.import_folder(source,True);target=self.store.path(item)
             self.assertEqual(before,{str(p.relative_to(target)):p.read_bytes() for p in target.rglob('*') if p.is_file()})
-            self.assertEqual('encrypted',item['kind']);self.assertFalse((target/'Getting Started.html').exists())
+            self.assertEqual('encrypted',item['kind']);self.assertFalse((target/'Start to note.html').exists())
             with self.assertRaises(ValueError):vault.VaultStore(target).unlock('wrong password')
             opened=vault.VaultStore(target).unlock('a strong password')
             self.assertTrue(any(n['name']=='Secret document.html' for n in opened.catalog['nodes'].values()))

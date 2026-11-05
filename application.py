@@ -11,6 +11,7 @@ LICENSE_ID='GPL-3.0-or-later'
 WEBSITE='https://github.com/paullinux-gn/twinly'
 DESCRIPTION='A calm writing space for connected documents.'
 DATA_DIR=Path(__file__).resolve().parent/'data'
+STARTER_NOTE='Start to note.html'
 
 def locations():
     source=Path(__file__).resolve().parent
@@ -39,7 +40,7 @@ def default_root(config):
     current=next((i for i in records if str(store.path(i))==saved),records[0] if records else None)
     if current is None:return store.home/'.no-workspace',None
     root=store.path(current)
-    return root,(root/'Getting Started.html' if first and current.get('starter') else None)
+    return root,(root/STARTER_NOTE if first and current.get('starter') else None)
 
 
 _document_fonts_registered=False

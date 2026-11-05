@@ -23,11 +23,11 @@ class Packaging(unittest.TestCase):
                 selected,first=default_root(config)
                 self.assertTrue(selected.is_relative_to(root/'data/Workspaces'))
                 documents=selected
-                self.assertEqual(documents/'Getting Started.html',first)
+                self.assertEqual(documents/'Start to note.html',first)
                 doc,warnings=from_html(first.read_text())
                 self.assertFalse(warnings)
                 self.assertIn('Getting Started with Twinly',doc['text'])
-                self.assertEqual(1,len(doc['images']))
+                self.assertTrue(doc['images'])
                 self.assertTrue(doc['images'][0]['src'].startswith('data:image/png;base64,'))
                 self.assertTrue(any(span['style'].get('link',{}).get('href')=='Link%20Example.html' for span in doc['spans']))
                 first.write_text('<p>My edited guide</p>')
@@ -63,12 +63,12 @@ class Packaging(unittest.TestCase):
             app=stage/'app/share/twinly'
             self.assertTrue((stage/'app/bin/twinly').is_file())
             for name in module.MODULES:self.assertTrue((app/name).is_file(),name)
-            self.assertTrue((app/'data/getting-started.html.gz').is_file())
-            self.assertFalse((app/'data/getting-started.html').exists())
+            self.assertTrue((app/'data/Start to note.html.gz').is_file())
+            self.assertFalse((app/'data/Start to note.html').exists())
             from managed_workspaces import WorkspaceStore
             notes=stage/'notes';notes.mkdir()
             WorkspaceStore.install_guide(notes,app/'data')
-            self.assertEqual((ROOT/'data/getting-started.html').read_bytes(),(notes/'Getting Started.html').read_bytes())
+            self.assertEqual((ROOT/'data/Start to note.html').read_bytes(),(notes/'Start to note.html').read_bytes())
             self.assertEqual((ROOT/'data/link-example.html').read_bytes(),(notes/'Link Example.html').read_bytes())
             legal=stage/'app/share/licenses/twinly'
             for name in ('LICENSE','LICENSING.md'):

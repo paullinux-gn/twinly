@@ -2,7 +2,7 @@
 
 Prepared:
 
-- English Getting Started HTML covering every current feature and how to invoke it.
+- English Start to note HTML covering every current feature and how to invoke it.
 - The owner-approved embedded desk photo, a working companion document link and first-run opening.
 - Writable XDG data/configuration paths for installed and Flatpak builds; legacy portable settings preserved.
 - HTML file-opening support for desktop launchers.

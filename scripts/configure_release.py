@@ -41,7 +41,7 @@ screenshots=component.find('screenshots')
 if screenshots is None:screenshots=ET.SubElement(component,'screenshots')
 if not screenshots.findall('screenshot'):
     shot=ET.SubElement(screenshots,'screenshot',{'type':'default'})
-    ET.SubElement(shot,'caption').text='The calm writing workspace and English Getting Started guide'
+    ET.SubElement(shot,'caption').text='The calm writing workspace and English Start to note guide'
     ET.SubElement(shot,'image',{'type':'source','width':'1120','height':'820'}).text=repository.replace('https://github.com/','https://raw.githubusercontent.com/')+'/main/docs/screenshots/twinly.png'
 value('url',repository,type='homepage');value('url',repository+'/issues',type='bugtracker');value('url',repository,type='vcs-browser')
 developer=component.find('developer')

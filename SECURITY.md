@@ -160,7 +160,8 @@ that the source inventory did not change. Symlinks and special files are rejecte
 Original folders, including old root-local workspace trash, are retained. Plain
 recovery drafts are also copied into the managed folder. Encrypted storage is
 copied without decryption. Imported and newly created standard workspaces get
-Getting Started only when that filename is absent; existing guides are preserved.
+Start to note only when that filename is absent; existing guides, including older
+Getting Started notes, are preserved.
 
 A process/thread lock serializes workspace catalog changes. Catalog publication
 is atomic; failed catalog updates roll back Trash/restore moves. Workspace Trash

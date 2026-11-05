@@ -110,7 +110,8 @@ class WorkspaceStore:
 
     @staticmethod
     def install_guide(path,templates):
-        for template,filename in [('getting-started.html','Getting Started.html'),('link-example.html','Link Example.html')]:
+        from application import STARTER_NOTE
+        for template,filename in [(STARTER_NOTE,STARTER_NOTE),('link-example.html','Link Example.html')]:
             target=path/filename
             if target.exists():continue
             source=Path(templates)/template

@@ -38,7 +38,7 @@ development, and licensed under **[GPL-3.0-or-later](LICENSE)**.
 - **Make it yours.** Choose System, Light, Dark or Dark + Light, adjust document
   zoom, and enable background blur where your GTK/Wayland setup supports it.
 
-The interface and bundled **Getting Started** guide are in English. Documents
+The interface and bundled **Start to note** guide are in English. Documents
 use bundled **Noto Sans Regular** for Body (12 pt), and **Noto Sans Bold** for
 Title (28 pt) and Headings 1–3 (24, 20 and 17 pt). Italic, bold italic, underline
 and custom font choices are supported. Exported HTML references fonts rather
@@ -56,8 +56,8 @@ than embedding them for other applications.
    the same button again to close it. **Workspaces → More…** opens workspace
    management in that panel area; your document panes stay in place.
 
-First launch includes an unencrypted **Starter Workspace** with Getting Started
-and a working Link Example note. Every new standard workspace receives the guide;
+First launch includes an unencrypted **Starter Workspace** with **Start to note**
+and a working **Link Example** note. Every new standard workspace receives the guide;
 encrypted workspaces start empty. Existing notes and edited guide copies are
 never replaced by a template update.
 
@@ -222,9 +222,10 @@ python3 scripts/check_release.py
 xvfb-run -a /usr/bin/python3 -m unittest discover -s tests -v
 ```
 
-On a desktop, `xvfb-run -a` can be omitted. Rebuild the bundled introduction with
-`python3 scripts/build_getting_started.py`. Installation supports `--destdir`
-for staging without changing the live application.
+On a desktop, `xvfb-run -a` can be omitted. The starter note is maintained directly in `data/Start to note.html`: edit it
+in Twinly and export the HTML, keeping images embedded and bundled links relative.
+`check_release.py` validates it; there is no text generator to overwrite its
+formatting or screenshots. Installation supports `--destdir` for staging.
 
 Useful references:
 

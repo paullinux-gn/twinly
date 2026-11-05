@@ -191,7 +191,7 @@ class Security(unittest.TestCase):
             self.assertEqual(0o700,stat.S_IMODE(documents.stat().st_mode))
             self.assertEqual(0o700,stat.S_IMODE(config.parent.stat().st_mode))
             self.assertEqual(0o600,stat.S_IMODE(config.stat().st_mode))
-            self.assertEqual(0o600,stat.S_IMODE((documents/'Getting Started.html').stat().st_mode))
+            self.assertEqual(0o600,stat.S_IMODE((documents/'Start to note.html').stat().st_mode))
             config.chmod(0o644);write_settings(config,blur=True)
             self.assertEqual(0o600,stat.S_IMODE(config.stat().st_mode))
 

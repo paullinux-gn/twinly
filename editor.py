@@ -30,7 +30,7 @@ from preferences import PreferencesMixin
 from editor_view import DocumentView,FontButton
 from actions import ActionsMixin
 from lifecycle import CallbackOwner
-from application import APP_ID,VERSION,DEVELOPER_NAME,COPYRIGHT,LICENSE_ID,WEBSITE,DESCRIPTION,DATA_DIR,locations,default_root
+from application import APP_ID,VERSION,DEVELOPER_NAME,COPYRIGHT,LICENSE_ID,WEBSITE,DESCRIPTION,DATA_DIR,STARTER_NOTE,locations,default_root
 from filesystem import atomic_export,read_text,read_bytes,read_import_bytes,move_path,create_directory,private_directory,vault_container
 import private_trash
 import logging
@@ -2545,7 +2545,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 try:
                     item=self.workspace_store().create(entry.get_text(),DATA_DIR)
                     self.apply_root(self.workspace_store().path(item))
-                    self.open_path(self.sidebar.root/'Getting Started.html')
+                    self.open_path(self.sidebar.root/STARTER_NOTE)
                 except (OSError,ValueError) as exc:self.error(str(exc))
             self.guard(create_standard)
         dialog.connect('response',respond);dialog.present();entry.grab_focus();return dialog

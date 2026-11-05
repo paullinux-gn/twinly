@@ -159,7 +159,7 @@ class Libraries(unittest.TestCase):
             recovery.response('cancel');settle()
             manager=self.w.workspace_store();item=next(i for i in manager.records() if i['kind']=='encrypted')
             path=manager.path(item)
-            self.assertFalse((path/'Getting Started.html').exists())
+            self.assertFalse((path/'Start to note.html').exists())
             self.assertEqual(('Encrypted — Locked',False),self.w.workspace_status(item))
             launcher.unlock_path(path)
             password.call_args.args[2]('a strong password',False);settle()
