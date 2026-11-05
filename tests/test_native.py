@@ -2296,6 +2296,25 @@ class Native(unittest.TestCase):
         self.assertGreater(preview.pages.width,preview.pages.height)
         preview.destroy()
 
+    def test_html_export_through_portal_parent_keeps_active_document(self):
+        from unittest.mock import patch
+        source=self.root/'Original.html';source.write_text('<p>Original text</p>')
+        self.w.open_path(source);self.w.set_editing(True)
+        self.w.buffer.insert_at_cursor('Unsaved text ')
+        before=self.w.snapshot();observed=self.w.saved_stamp
+        grant=self.root/'export-folder';grant.mkdir()
+        portal=self.root/'doc';portal.symlink_to(grant,target_is_directory=True)
+        with patch.object(self.w,'file_chooser') as chooser,patch.object(self.w,'error') as error:
+            self.w.export_html();chooser.call_args.args[2](portal/'Copy.html')
+            error.assert_not_called()
+        exported,_=from_html((grant/'Copy.html').read_text())
+        self.assertEqual(before['text'],exported['text'])
+        Pages(before).pdf(portal/'Copy.pdf')
+        self.assertTrue((grant/'Copy.pdf').read_bytes().startswith(b'%PDF'))
+        self.assertEqual(source,self.w.path);self.assertEqual(observed,self.w.saved_stamp)
+        self.assertEqual(before,self.w.snapshot());self.assertTrue(self.w.dirty())
+        self.assertEqual('<p>Original text</p>',source.read_text())
+
     def test_large_workspace_search_virtualizes_rows_and_filters_all_results(self):
         import time
         from sidebar import DocumentResults

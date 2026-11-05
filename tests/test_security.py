@@ -21,6 +21,38 @@ from application import default_root
 PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII='
 
 class Security(unittest.TestCase):
+    def test_external_export_allows_portal_parent_but_not_final_symlinks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);grant=root/'grant';grant.mkdir()
+            portal=root/'doc';portal.symlink_to(grant,target_is_directory=True)
+            selected=portal/'export.html'
+            filesystem.atomic_export(selected,'first',expected=None)
+            self.assertEqual('first',(grant/'export.html').read_text())
+            observed=filesystem.signature((grant/'export.html').stat())
+            filesystem.atomic_export(selected,'second',expected=observed)
+            self.assertEqual('second',(grant/'export.html').read_text())
+            with self.assertRaises(ValueError):filesystem.atomic_export(selected,'stale',expected=observed)
+            with self.assertRaises(FileExistsError):filesystem.atomic_export(selected,'duplicate',overwrite=False)
+            target=root/'target';target.write_text('Keep me')
+            (grant/'link.html').symlink_to(target)
+            with self.assertRaises(ValueError):filesystem.atomic_export(portal/'link.html','Do not write')
+            self.assertEqual('Keep me',target.read_text())
+            with self.assertRaises(OSError):filesystem.atomic_write(selected,'Do not relax workspace writes')
+
+    def test_export_rejects_retargeted_portal_parent_and_cleans_temporary_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);grant=root/'grant';outside=root/'outside'
+            grant.mkdir();outside.mkdir()
+            (grant/'file.html').write_text('original');(outside/'file.html').write_text('outside')
+            portal=root/'doc';portal.symlink_to(grant,target_is_directory=True)
+            def retarget(fd):
+                portal.unlink();portal.symlink_to(outside,target_is_directory=True)
+            with patch('filesystem.os.fsync',side_effect=retarget),self.assertRaisesRegex(ValueError,'folder changed'):
+                filesystem.atomic_export(portal/'file.html','replacement')
+            self.assertEqual('original',(grant/'file.html').read_text())
+            self.assertEqual('outside',(outside/'file.html').read_text())
+            self.assertEqual(['file.html'],[p.name for p in grant.iterdir()])
+
     def test_legacy_trash_remains_accessible_after_rename(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);doc=root/'note.html';doc.write_text('original')

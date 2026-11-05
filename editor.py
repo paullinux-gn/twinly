@@ -31,7 +31,7 @@ from editor_view import DocumentView,FontButton
 from actions import ActionsMixin
 from lifecycle import CallbackOwner
 from application import APP_ID,VERSION,DEVELOPER_NAME,COPYRIGHT,LICENSE_ID,WEBSITE,DESCRIPTION,DATA_DIR,locations,default_root
-from filesystem import read_text,read_bytes,read_import_bytes,move_path,create_directory,private_directory,vault_container
+from filesystem import atomic_export,read_text,read_bytes,read_import_bytes,move_path,create_directory,private_directory,vault_container
 import private_trash
 import logging
 
@@ -2573,7 +2573,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                         for span in exported['spans']:
                             link=span['style'].get('link')
                             if link:span['style']['link']={**link,'href':relocated_href(link['href'],source,path,source,source)}
-                    atomic_write(path,to_html(exported,path.stem),expected=expected)
+                    atomic_export(path,to_html(exported,path.stem),expected=expected)
                     self.message('HTML copy exported · '+path.name)
                 except (OSError,ValueError) as exc:self.error(str(exc))
             if path.exists():self.ask('Replace export file?',str(path),[('cancel','Cancel'),('replace','Replace')],lambda choice:commit() if choice=='replace' else None)

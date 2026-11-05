@@ -88,9 +88,31 @@ def _rename_noreplace(src_fd,source,dst_fd,destination):
     if function(src_fd,os.fsencode(source),dst_fd,os.fsencode(destination),1):
         code=ctypes.get_errno();raise OSError(code,os.strerror(code),str(destination))
 
+@contextmanager
+def _export_directory_fd(path):
+    """Pin a user-selected export folder, allowing file-portal parent aliases."""
+    fd=os.open(_absolute(path),os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+    try:yield fd
+    finally:os.close(fd)
+
+
 def atomic_write(path,content,*,overwrite=True,private=False,expected=_UNSET):
+    return _atomic_write(path,content,directory_fd,overwrite=overwrite,private=private,expected=expected)
+
+
+def atomic_export(path,content,*,overwrite=True,private=False,expected=_UNSET):
+    """Write an explicit external export with file and folder identity checks.
+
+    Workspace documents, preferences and encrypted objects must use atomic_write.
+    Only the selected folder may contain aliases; all file operations remain
+    anchored to its descriptor and the visible folder is rechecked at commit.
+    """
+    return _atomic_write(path,content,_export_directory_fd,overwrite=overwrite,private=private,expected=expected)
+
+
+def _atomic_write(path,content,open_directory,*,overwrite,private,expected):
     path=_absolute(path);raw=content.encode('utf-8') if isinstance(content,str) else content
-    with directory_fd(path.parent) as parent:
+    with open_directory(path.parent) as parent:
         before=_entry(parent,path.name)
         if before and not stat.S_ISREG(before.st_mode):raise ValueError('Saving through a symbolic link or special file is not allowed.')
         observed=signature(before) if before else None
@@ -105,7 +127,7 @@ def atomic_write(path,content,*,overwrite=True,private=False,expected=_UNSET):
             current=_entry(parent,path.name)
             if (signature(current) if current else None)!=observed:raise ValueError('The destination file changed while saving.')
             # Check that the visible directory still names our pinned directory.
-            with directory_fd(path.parent) as visible:
+            with open_directory(path.parent) as visible:
                 if (os.fstat(visible).st_dev,os.fstat(visible).st_ino)!=(os.fstat(parent).st_dev,os.fstat(parent).st_ino):
                     raise ValueError('The destination folder changed while saving.')
             if not before:_rename_noreplace(parent,temporary,parent,path.name)

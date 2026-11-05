@@ -111,3 +111,11 @@ class Exporting(unittest.TestCase):
             link=root/'export.odt';link.symlink_to(target)
             with self.assertRaises((OSError,ValueError)):export_document(blank(),link,'odt')
             self.assertEqual('keep',target.read_text())
+
+    def test_office_exports_through_portal_parent_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);grant=root/'grant';grant.mkdir()
+            portal=root/'doc';portal.symlink_to(grant,target_is_directory=True)
+            for kind in ('odt','docx'):
+                export_document(sample(),portal/('Copy.'+kind),kind)
+                with ZipFile(grant/('Copy.'+kind)) as package:self.assertIsNone(package.testzip())

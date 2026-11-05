@@ -5,7 +5,7 @@ from pathlib import Path
 from zipfile import ZipFile,ZIP_DEFLATED,ZIP_STORED
 import xml.etree.ElementTree as ET
 from model import validate_document,decode_image,resolved_style
-from filesystem import atomic_write
+from filesystem import atomic_export
 
 NS={
  'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
@@ -197,4 +197,4 @@ def odt_bytes(doc):
 
 def export_document(doc,path,format):
     if format not in ('odt','docx'):raise ValueError('Unknown export format.')
-    atomic_write(Path(path),odt_bytes(doc) if format=='odt' else docx_bytes(doc))
+    atomic_export(Path(path),odt_bytes(doc) if format=='odt' else docx_bytes(doc))

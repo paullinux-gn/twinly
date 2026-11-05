@@ -9,7 +9,7 @@ from gi.repository import Gtk,Adw,Gio,GLib,Gdk,GObject
 from editor import Editor,EditorPane,EmbeddedEditor
 from sidebar import Sidebar,Node,DocumentResults
 from model import blank,from_html,to_html,MAX_DOCUMENT,safe_name
-from filesystem import read_import_bytes,atomic_write
+from filesystem import read_import_bytes,atomic_export
 from printing import pixbuf_for,clear_image_cache
 from vault import VaultStore,VaultError,identifier,crypto,pack,unpack
 
@@ -512,7 +512,7 @@ class VaultEditing:
     def export_html(self,*_):
         def run():
             snapshot=self.snapshot()
-            self.file_chooser('Export unencrypted HTML copy',Gtk.FileChooserAction.SAVE,lambda path:atomic_write(path,to_html(snapshot,self.path.stem if self.path else 'Document')),name=(self.path.stem if self.path else 'Document')+'.html')
+            self.file_chooser('Export unencrypted HTML copy',Gtk.FileChooserAction.SAVE,lambda path:atomic_export(path,to_html(snapshot,self.path.stem if self.path else 'Document')),name=(self.path.stem if self.path else 'Document')+'.html')
         self.disclosure(run)
     def close_requested(self,*_):
         if getattr(self,'closing_ready',False):return False

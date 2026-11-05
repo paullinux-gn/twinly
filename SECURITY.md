@@ -59,6 +59,12 @@ Some unusual filesystems may reject safe move operations rather than permit an
 unsafe fallback. Directory fsync is best-effort where the filesystem does not
 support it; file data fsync is still required.
 
+Explicit external exports use a separate writer that permits file-chooser portal
+aliases in the selected folder path. It pins that directory, rejects final-file
+symlinks and special files, and rechecks the visible folder and destination file
+before committing. Managed document saves, preferences and encrypted storage keep
+the strict non-symlink directory traversal; they do not use the export writer.
+
 ## Privacy
 
 New app-owned directories use mode 0700. New documents and preference files use

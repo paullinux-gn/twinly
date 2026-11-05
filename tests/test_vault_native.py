@@ -96,6 +96,22 @@ class VaultNative(unittest.TestCase):
         self.assertTrue(self.w.closed);self.assertFalse(self.w.get_visible())
         self.assertIsNone(self.store.key)
 
+    def test_html_export_uses_portal_destination_outside_encrypted_workspace(self):
+        from model import from_html
+        self.w.new();identity=self.w.path.identity
+        self.w.buffer.insert_at_cursor('Private text for an explicit export')
+        before=self.w.snapshot();saved=self.store.load(identity)
+        grant=self.root/'export-folder';grant.mkdir()
+        portal=self.root/'doc';portal.symlink_to(grant,target_is_directory=True)
+        with patch.object(self.w,'disclosure',side_effect=lambda run:run()),patch.object(self.w,'file_chooser') as chooser,patch.object(self.w,'error') as error:
+            self.w.export_html();chooser.call_args.args[2](portal/'Copy.html')
+            error.assert_not_called()
+        exported,_=from_html((grant/'Copy.html').read_text())
+        self.assertEqual(before['text'],exported['text'])
+        self.assertEqual(before,self.w.snapshot());self.assertEqual(saved,self.store.load(identity))
+        self.assertTrue(self.w.dirty())
+        self.assertFalse((self.store.path/'Copy.html').exists())
+
     def test_pencil_reads_and_saves_encrypted_documents(self):
         self.w.new();pump();path=self.w.path
         self.assertTrue(self.w.editing)
