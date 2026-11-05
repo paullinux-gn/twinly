@@ -47,7 +47,6 @@ class ActionsMixin:
             'recover':(self.show_recovery,[]),
             'create-style':(self.create_custom_style_dialog,[]),
             'manage-styles':(self.manage_custom_styles,[]),
-            'focus-mode':(self.toggle_focus,['F9']),
             'find-next':(lambda *_:self.step_search(1),['<Primary>g']),
             'find-previous':(lambda *_:self.step_search(-1),['<Primary><Shift>g']),
             'back':(lambda *_:self.navigate(-1),['<Alt>Left']),
@@ -106,8 +105,7 @@ class ActionsMixin:
             if active.editing:active.activate_custom_style(action,param)
         custom.connect('activate',apply_custom);self.add_action(custom)
         for name,(callback,keys) in bindings.items():
-            action=(Gio.SimpleAction.new_stateful(name,None,GLib.Variant.new_boolean(False))
-                    if name=='focus-mode' else Gio.SimpleAction.new(name,None))
+            action=Gio.SimpleAction.new(name,None)
             def dispatch(action,param,callback=callback,name=name):
                 embedded=getattr(self,'embedded_workspace',None)
                 if embedded and not embedded.closed:

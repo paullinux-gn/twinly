@@ -1,4 +1,4 @@
-"""Shared floating formatting toolbar and window-wide focus mode."""
+"""Shared floating formatting toolbar."""
 from gi.repository import Gtk,GLib
 import math
 from settings import read_settings
@@ -22,8 +22,8 @@ class FocusMixin:
     def search_controls_open(self):
         return any(p.search_bar.get_search_mode() for p in (self,self.peer) if p)
 
-    def setup_focus_mode(self):
-        self.focus_mode=False;self.focus_toolbar_visible=False
+    def setup_floating_toolbar(self):
+        self.focus_toolbar_visible=False
         self.focus_hide_timer=0;self.focus_pointer_top=False;self.focus_overlay_slot=None
         self.toolbar_always_visible=read_settings(self.config).get('toolbar_always_visible',True) is True
         self.toolbar_pin_button.set_active(self.toolbar_always_visible)
@@ -65,7 +65,6 @@ class FocusMixin:
     def refresh_focus_layout(self):
         owner=self.workspace_owner or self
         if owner is not self:return owner.refresh_focus_layout()
-        enabled=getattr(self,'focus_mode',False)
         if self.search_controls_open() or not self.active_editor.editing:
             self.cancel_focus_hide();self.focus_toolbar_visible=False;self.focus_pointer_top=False
         elif self.toolbar_always_visible:self.focus_toolbar_visible=True
@@ -100,8 +99,6 @@ class FocusMixin:
                     item=item.get_next_sibling()
                 row+=max(0,count-1)*pane.format_controls.get_column_spacing()
                 pane.toolbar.set_size_request(row+pane.right_controls.measure(Gtk.Orientation.HORIZONTAL,-1)[1]+pane.toolbar.get_spacing(),-1)
-                action=pane.lookup_action('focus-mode')
-                if action:action.set_state(GLib.Variant.new_boolean(enabled))
         if self.focus_revealer:
             header_height=max(self.document_header.get_height(),self.document_header.measure(Gtk.Orientation.VERTICAL,-1)[1])
             found,header_bounds=self.document_header.compute_bounds(self.workspace_overlay)
@@ -132,23 +129,6 @@ class FocusMixin:
                     if not hasattr(pane,'document_top_margin'):pane.document_top_margin=pane.view.get_top_margin()
                     # Keep controls clear of the scrollable document content.
                     pane.view.set_top_margin(pane.document_top_margin+round(inset))
-
-    def toggle_focus(self,*_):
-        owner=self.workspace_owner or self
-        if owner is not self:return owner.toggle_focus()
-        self.cancel_focus_hide()
-        self.focus_mode=not self.focus_mode;self.focus_pointer_top=False
-        self.focus_toolbar_visible=False
-        if self.focus_mode:
-            self.focus_sidebar_was_visible=self.split.get_show_sidebar()
-            self.split.set_show_sidebar(False);self.sidebar_toggle.set_sensitive(False)
-            self.workspace_overlay.add_css_class('focus-mode')
-        else:
-            self.workspace_overlay.remove_css_class('focus-mode')
-            self.sidebar_toggle.set_sensitive(True)
-            self.split.set_show_sidebar(self.focus_sidebar_was_visible)
-        self.refresh_focus_layout()
-        self.active_editor.view.grab_focus()
 
     def focus_motion(self,controller,x,y):
         if self.closed:return

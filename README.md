@@ -164,17 +164,13 @@ PDF stays untouched. The bundled BSD-3-Clause pypdf library runs in a separate
 Python process with CPU, wall-time, output and memory limits; there are no new
 packages to install and conversion works offline, including in Flatpak.
 
-### Floating toolbar and focus mode
+### Floating toolbar
 
 The formatting toolbar is always a compact, centered floating pill over the
 writing area, shown by hovering near its top and hidden after leaving the
 controls. It sits below the shared headerbar and uses the blur settings when
 supported. Appearance is instant, without animation. The minimum content width
 keeps the toolbar on one row. Menus and font dialogs remain usable.
-
-Use document menu → **Focus mode** or **F9** to hide
-the sidebar. Leaving focus mode restores the previous sidebar visibility; the
-floating toolbar behaves the same in both modes and across both document panes.
 
 ### Dark interface with a light document
 
@@ -183,7 +179,7 @@ Its dark circle contains a small white rounded document. The sidebar, floating
 toolbar and menus use the dark theme; the shared document headerbar stays light,
 and both writing panes stay white with
 dark text and a dark caret. Selection retains the accent colour. The choice is
-saved and works with focus mode and blur; documents and exports are unchanged.
+saved and works with blur; documents and exports are unchanged.
 
 ### Workspaces
 

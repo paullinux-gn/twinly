@@ -208,7 +208,7 @@ class PreferencesMixin:
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=18,margin_top=18,margin_bottom=24,margin_start=24,margin_end=24)
         groups=[('Documents and navigation',{'new':'New document','open':'Open','save':'Save','save-as':'Save as','duplicate':'Make a copy','new-folder':'New folder','rename':'Rename in sidebar','search-documents':'Search documents','back':'Back','forward':'Forward','print':'Print preview','print-direct':'Print','close':'Close active pane','quit':'Quit app','switch-pane':'Switch pane'}),
                 ('Text and formatting',{'list-bullet':'Bullets','list-number':'Numbered list','list-check':'Checklist','undo':'Undo','redo':'Redo','bold':'Bold','italic':'Italic','underline':'Underline','strike':'Strikethrough','clear':'Clear formatting','link':'Insert/edit link','left':'Align left','center':'Center','right':'Align right','justify':'Justify','palette':'Highlight palette'}),
-                ('Search and appearance',{'focus-mode':'Focus mode','find':'Find','replace':'Find and replace','outline':'Document outline','find-next':'Next result','find-previous':'Previous result','zoom-in':'Zoom in','zoom-out':'Zoom out','zoom-reset':'Zoom 100%','shortcuts':'Keyboard shortcuts'})]
+                ('Search and appearance',{'find':'Find','replace':'Find and replace','outline':'Document outline','find-next':'Next result','find-previous':'Previous result','zoom-in':'Zoom in','zoom-out':'Zoom out','zoom-reset':'Zoom 100%','shortcuts':'Keyboard shortcuts'})]
         for title,items in groups:
             box.append(Gtk.Label(label=title,xalign=0,css_classes=['heading']))
             for action,label in items.items():

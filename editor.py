@@ -114,23 +114,25 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.toolbar_pin_button.update_property([Gtk.AccessibleProperty.LABEL],['Always show toolbar'])
         header.pack_end(self.toolbar_pin_button)
         document_menu=Gio.Menu()
+        exports=Gio.Menu()
+        for label,action in [('HTML copy…','export-html'),('PDF…','export-pdf'),('OpenDocument (.odt)…','export-odt'),('Word (.docx)…','export-docx')]:
+            exports.append(label,'win.'+action)
         for items in [
             [('New document','new'),('Open…','open'),('Import…','import-office')],
             [('Save','save'),('Save as…','save-as'),('Make a copy','duplicate')],
             [('Find…','find'),('Insert link…','link'),('Insert photo…','photo')],
             [('Print preview…','print'),('Print…','print-direct')],
-            [('Focus mode','focus-mode')],
             [('Open beside current document…','open-beside'),('Swap panes','swap-panes'),('Pin as reference','pin-pane'),('Close pane','close')],
         ]:
             section=Gio.Menu()
-            for label,action in items:section.append(label,'win.'+action)
+            for label,action in items:
+                section.append(label,'win.'+action)
+                if action=='save-as':section.append_submenu('Export as…',exports)
             document_menu.append_section(None,section)
-        exports=Gio.Menu()
-        for label,action in [('HTML copy…','export-html'),('PDF…','export-pdf'),('OpenDocument (.odt)…','export-odt'),('Word (.docx)…','export-docx')]:
-            exports.append(label,'win.'+action)
-        document_menu.append_submenu('Export as…',exports)
-        document_menu.append('Document outline · Ctrl+Shift+L','win.outline')
-        document_menu.append('Find and replace · Ctrl+H','win.replace')
+        tools=Gio.Menu()
+        tools.append('Document outline · Ctrl+Shift+L','win.outline')
+        tools.append('Find and replace · Ctrl+H','win.replace')
+        document_menu.append_section(None,tools)
         self.document_menu_button=Gtk.MenuButton(menu_model=document_menu,tooltip_text='Document menu')
         self.document_menu_button.set_child(Gtk.Image.new_from_icon_name('open-menu-symbolic'))
         header.pack_end(self.document_menu_button)
@@ -436,7 +438,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.document_header.add_controller(hover)
             self.update_header_title()
             self.setup_workspace_selector()
-            self.setup_focus_mode()
+            self.setup_floating_toolbar()
             self.toolbar_pin_button.connect('toggled',self.toolbar_visibility_toggled)
         self.set_editing(True)
         self.font_button.connect('notify::font-desc',lambda *_:

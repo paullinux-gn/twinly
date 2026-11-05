@@ -652,39 +652,27 @@ class Native(unittest.TestCase):
             self.assertIn('no selectable text',error.call_args.args[0]);chooser.assert_not_called()
         self.assertEqual(before,self.w.snapshot())
 
-    def test_focus_mode_hides_sidebar_and_toolbar_then_restores(self):
-        self.w.toolbar_pin_button.set_active(False);pump()
-        self.w.split.set_show_sidebar(True)
-        before=self.w.snapshot()
-        self.w.lookup_action('focus-mode').activate(None);pump()
-        self.assertTrue(self.w.sidebar_toggle.get_visible())
-        self.assertFalse(hasattr(self.w,'focus_button'))
-        self.assertTrue(self.w.focus_mode)
-        self.assertFalse(self.w.split.get_show_sidebar());self.assertFalse(self.w.focus_revealer.get_reveal_child())
-        self.assertIs(self.w.toolbar.get_parent(),self.w.focus_revealer)
-        self.assertFalse(self.w.focus_revealer.get_can_target())
-        self.assertEqual(0,self.w.focus_revealer.get_transition_duration())
-        self.assertTrue(self.w.lookup_action('focus-mode').get_state().get_boolean())
-        self.w.focus_motion(None,self.w.get_width()-50,0);pump()
-        self.assertTrue(self.w.focus_revealer.get_reveal_child())
-        self.assertTrue(self.w.toolbar.get_visible())
-        self.w.focus_motion(None,self.w.get_width()-50,500);self.w.cancel_focus_hide();self.w.view.grab_focus()
-        self.w.hide_focus_toolbar()
-        self.assertFalse(self.w.focus_revealer.get_reveal_child())
-        self.w.lookup_action('focus-mode').activate(None);pump()
-        self.assertFalse(self.w.lookup_action('focus-mode').get_state().get_boolean())
-        self.assertTrue(self.w.split.get_show_sidebar());self.assertTrue(self.w.toolbar.get_visible())
-        self.assertIs(self.w.toolbar.get_parent(),self.w.focus_revealer)
-        self.assertEqual(before,self.w.snapshot())
-        self.w.split.set_show_sidebar(False);self.w.toggle_focus();self.w.toggle_focus()
-        self.assertFalse(self.w.split.get_show_sidebar())
+    def test_document_menu_groups_exports_and_removes_focus_mode(self):
+        self.assertIsNone(self.w.lookup_action('focus-mode'))
+        self.assertEqual([],self.app.get_accels_for_action('win.focus-mode'))
+        menu=self.w.document_menu_button.get_menu_model()
+        sections=[menu.get_item_link(i,'section') for i in range(menu.get_n_items())]
+        self.assertTrue(all(sections))
+        def labels(section):
+            return [section.get_item_attribute_value(i,'label',None).get_string()
+                    for i in range(section.get_n_items())]
+        self.assertEqual(['Save','Save as…','Export as…','Make a copy'],labels(sections[1]))
+        self.assertIsNotNone(sections[1].get_item_link(2,'submenu'))
+        self.assertEqual('Close pane',labels(sections[-2])[-1])
+        self.assertTrue(labels(sections[-1])[0].startswith('Document outline'))
+        self.assertNotIn('Focus mode',[label for section in sections for label in labels(section)])
 
-    def test_focus_mode_survives_dual_pane_switch_and_close(self):
+    def test_floating_toolbar_survives_dual_pane_switch_and_close(self):
         self.w.toolbar_pin_button.set_active(False);pump()
         target=self.root/'Other.html';target.write_text('<p>Other</p>')
-        self.w.toggle_focus();self.w.open_beside(target);pump()
+        self.w.open_beside(target);pump()
         peer=self.w.peer
-        self.assertIsNotNone(peer);self.assertTrue(self.w.focus_mode)
+        self.assertIsNotNone(peer)
         self.assertFalse(self.w.focus_revealer.get_reveal_child())
         peer.edit_button.emit('clicked')
         self.assertIs(self.w.shared_toolbar.get_parent(),self.w.focus_revealer)
@@ -693,16 +681,16 @@ class Native(unittest.TestCase):
         self.assertTrue(peer.toolbar.get_visible())
         self.w.activate_pane(self.w);pump();self.assertTrue(self.w.toolbar.get_visible())
         self.w.finish_close_pane(peer);pump()
-        self.assertIsNone(self.w.peer);self.assertTrue(self.w.focus_mode)
+        self.assertIsNone(self.w.peer)
         self.assertIs(self.w.toolbar.get_parent(),self.w.focus_revealer)
-        self.w.toggle_focus();pump()
+        self.w.refresh_focus_layout();pump()
         self.assertTrue(self.w.toolbar.get_visible())
         self.assertIs(self.w.toolbar.get_parent(),self.w.focus_revealer)
 
-    def test_focus_mode_minimum_width_keeps_pill_on_one_row(self):
+    def test_floating_toolbar_minimum_width_keeps_pill_on_one_row(self):
         from gi.repository import Pango
         original=self.w.get_size_request()[0]
-        self.w.toggle_focus();pump()
+        self.w.refresh_focus_layout();pump()
         flow=self.w.format_controls
         count=0;child=flow.get_first_child()
         while child:count+=1;child=child.get_next_sibling()
@@ -711,14 +699,14 @@ class Native(unittest.TestCase):
         self.assertGreaterEqual(self.w.workspace_overlay.get_size_request()[0],minimum)
         self.w.font_button.set_font_desc(Pango.FontDescription('A Very Long Font Family Name 24'));pump()
         self.assertGreaterEqual(self.w.workspace_overlay.get_size_request()[0],self.w.toolbar.measure(Gtk.Orientation.HORIZONTAL,-1)[1]+34)
-        self.w.toggle_focus();pump()
+        self.w.refresh_focus_layout();pump()
         self.assertGreaterEqual(self.w.get_size_request()[0],original)
         self.assertEqual(count,flow.get_min_children_per_line())
 
-    def test_focus_mode_timer_is_cancelled_and_dialog_keeps_controls(self):
+    def test_floating_toolbar_timer_is_cancelled_and_dialog_keeps_controls(self):
         self.w.toolbar_pin_button.set_active(False);pump()
         from gi.repository import Gio
-        self.w.toggle_focus();self.w.focus_motion(None,self.w.get_width()-50,0)
+        self.w.focus_motion(None,self.w.get_width()-50,0)
         self.w.file_dialogs=[Gio.Cancellable()]
         self.w.focus_pointer_top=False
         self.assertTrue(self.w.hide_focus_toolbar())
@@ -726,11 +714,10 @@ class Native(unittest.TestCase):
         self.w.file_dialogs=[];self.w.view.grab_focus()
         self.w.focus_motion(None,self.w.get_width()-50,500)
         self.assertTrue(self.w.focus_hide_timer)
-        self.w.toggle_focus();self.assertEqual(0,self.w.focus_hide_timer)
+        self.w.cancel_focus_hide();self.assertEqual(0,self.w.focus_hide_timer)
 
     def test_normal_mode_uses_floating_toolbar_without_hiding_sidebar(self):
         self.w.toolbar_pin_button.set_active(False);pump()
-        self.assertFalse(self.w.focus_mode)
         self.assertTrue(self.w.split.get_show_sidebar())
         self.assertIs(self.w.toolbar.get_parent(),self.w.focus_revealer)
         self.assertFalse(self.w.focus_revealer.get_reveal_child())
@@ -862,7 +849,7 @@ class Native(unittest.TestCase):
         self.w.activate_pane(self.w)
         self.w.focus_motion(None,self.w.get_width()-50,0)
         self.assertFalse(self.w.focus_revealer.get_reveal_child())
-        self.w.toggle_focus()
+        self.w.refresh_focus_layout()
         self.assertFalse(self.w.focus_revealer.get_reveal_child())
 
     def test_shared_toolbar_keeps_width_and_icon_spacing_with_same_font(self):
@@ -913,7 +900,7 @@ class Native(unittest.TestCase):
         self.assertEqual(0,self.w.workspace_layout.get_margin_top())
         self.w.search_bar.set_search_mode(False);pump()
         self.assertTrue(self.w.focus_revealer.get_reveal_child())
-        self.w.toggle_focus();self.assertTrue(self.w.focus_revealer.get_reveal_child())
+        self.w.refresh_focus_layout();self.assertTrue(self.w.focus_revealer.get_reveal_child())
         self.w.toolbar_pin_button.set_active(False);pump()
         self.assertFalse(self.w.focus_revealer.get_reveal_child())
         self.assertEqual(0,self.w.workspace_layout.get_margin_top())
