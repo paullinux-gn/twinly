@@ -2281,7 +2281,9 @@ class Native(unittest.TestCase):
     def test_shared_print_pipeline(self):
         doc=blank();doc['text']='Arcering en café\n'+('Een lange alinea om pagina’s te testen. '*15+'\n')*30
         doc['spans']=[{'start':0,'end':8,'style':{'weight':True,'size':20,'background':'#fff099'}}]
-        pages=Pages(doc)
+        # Preview uses the editor's font metrics. Compare the same configuration;
+        # standalone Pages defaults to fractional metrics even on older GTK.
+        pages=Pages(doc,text_context=self.w.view.get_pango_context())
         self.assertGreater(len(pages.pages),1)
         pdf=self.root/'test.pdf';pages.pdf(pdf)
         self.assertTrue(pdf.read_bytes().startswith(b'%PDF'))
