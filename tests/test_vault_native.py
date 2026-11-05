@@ -91,6 +91,11 @@ class VaultNative(unittest.TestCase):
         self.assertFalse(window.get_visible())
         self.assertTrue(window.closed)
 
+    def test_window_close_once_locks_standalone_encrypted_editor(self):
+        self.w.close();pump()
+        self.assertTrue(self.w.closed);self.assertFalse(self.w.get_visible())
+        self.assertIsNone(self.store.key)
+
     def test_pencil_reads_and_saves_encrypted_documents(self):
         self.w.new();pump();path=self.w.path
         self.assertTrue(self.w.editing)

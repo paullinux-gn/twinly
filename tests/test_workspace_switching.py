@@ -45,6 +45,26 @@ class WorkspaceSwitching(unittest.TestCase):
     def document(self,name,text='Text'):
         path=self.w.sidebar.root/name;doc=blank();doc['text']=text;path.write_text(to_html(doc,name));return path
 
+    def test_window_close_finishes_after_one_request(self):
+        self.w.close();settle()
+        self.assertFalse(self.w.get_visible());self.assertTrue(self.w.closed)
+
+    def test_window_close_locks_encrypted_workspace_and_exits(self):
+        item,store=self.encrypted();self.w.vault_launcher().present(store);settle()
+        page=self.w.embedded_workspace
+        self.w.close();settle()
+        self.assertTrue(page.closed);self.assertIsNone(store.key)
+        self.assertFalse(self.w.get_visible());self.assertTrue(self.w.closed)
+
+    def test_window_close_cancel_keeps_unsaved_document(self):
+        self.w.buffer.insert_at_cursor('Unsaved text')
+        with patch.object(self.w,'ask') as ask:
+            self.w.close();settle()
+            self.assertEqual('Save changes?',ask.call_args.args[0])
+            ask.call_args.args[3]('cancel');settle()
+        self.assertTrue(self.w.get_visible());self.assertFalse(self.w.closed)
+        self.assertIn('Unsaved text',self.w.snapshot()['text'])
+
     def test_sidebar_dropdown_and_standard_workspace_sessions(self):
         self.assertIs(self.w.sidebar.libraries_button,self.w.workspace_selector)
         self.assertFalse(self.w.workspace_selector.is_ancestor(self.w.document_header))

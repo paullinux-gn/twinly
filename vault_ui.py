@@ -516,7 +516,7 @@ class VaultEditing:
         self.disclosure(run)
     def close_requested(self,*_):
         if getattr(self,'closing_ready',False):return False
-        (self.workspace_owner or self).lock_vault();return True
+        self.defer((self.workspace_owner or self).lock_vault);return True
 
 class VaultPane(VaultEditing,EditorPane):
     def __init__(self,app,store,config,owner):

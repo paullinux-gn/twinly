@@ -2629,7 +2629,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             try:self.save_workspace()
             except OSError as exc:
                 self.error(str(exc));return
-            self.closing_ready=True;self.close()
+            # GTK ignores a nested close() during the current close-request.
+            self.closing_ready=True;self.defer(self.close)
         if self.peer:self.peer.guard(lambda:self.guard(finish))
         else:self.guard(finish)
         return True
