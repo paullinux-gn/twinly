@@ -200,7 +200,8 @@ class WorkspaceMixin:
         owner.refresh_libraries();owner.libraries_split.set_show_sidebar(True)
 
     def setup_libraries(self):
-        self.libraries_split=Adw.OverlaySplitView(sidebar_position=Gtk.PackType.END,show_sidebar=False,
+        # Keep visibility under user control when breakpoints change collapsed.
+        self.libraries_split=Adw.OverlaySplitView(sidebar_position=Gtk.PackType.END,show_sidebar=False,pin_sidebar=True,
             min_sidebar_width=290,max_sidebar_width=360,sidebar_width_fraction=.24)
         self.libraries_split.set_content(self.split)
         panel=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12,

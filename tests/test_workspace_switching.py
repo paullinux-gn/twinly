@@ -113,6 +113,20 @@ class WorkspaceSwitching(unittest.TestCase):
         self.w.toggle_document_search();settle();self.w.toggle_document_search();settle()
         self.assertFalse(self.w.libraries_split.get_show_sidebar())
 
+    def test_resizing_does_not_reopen_a_closed_right_panel(self):
+        self.w.set_default_size(1600,800);settle()
+        if self.w.get_width()<=1450:self.skipTest('Requires a display wider than 1450 pixels')
+        self.assertFalse(self.w.libraries_split.get_show_sidebar())
+        for open_panel in (self.w.show_libraries,self.w.search_documents,self.w.show_trash):
+            open_panel();settle()
+            self.w.set_default_size(1250,800);settle()
+            self.assertTrue(self.w.libraries_split.get_collapsed())
+            self.assertTrue(self.w.libraries_split.get_show_sidebar())
+            self.w.close_workspace_panel();settle()
+            self.w.set_default_size(1600,800);settle()
+            self.assertFalse(self.w.libraries_split.get_collapsed())
+            self.assertFalse(self.w.libraries_split.get_show_sidebar())
+
     def test_encrypted_search_panel_is_removed_on_lock(self):
         item,store=self.encrypted();store.add('Private canary.html')
         self.w.vault_launcher().present(store);settle();page=self.w.embedded_workspace

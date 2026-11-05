@@ -395,7 +395,6 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             if hasattr(self,'libraries_split'):
                 libraries_compact=Adw.Breakpoint.new(Adw.BreakpointCondition.parse('max-width: 1450px'))
                 libraries_compact.add_setter(self.libraries_split,'collapsed',True)
-                libraries_compact.add_setter(self.libraries_split,'show-sidebar',False)
                 self.add_breakpoint(libraries_compact)
             self.breakpoint=Adw.Breakpoint.new(Adw.BreakpointCondition.parse('max-width: 760px'))
             self.breakpoint.add_setter(self.split,'collapsed',True)
@@ -405,7 +404,6 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             for breakpoint in (self.breakpoint,compact):
                 if hasattr(self,'libraries_split'):
                     breakpoint.add_setter(self.libraries_split,'collapsed',True)
-                    breakpoint.add_setter(self.libraries_split,'show-sidebar',False)
                 self.add_breakpoint(breakpoint)
             sidebar_toggle.connect('toggled',lambda b:self.split.set_show_sidebar(b.get_active()))
             self.split.connect('notify::show-sidebar',lambda s,p:sidebar_toggle.set_active(s.get_show_sidebar()))
