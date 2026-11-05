@@ -59,7 +59,7 @@ class Sidebar(CallbackOwner,Gtk.Box):
         add_menu.append('New folder','win.new-folder')
         self.add_button=Gtk.MenuButton(menu_model=add_menu,tooltip_text='Add to workspace',
                                        margin_start=12,margin_end=12)
-        self.add_button.set_child(Gtk.Image(icon_name='list-add-symbolic',pixel_size=28))
+        self.add_button.set_child(Gtk.Label(label='+'))
         self.add_button.add_css_class('workspace-add')
         body.append(self.add_button)
         section=Gtk.Box(spacing=6)

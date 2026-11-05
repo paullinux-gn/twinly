@@ -5,6 +5,7 @@ from application import APP_ID
 
 BASE_CSS = r"""
             menubutton.workspace-add > button {min-height:36px;}
+            menubutton.workspace-add > button label {font-size:28px;font-weight:normal;}
             searchbar.document-search > revealer > box {
                 background:@view_bg_color;color:@view_fg_color;}
             .blur-sidebar {background:@sidebar_bg_color;color:@sidebar_fg_color;}
