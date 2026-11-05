@@ -145,7 +145,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         for method in ('set_margin_start','set_margin_end','set_margin_top','set_margin_bottom'):
             getattr(self.toolbar,method)(6)
         self.font_button=FontButton()
-        self.font_button.set_font_desc(Pango.FontDescription('Sans 12'))
+        self.font_button.set_font_desc(Pango.FontDescription(DOCUMENT_FONT+' '+str(DOCUMENT_FONT_SIZE)))
         self.font_button.connect('notify::font-desc',self.font_chosen)
         self.font_button.connect('clicked',self.choose_font)
         self.format_controls.insert(self.paragraph_style_menu(),-1)
@@ -1236,7 +1236,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
 
     def change_zoom(self,step):
         self.zoom=finite_number(round(self.zoom+step,2),1,.5,2.5)
-        self.css_provider.load_from_string(f'textview#{self.view.get_name()} {{font-family:{DOCUMENT_FONT};font-size:{DOCUMENT_FONT_SIZE*self.zoom}pt;}}')
+        self.css_provider.load_from_string(f'textview#{self.view.get_name()} {{font-family:"{DOCUMENT_FONT}";font-size:{DOCUMENT_FONT_SIZE*self.zoom}pt;}}')
         self.view.set_pixels_below_lines(round(PARAGRAPH_SPACING_PX*self.zoom))
         was_loading=self.loading
         self.loading=True

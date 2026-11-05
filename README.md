@@ -274,3 +274,6 @@ passwords, recovery keys and encrypted document names are never stored there.
 The existing encryption format and password/recovery behavior are unchanged.
 Read [docs/VAULT.md](docs/VAULT.md) before storing sensitive material.
 This preview has not undergone an independent security audit.
+
+Documents use bundled Noto Sans Regular for body text and Noto Sans Bold for
+titles and headings. Custom font formatting remains available.

@@ -41,3 +41,22 @@ def default_root(config):
     if current is None:return store.home/'.no-workspace',None
     root=store.path(current)
     return root,(root/'Getting Started.html' if first and current.get('starter') else None)
+
+
+_document_fonts_registered=False
+
+def register_document_fonts():
+    """Make the bundled document font available to this process only."""
+    global _document_fonts_registered
+    if _document_fonts_registered:return
+    import ctypes
+    fontconfig=ctypes.CDLL('libfontconfig.so.1')
+    fontconfig.FcConfigAppFontAddFile.argtypes=[ctypes.c_void_p,ctypes.c_char_p]
+    fontconfig.FcConfigAppFontAddFile.restype=ctypes.c_int
+    for filename in ('NotoSans-Regular.ttf','NotoSans-Bold.ttf','NotoSans-Italic.ttf','NotoSans-BoldItalic.ttf'):
+        path=DATA_DIR/'fonts'/filename
+        if not fontconfig.FcConfigAppFontAddFile(None,os.fsencode(path)):
+            raise RuntimeError('Could not load the bundled Noto Sans font: '+filename)
+    from gi.repository import PangoCairo
+    PangoCairo.FontMap.get_default().changed()
+    _document_fonts_registered=True

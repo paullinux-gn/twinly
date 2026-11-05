@@ -21,7 +21,7 @@ move_path=filesystem.move_path
 # Shared editor/print metrics. Stored image dimensions use CSS pixels.
 DOCUMENT_DPI=96
 POINTS_PER_PIXEL=72/DOCUMENT_DPI
-DOCUMENT_FONT='Sans'
+DOCUMENT_FONT='Noto Sans'
 DOCUMENT_FONT_SIZE=12
 PARAGRAPH_SPACING_PX=8
 RULE_PADDING_PX=10
@@ -328,8 +328,9 @@ def to_html(doc, title='Document'):
     return ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
             '<meta name="generator" content="Twinly Preview 0.2">'
             f'<title>{html.escape(title)}</title>'
-            '<style>body{font-family:sans-serif;font-size:12pt;line-height:1.4;'
+            '<style>body{font-family:"Noto Sans",sans-serif;font-weight:400;font-size:12pt;line-height:1.4;'
             'max-width:900px;margin:32px auto;padding:0 24px}'
+            'h1,h2,h3{font-weight:700}'
             'p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 8px}'
             'img{max-width:100%;height:auto;vertical-align:middle}'
             'hr{border:0;border-top:1px solid #888;margin:12px 0}'

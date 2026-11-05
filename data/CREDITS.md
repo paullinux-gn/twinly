@@ -11,3 +11,6 @@ developed with LLM assistance. The final SVG uses solid colors without gradients
 shadows or textures.
 
 Development of Twinly is LLM-assisted. Developer attribution: Paullinux.
+
+Noto Sans Regular, Bold, Italic and Bold Italic: Copyright Google, licensed under SIL Open Font License 1.1.
+Bundled font and license: data/fonts/. https://github.com/notofonts/noto-fonts

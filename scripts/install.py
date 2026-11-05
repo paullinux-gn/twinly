@@ -13,6 +13,7 @@ def install(source,prefix,destdir):
     for name in MODULES:shutil.copy2(source/name,application/name)
     shutil.copytree(source/'vendor',application/'vendor',dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
     data=application/'data';data.mkdir(exist_ok=True)
+    shutil.copytree(source/'data'/'fonts',data/'fonts',dirs_exist_ok=True)
     for name in ('getting-started.html','link-example.html'):
         shutil.copy2(source/'data'/name,data/name)
     for relative,name in [('share/applications',APP_ID+'.desktop'),('share/metainfo',APP_ID+'.metainfo.xml'),('share/icons/hicolor/scalable/apps',APP_ID+'.svg')]:

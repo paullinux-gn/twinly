@@ -20,3 +20,7 @@ and source information are in [vendor/README.md](vendor/README.md).
 
 Optional vault dependencies and system libraries retain their own licenses;
 Twinly's project license does not replace their notices.
+
+The Noto Sans Regular, Bold, Italic and Bold Italic fonts in `data/fonts/` are Copyright Google and licensed under the
+SIL Open Font License 1.1. The bundled copyright and license notice is retained
+in `data/fonts/LICENSE.txt` in source and installed copies.

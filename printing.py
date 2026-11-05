@@ -8,6 +8,8 @@ from gi.repository import Gtk, Pango, PangoCairo, GdkPixbuf, Gdk, GLib, Gio
 from model import (blank,decode_image,validate_document,MAX_IMAGE_PIXELS,ResourceLimitError,resolved_style,
                    DOCUMENT_DPI,POINTS_PER_PIXEL,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_HEIGHT_PX,fit_image_dimensions)
 from filesystem import atomic_write
+from application import register_document_fonts
+register_document_fonts()
 import io
 _image_cache=OrderedDict()
 _image_cache_bytes=0

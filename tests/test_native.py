@@ -985,6 +985,24 @@ class Native(unittest.TestCase):
         self.assertEqual('font-select-symbolic',self.w.font_button.get_icon_name())
         self.assertIsNone(self.w.font_button.get_label())
 
+    def test_default_document_uses_noto_sans_regular_and_bold_headings(self):
+        from model import DOCUMENT_FONT,PARAGRAPH_STYLES,to_html
+        from gi.repository import Pango
+        self.assertEqual('Noto Sans',DOCUMENT_FONT)
+        font=self.w.view.get_pango_context().load_font(Pango.FontDescription('Noto Sans 12'))
+        self.assertEqual('Noto Sans',font.describe().get_family())
+        self.assertEqual(Pango.Weight.NORMAL,font.describe().get_weight())
+        bold=self.w.view.get_pango_context().load_font(Pango.FontDescription('Noto Sans Bold 12'))
+        self.assertEqual('Noto Sans',bold.describe().get_family())
+        self.assertEqual(Pango.Weight.BOLD,bold.describe().get_weight())
+        self.assertEqual(400,self.w.tag_for('paragraph','body').get_property('weight'))
+        for style in ('title','h1','h2','h3'):
+            self.assertEqual(700,self.w.tag_for('paragraph',style).get_property('weight'))
+            self.assertTrue(PARAGRAPH_STYLES[style][1].get('weight'))
+        html=to_html(self.w.snapshot())
+        self.assertIn('font-family:"Noto Sans",sans-serif',html)
+        self.assertIn('h1,h2,h3{font-weight:700}',html)
+
     def test_empty_paragraph_style_applies_to_typing_and_returns_to_body(self):
         self.w.apply_paragraph_style('h1')
         self.assertEqual('',self.w.snapshot()['text'])
