@@ -160,7 +160,8 @@ A separate notice explains that only text is converted to an HTML copy: photos,
 links, fonts and page geometry are not retained, and reading order may change.
 No OCR is performed. Image-only PDFs and encrypted PDFs are rejected. In mixed
 files the user is told how many pages had no extractable text. The original
-PDF stays untouched. The bundled BSD-3-Clause pypdf library runs in a separate
+PDF stays untouched. In an encrypted workspace the converted text is stored as an
+encrypted document, with no unencrypted conversion file. The bundled BSD-3-Clause pypdf library runs in a separate
 Python process with CPU, wall-time, output and memory limits; there are no new
 packages to install and conversion works offline, including in Flatpak.
 

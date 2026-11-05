@@ -49,6 +49,39 @@ class VaultNative(unittest.TestCase):
             if path.is_file():
                 raw=path.read_bytes()
                 for text in (b'VAULT SECRET CANARY 9f73',b'SensitiveStyle9f73',b'Secret filename9f73'):self.assertNotIn(text,raw,str(path))
+    def test_pdf_import_creates_only_encrypted_document(self):
+        from test_pdf_import import pdf_bytes
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);grant=root/'grant';grant.mkdir()
+            portal=root/'doc';portal.symlink_to(grant,target_is_directory=True)
+            source=grant/'Secret filename9f73.pdf'
+            raw=pdf_bytes(['VAULT SECRET CANARY 9f73',None]);source.write_bytes(raw)
+            folder=self.store.add('Private folder','root',folder=True)
+            from vault_ui import VaultRef
+            self.w.sidebar.refresh();self.w.sidebar.select_path(VaultRef(self.store,folder))
+            with patch.object(self.w,'file_chooser') as chooser,patch.object(self.w,'ask') as ask,patch.object(self.w,'error') as error,patch('vault_ui.Thread') as thread:
+                self.w.import_office();chooser.call_args.args[2](portal/source.name)
+                self.assertIn('OCR',ask.call_args.args[1])
+                ask.call_args.args[3]('import');thread.call_args.kwargs['target']();pump()
+                error.assert_not_called();self.assertEqual(1,chooser.call_count)
+                self.assertEqual('Import complete',ask.call_args.args[0])
+                self.assertIn('1 of the 2',ask.call_args.args[1])
+            self.assertEqual(folder,self.w.path.node['parent'])
+            self.assertEqual('VAULT SECRET CANARY 9f73',self.store.load(self.w.path.identity)['text'])
+            self.assertEqual(raw,source.read_bytes());self.assert_no_plaintext()
+
+    def test_pdf_import_cancel_and_unreadable_pdf_leave_workspace_unchanged(self):
+        from test_pdf_import import pdf_bytes
+        source=self.root/'scan.pdf';source.write_bytes(pdf_bytes([None]))
+        before=self.w.snapshot();nodes=copy.deepcopy(self.store.catalog['nodes'])
+        with patch.object(self.w,'file_chooser') as chooser,patch.object(self.w,'ask') as ask,patch.object(self.w,'error') as error,patch('vault_ui.Thread') as thread:
+            self.w.open();chooser.call_args.args[2](source)
+            ask.call_args.args[3]('cancel');thread.assert_not_called()
+            self.w.open();chooser.call_args.args[2](source)
+            ask.call_args.args[3]('import');thread.call_args.kwargs['target']();pump()
+            self.assertIn('no selectable text',error.call_args.args[0])
+        self.assertEqual(nodes,self.store.catalog['nodes']);self.assertEqual(before,self.w.snapshot())
+
     def test_about_window_is_parented_and_closes_when_vault_locks(self):
         self.w.lookup_action('about').activate(None);pump()
         window=self.w.about_window

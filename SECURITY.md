@@ -102,6 +102,10 @@ overwritten. This is a supported-content conversion, not a full Office renderer.
 
 ## PDF text import
 
+Conversion output uses an anonymous memory file, with no plaintext temporary
+file on disk. Imports into encrypted workspaces write only through the encrypted
+workspace store; the original PDF remains outside it.
+
 Only the PDF text layer is read; no OCR, scripts, actions, attachments, links
 or remote resources are executed or retrieved. Encrypted files are rejected.
 The vendored pypdf parser runs with isolated Python (-I), 512 MiB address-space,

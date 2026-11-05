@@ -9,7 +9,7 @@ from gi.repository import Gtk,Adw,Gio,GLib,Gdk,GObject
 from editor import Editor,EditorPane,EmbeddedEditor
 from sidebar import Sidebar,Node
 from model import blank,from_html,to_html,MAX_DOCUMENT,safe_name
-from filesystem import read_text,atomic_write
+from filesystem import read_text,read_import_bytes,atomic_write
 from printing import pixbuf_for,clear_image_cache
 from vault import VaultStore,VaultError,identifier,crypto,pack,unpack
 from settings import read_settings,write_settings
@@ -412,17 +412,17 @@ class VaultEditing:
     def open(self,*_):
         def picked(path):
             suffix=path.suffix.lower()
-            if suffix not in ('.html','.htm','.odt','.docx'):
-                self.error('Import HTML, ODT or DOCX. PDF import is not available inside an encrypted workspace.');return
+            if suffix not in ('.html','.htm','.odt','.docx','.pdf'):
+                self.error('Import HTML, ODT, DOCX or PDF.');return
             def import_file(response):
                 if response!='import':return
                 def worker():
-                    document=None;error=None
+                    document=None;error=None;warnings=[]
                     try:
-                        if suffix in ('.odt','.docx'):
+                        if suffix in ('.odt','.docx','.pdf'):
                             from importing import import_document
-                            document,_=import_document(path)
-                        else:document,_=from_html(read_text(path,MAX_DOCUMENT))
+                            document,warnings=import_document(path)
+                        else:document,warnings=from_html(read_import_bytes(path,MAX_DOCUMENT).decode('utf-8'))
                     except Exception as exc:error=str(exc)
                     def complete():
                         if self.closed:return False
@@ -431,12 +431,16 @@ class VaultEditing:
                             for image in document['images']:pixbuf_for(image['src'])
                             parent=self.sidebar.folder();name=self.vault_store.unique_name(parent.identity,path.stem,'.html')
                             identity=self.vault_store.add(name,parent.identity,document=document);self.sidebar.refresh();self.open_path(VaultRef(self.vault_store,identity));self.set_editing(True)
+                            if warnings:self.ask('Import complete','\n'.join(warnings),[('cancel','Close')],lambda _:None)
                         except (OSError,ValueError) as exc:self.error(str(exc))
                         return False
                     GLib.idle_add(complete)
                 Thread(target=worker,daemon=True).start()
-            self.ask('Import encrypted copy?','The original file remains unchanged outside the encrypted workspace. ODT and DOCX are converted to Twinly HTML; formatting and later exports may differ.',[('cancel','Cancel'),('import','Import')],import_file)
-        self.file_chooser('Import HTML or Office as an encrypted copy',Gtk.FileChooserAction.OPEN,picked,import_office=True)
+            explanation='The original file remains unchanged outside the encrypted workspace. ODT and DOCX are converted to Twinly HTML; formatting and later exports may differ.'
+            if suffix=='.pdf':
+                explanation='The selectable PDF text becomes a new encrypted document. The original PDF remains unchanged outside the encrypted workspace. Photos, formatting and page layout are not retained. Scanned pages need OCR, which Twinly does not provide.'
+            self.ask('Import encrypted copy?',explanation,[('cancel','Cancel'),('import','Import')],import_file)
+        self.file_chooser('Import document as an encrypted copy',Gtk.FileChooserAction.OPEN,picked,import_office=True)
     import_office=open
     def open_document_link(self,link,beside=False,approved_target=None):
         if link.get('kind')=='external':
@@ -544,7 +548,7 @@ class VaultController(VaultEditing):
             action=Gio.SimpleAction.new(name,None);action.connect('activate',callback);self.add_action(action)
         for name in ('root','new-root','back','forward','vault-create','vault-open','vaults'):self.lookup_action(name).set_enabled(False)
         menu=Gio.Menu()
-        for label,name in [('Import HTML / ODT / Word…','open'),('Export HTML copy…','vault-export-html'),('Export PDF…','export-pdf'),('Export ODT…','export-odt'),('Export Word…','export-docx'),('Make a copy in encrypted workspace','duplicate'),('Document outline','outline'),('Find and replace','replace')]:menu.append(label,'win.'+name)
+        for label,name in [('Import HTML / ODT / Word / PDF…','open'),('Export HTML copy…','vault-export-html'),('Export PDF…','export-pdf'),('Export ODT…','export-odt'),('Export Word…','export-docx'),('Make a copy in encrypted workspace','duplicate'),('Document outline','outline'),('Find and replace','replace')]:menu.append(label,'win.'+name)
         self.document_menu_button.set_menu_model(menu)
         lock=Gtk.Button(icon_name='changes-prevent-symbolic',tooltip_text='Lock encrypted workspace');lock.connect('clicked',self.lock_vault);self.document_header.pack_end(lock)
         self.set_sidebar_pixel_width(store.catalog['settings'].get('sidebar_width',290))

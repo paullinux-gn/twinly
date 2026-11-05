@@ -1,10 +1,10 @@
 """Isolated, resource-bounded import of an existing PDF text layer; no OCR."""
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 
 BASE=Path(__file__).resolve().parent
 # -I deliberately removes the script directory; only this trusted app is added.
@@ -68,7 +68,9 @@ def worker():
 def import_pdf(path):
     raw=read_import_bytes(path,MAX_DOCUMENT)
     if not raw.startswith(b'%PDF-'):raise ValueError('This file is not a valid PDF.')
-    with tempfile.TemporaryFile() as output:
+    # Extracted text stays in memory, also for encrypted workspace imports.
+    # The worker's file-size limit still bounds this anonymous memory file.
+    with os.fdopen(os.memfd_create('twinly-pdf-import',os.MFD_CLOEXEC),'w+b') as output:
         process=subprocess.Popen([sys.executable,'-I',str(Path(__file__).resolve()),'--worker'],
                                  stdin=subprocess.PIPE,stdout=output,stderr=subprocess.DEVNULL,close_fds=True)
         try:process.communicate(raw,timeout=PDF_TIMEOUT)
