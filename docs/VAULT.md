@@ -21,7 +21,7 @@ Each encrypted workspace opens inside the existing Twinly window. Create, rename
 and trash documents/folders there. Both editing panes, photos, formatting,
 custom styles, autosave and recovery remain inside encrypted storage. Links
 use stable document IDs and survive moves and renames within the same encrypted workspace.
-Use the header lock button or sidebar Lock encrypted workspace. Closing a encrypted workspace also locks
+Use the header lock button or sidebar Lock encrypted workspace. Closing an encrypted workspace also locks
 it and preserves dirty documents as encrypted recovery drafts. Auto-lock is
 five minutes by default; choose 1, 5, 15 or 30 minutes in the encrypted workspace sidebar menu.
 GTK desktop screen-lock notifications also request locking when the desktop
@@ -34,10 +34,12 @@ Open recovery drafts from Recover Documents in the encrypted workspace menu; the
 as new unsaved documents. Change Password in that menu rewraps the encrypted workspace key.
 The recovery key remains valid. It does not rotate the document encryption key.
 
-HTML, ODT and DOCX import parses in memory, with a conversion warning. The
-original remains outside the encrypted workspace. PDF import is unavailable inside encrypted workspaces
-because its current extraction path uses temporary plaintext files. Export
-HTML/ODT/DOCX, print and PDF require confirmation that the result is plaintext.
+HTML, ODT, DOCX and selectable PDF text can be imported as encrypted notes,
+with a conversion warning. Originals remain outside the encrypted workspace.
+PDF extraction uses a constrained subprocess with anonymous memory output,
+without a plaintext conversion file on disk. Scanned PDFs require OCR, which
+Twinly does not provide. Exporting HTML/ODT/DOCX/PDF and printing require
+confirmation that the result is plaintext.
 Choose a destination outside any encrypted workspace. Internal encrypted workspace links do not work in
 exported files. Printing may leave data in the operating system spooler.
 
