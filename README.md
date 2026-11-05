@@ -6,7 +6,7 @@ Write rich-text notes, organise them into workspaces, connect them with links,
 and keep a reference open beside your work. Choose a standard or encrypted
 workspace. Writing works offline, with no account, server or cloud service.
 
-![Twinly — workspace sidebar and document editor](docs/screenshots/twinly.png)
+![Twinly — workspace sidebar and document editor](docs/screenshots/screenshot.png)
 
 Built with GTK4 and libadwaita. Developed by **Paullinux**, with LLM-assisted
 development, and licensed under **[GPL-3.0-or-later](LICENSE)**.
