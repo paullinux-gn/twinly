@@ -332,7 +332,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.title_row.append(self.title_details)
         self.edit_button=Gtk.Button(icon_name='document-edit-symbolic',css_classes=['flat'],focus_on_click=False)
         self.edit_button.connect('clicked',self.toggle_editing)
-        self.title_row.append(self.edit_button)
+        self.title_row.prepend(self.edit_button)
         self.pane_close=Gtk.Button(icon_name='window-close-symbolic',tooltip_text='Close pane · Ctrl+W',css_classes=['flat'],focusable=False)
         self.pane_close.set_visible(True)
         self.pane_close.connect('clicked',lambda _:
