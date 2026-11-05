@@ -277,3 +277,10 @@ This preview has not undergone an independent security audit.
 
 Documents use bundled Noto Sans Regular for body text and Noto Sans Bold for
 titles and headings. Custom font formatting remains available.
+
+Workspace search uses virtual rows so large collections do not create a widget
+for every document. Automatic folder monitoring is limited to 2,000 folders.
+Document text is limited to 4 MiB UTF-8, 20,000 paragraph breaks and 16,384
+characters per paragraph; oversized input is rejected without truncation.
+See [the scalability and security review](docs/MAINTENANCE-REVIEW-2026-11-05.md)
+for measured results and remaining limits.

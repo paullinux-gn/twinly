@@ -1,0 +1,29 @@
+5 November 2026
+Baseline: 7e78e9d
+
+Full regression suite, G_DEBUG=fatal-criticals, GSK_RENDERER=cairo:
+Python 3.13.5 / GTK 4.18.6 / libadwaita 1.7.6 / wide Xvfb:
+Ran 286 tests in 275.018s
+OK (skipped=1: legacy GTK-specific icon guard)
+
+Ubuntu 24.04 / Python 3.12 / GTK 4.14 / libadwaita 1.5 / normal CI Xvfb:
+Ran 286 tests in 298.260s
+OK (skipped=1: resize fixture requires display width >1450)
+
+Additional oversized clipboard selection replacement and package staging tests:
+repeated after the last paste-context guard and introduction updates.
+
+First-party runtime/build Ruff F/B023: passed
+First-party Python compilation: passed
+Source/metadata/introduction validation: passed
+Install staging: compressed templates restore byte-for-byte; no user content
+PyPI advisory query: no known vulnerabilities for PyNaCl 1.6.2, cffi 2.0.0,
+pycparser 2.23 and pypdf 6.21.4
+Bandit: no high-severity findings; XML findings reviewed against existing guards
+
+Observed but not fixed: GTK 4.14 tooltip pending-timeout / missing surface critical
+in extra-wide Xvfb full-suite runs. GDB stack reviewed; normal CI-display suite
+passes. Details and limitations are in MAINTENANCE-REVIEW-2026-11-05.md.
+
+Benchmarks: SCALABILITY-RESULTS-2026-11-05.json
+Reproduction: scripts/benchmark_scalability.py

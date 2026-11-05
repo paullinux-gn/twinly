@@ -17,7 +17,8 @@ from gi.repository import Gtk, Adw, Gio, GLib, Gdk, Pango
 from model import (blank, to_html, from_html, image_data, stamp, atomic_write,
                    safe_name, COLORS, MAX_DOCUMENT, valid_link, relocated_href, relocate_html_links, validate_document,validate_image_budget,PARAGRAPH_STYLES,resolved_style,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_PADDING_PX,fit_image_dimensions)
 from printing import pixbuf_for, PrintPreview,clear_image_cache
-from sidebar import Sidebar
+from sidebar import Sidebar,DocumentResults
+from model import validate_text,MAX_PARAGRAPH_CHARS,ResourceLimitError
 from settings import finite_number,read_settings
 from session import DocumentSession
 from theme import Theme,watch_css,retain_themed_icons
@@ -74,6 +75,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.typing_custom_format=None
         self.typing_style_reset=False
         self.typing_family=None
+        self.buffer.connect('insert-text',self.guard_text_insertion)
+        self.buffer.connect('delete-range',self.guard_paragraph_join)
         self.buffer.connect_after('insert-text',self.apply_typing_font)
         self.buffer.connect('changed',self.changed)
         self.buffer.connect('delete-range',self.detach_deleted_photos)
@@ -292,6 +295,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                                left_margin=32,right_margin=32,top_margin=28,bottom_margin=40,
                                pixels_below_lines=PARAGRAPH_SPACING_PX,vexpand=True)
         self.view.add_css_class('document')
+        self.view.connect('paste-clipboard',self.guard_clipboard_paste)
         link_click=Gtk.GestureClick(button=1)
         link_click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         link_click.connect('pressed',self.link_control_click)
@@ -1245,6 +1249,46 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         finally:self.loading=was_loading
         self.zoom_label.set_label(f'{int(self.zoom*100)}%')
 
+    def guard_clipboard_paste(self,view):
+        if getattr(self,'clipboard_paste_approved',False):return
+        view.stop_emission_by_name('paste-clipboard')
+        if not self.editing or self.closed:return
+        document=self.path
+        root=self.sidebar.root;owner=self.workspace_owner or self
+        embedded=getattr(owner,'embedded_workspace',None)
+        def received(clipboard,result):
+            if (self.closed or not self.editing or self.path!=document or self.sidebar.root!=root
+                or getattr(owner,'embedded_workspace',None) is not embedded):return
+            try:
+                text=clipboard.read_text_finish(result)
+                if text is not None:
+                    bounds=self.buffer.get_selection_bounds()
+                    start,end=bounds if bounds else (self.buffer.get_iter_at_mark(self.buffer.get_insert()),)*2
+                    current=self.buffer.get_slice(*self.buffer.get_bounds(),True)
+                    validate_text(current[:start.get_offset()]+text+current[end.get_offset():])
+            except (GLib.Error,ResourceLimitError) as exc:
+                self.message('Paste failed: '+str(exc));return
+            # Let GTK perform the paste so internal rich formatting is retained.
+            self.clipboard_paste_approved=True
+            try:view.emit('paste-clipboard')
+            finally:self.clipboard_paste_approved=False
+        view.get_clipboard().read_text_async(None,received)
+
+    def guard_text_insertion(self,buffer,where,text,length):
+        if self.loading:return
+        current=buffer.get_slice(*buffer.get_bounds(),True);offset=where.get_offset()
+        try:validate_text(current[:offset]+text+current[offset:])
+        except ResourceLimitError as exc:
+            buffer.stop_emission_by_name('insert-text')
+            self.message('Text insertion failed: '+str(exc))
+
+    def guard_paragraph_join(self,buffer,start,end):
+        if self.loading or start.get_line()==end.get_line():return
+        remaining=end.copy();remaining.forward_to_line_end()
+        if start.get_line_offset()+remaining.get_offset()-end.get_offset()>MAX_PARAGRAPH_CHARS:
+            buffer.stop_emission_by_name('delete-range')
+            self.message('Text deletion failed: joining these paragraphs would exceed 16,384 characters.')
+
     def snapshot(self):
         text=self.buffer.get_slice(*self.buffer.get_bounds(),True)
         spans=[]
@@ -1276,6 +1320,12 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         return {'text':text,'spans':sorted(spans,key=lambda s:(s['start'],s['end'],str(s['style']))),
                 'images':sorted(images,key=lambda i:i['offset']),'rules':sorted(rules)}
 
+    def clear_format_tags(self):
+        table=self.buffer.get_tag_table()
+        for tag in self.tags.values():
+            table.remove(tag);tag.twinly_value=None
+        self.tags.clear()
+
     def restore(self,doc,reset=False):
         doc=validate_document(doc)
         for image in doc['images']:pixbuf_for(image['src'])
@@ -1303,6 +1353,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 if frame and frame.get_parent()==self.view:self.view.remove(frame)
             self.anchors=[]
             self.buffer.set_text(doc['text'])
+            self.clear_format_tags()
             for img in sorted(doc['images'],key=lambda i:i['offset'],reverse=True):
                 pos=img['offset']
                 start=self.buffer.get_iter_at_offset(pos)
@@ -2239,7 +2290,6 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             following=child.get_next_sibling()
             self.documents_page.remove(child)
             child=following
-        scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=16)
         for margin in ('start','end','top','bottom'):getattr(box,'set_margin_'+margin)(12)
         box.append(Gtk.Label(label=self.workspace_store().name(self.sidebar.root),xalign=0,ellipsize=Pango.EllipsizeMode.MIDDLE,
@@ -2251,29 +2301,20 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             paths.extend(Path(folder)/name for name in sorted(files,key=str.casefold)
                          if not name.startswith('.') and Path(name).suffix.lower() in ('.html','.htm')
                          and not (Path(folder)/name).is_symlink())
-        self.documents_list=Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-        self.documents_list.add_css_class('boxed-list')
+        self.documents_list=DocumentResults(
+            [(path,path.stem,str(path.relative_to(self.sidebar.root))) for path in paths],self.open_path)
         self.document_search_entry=Gtk.SearchEntry(placeholder_text='Search documents…')
-        self.document_search_entry.set_text(query)
-        self.document_search_entry.connect('changed',lambda entry:self.documents_list.invalidate_filter())
-        self.documents_list.set_filter_func(lambda row:self.document_search_entry.get_text().casefold() in str(row.document_path.relative_to(self.sidebar.root)).casefold())
+        self.document_search_entry.set_text(query);self.documents_list.set_query(query)
+        self.document_search_entry.connect('changed',lambda entry:self.documents_list.set_query(entry.get_text()))
         box.append(self.document_search_entry)
-        for path in paths:
-            row=Adw.ActionRow(title=path.stem,subtitle=str(path.relative_to(self.sidebar.root)),activatable=True)
-            row.set_use_markup(False)
-            row.add_prefix(Gtk.Image(icon_name='text-x-generic-symbolic'))
-            row.add_suffix(Gtk.Image(icon_name='go-next-symbolic'))
-            self.compact_location_labels(row)
-            row.document_path=path
-            self.documents_list.append(row)
-        self.documents_list.connect('row-activated',lambda _,row:self.open_path(row.document_path))
-        if paths:box.append(self.documents_list)
-        else:
+        # The list owns its scrolling so GTK only creates rows in view.
+        results_scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
+        results_scroll.set_child(self.documents_list);box.append(results_scroll)
+        if not paths:
             box.append(Gtk.Label(label='No HTML documents yet. Create a document from a folder’s context menu.',
                                  wrap=True,xalign=0))
-        clamp=Adw.Clamp(maximum_size=900,child=box)
-        scroll.set_child(clamp)
-        self.documents_page.append(scroll)
+        clamp=Adw.Clamp(maximum_size=900,child=box,vexpand=True)
+        self.documents_page.append(clamp)
         self.show_workspace_panel('documents',self.documents_page)
         self.record_navigation()
         self.message(f'{len(paths)} HTML documents · Click a document to open it in Twinly.')

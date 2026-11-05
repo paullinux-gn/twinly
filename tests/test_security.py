@@ -41,6 +41,15 @@ class Security(unittest.TestCase):
         with patch.object(model,'MAX_TEXT',8),self.assertRaises(model.ResourceLimitError):model.from_html('<p>0123456789</p>')
         with patch.object(model,'MAX_SPANS',2),self.assertRaises(model.ResourceLimitError):model.from_html('<p><b>a</b><i>b</i><u>c</u></p>')
 
+    def test_paragraph_limit_prevents_expensive_native_layout(self):
+        doc=model.blank();doc['text']='a'*model.MAX_PARAGRAPH_CHARS
+        self.assertEqual(doc['text'],model.validate_document(doc)['text'])
+        with self.assertRaisesRegex(model.ResourceLimitError,'paragraph exceeds'):
+            model.from_html('<p>'+'a'*(model.MAX_PARAGRAPH_CHARS+1)+'</p>')
+        # Splitting the same amount of text is supported; the total remains 4 MiB.
+        doc['text']=('a'*300+'\n')*(model.MAX_TEXT//301)
+        self.assertEqual(doc['text'],model.validate_document(doc)['text'])
+
     def test_image_budget_enforced_before_decoding(self):
         raw=base64.b64decode(PNG.split(',')[1]);bad=raw[:16]+struct.pack('>II',100000,100000)+raw[24:]
         uri='data:image/png;base64,'+base64.b64encode(bad).decode()

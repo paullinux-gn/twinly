@@ -1,5 +1,6 @@
 """Managed workspace storage. Imports retain originals; encrypted files stay opaque."""
 import copy
+import gzip
 from contextlib import contextmanager
 from functools import wraps
 import fcntl
@@ -111,7 +112,13 @@ class WorkspaceStore:
     def install_guide(path,templates):
         for template,filename in [('getting-started.html','Getting Started.html'),('link-example.html','Link Example.html')]:
             target=path/filename
-            if not target.exists():atomic_write(target,(Path(templates)/template).read_bytes(),overwrite=False,private=True)
+            if target.exists():continue
+            source=Path(templates)/template
+            if source.is_file():content=source.read_bytes()
+            else:
+                with gzip.open(str(source)+'.gz','rb') as stream:content=stream.read(64*1024*1024+1)
+                if len(content)>64*1024*1024:raise ValueError('The bundled introduction is too large.')
+            atomic_write(target,content,overwrite=False,private=True)
 
     @transaction
     def rename(self,item,name):

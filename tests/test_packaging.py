@@ -63,7 +63,13 @@ class Packaging(unittest.TestCase):
             app=stage/'app/share/twinly'
             self.assertTrue((stage/'app/bin/twinly').is_file())
             for name in module.MODULES:self.assertTrue((app/name).is_file(),name)
-            self.assertTrue((app/'data/getting-started.html').is_file())
+            self.assertTrue((app/'data/getting-started.html.gz').is_file())
+            self.assertFalse((app/'data/getting-started.html').exists())
+            from managed_workspaces import WorkspaceStore
+            notes=stage/'notes';notes.mkdir()
+            WorkspaceStore.install_guide(notes,app/'data')
+            self.assertEqual((ROOT/'data/getting-started.html').read_bytes(),(notes/'Getting Started.html').read_bytes())
+            self.assertEqual((ROOT/'data/link-example.html').read_bytes(),(notes/'Link Example.html').read_bytes())
             legal=stage/'app/share/licenses/twinly'
             for name in ('LICENSE','LICENSING.md'):
                 self.assertEqual((ROOT/name).read_bytes(),(legal/name).read_bytes())

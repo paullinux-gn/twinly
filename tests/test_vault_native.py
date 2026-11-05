@@ -227,7 +227,6 @@ class VaultNative(unittest.TestCase):
         hidden=self.store.path/'stray.html';hidden.write_text('<p>Private stray file</p>')
         ordinary=self.root/'visible.html';ordinary.write_text('<p>Ordinary document</p>')
         self.normal.show_documents();pump()
-        rows=[];row=self.normal.documents_list.get_first_child()
-        while row:
-            rows.append(row.document_path);row=row.get_next_sibling()
+        results=self.normal.documents_list.get_model()
+        rows=[results.get_item(i).path for i in range(results.get_n_items())]
         self.assertIn(ordinary,rows);self.assertNotIn(hidden,rows)

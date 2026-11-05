@@ -18,6 +18,7 @@ Resource limits are enforced before replacing the current document:
 | HTML input | 64 MiB |
 | Text | 4 MiB UTF-8 |
 | Paragraph breaks | 20,000 |
+| Characters in one paragraph | 16,384 |
 | Formatting spans | 20,000 |
 | HTML nesting | 128 levels |
 | HTML elements | 100,000 |
@@ -34,6 +35,10 @@ Image headers are checked before passing bytes to the native decoder, with a
 second pixel check in the decoder callback. Interactive photo insertion also
 checks the aggregate budget. Invalid or over-limit imports leave the open document
 unchanged. Limits apply per document, not to the process's total resident memory.
+The paragraph bound also protects native text shaping: very long unbroken text
+can otherwise block GTK even below the total text limit. Oversized imports and
+clipboard pastes are rejected rather than truncated; text should be split into
+shorter paragraphs. Selected text is checked before a clipboard replacement.
 
 ## Files and concurrent changes
 
@@ -80,8 +85,8 @@ manifest review and native tests do not establish sandbox security.
 ## Builds and reporting
 
 GitHub Actions are pinned to commit hashes rather than floating tags. Updates to
-those hashes and the GNOME runtime should be reviewed and kept current. The project
-licence/public identity still need the owner's choices before publication.
+those hashes and the GNOME runtime should be reviewed and kept current. Public release identity and metadata are checked separately with
+`python3 scripts/check_release.py --publication`.
 
 Before a public security contact is configured, report ordinary reproducible bugs
 through the repository's issue process. Do not post private documents, credentials

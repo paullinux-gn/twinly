@@ -283,10 +283,9 @@ class Native(unittest.TestCase):
         with patch('editor.Gio.AppInfo.launch_default_for_uri') as launch:
             self.w.lookup_action('search-documents').activate(None)
             self.assertEqual('documents',self.w.right_panel_kind())
-            row=self.w.documents_list.get_first_child()
-            while row and row.document_path!=path:row=row.get_next_sibling()
-            self.assertIsNotNone(row)
-            self.w.documents_list.emit('row-activated',row)
+            results=self.w.documents_list.get_model()
+            position=next(i for i in range(results.get_n_items()) if results.get_item(i).path==path)
+            self.w.documents_list.emit('activate',position)
             self.assertEqual('editor',self.w.document_stack.get_visible_child_name())
             self.assertEqual(path,self.w.path)
             self.assertEqual('Openen in onze editor',self.w.snapshot()['text'])
@@ -2296,6 +2295,60 @@ class Native(unittest.TestCase):
         preview.orientation.set_selected(1)
         self.assertGreater(preview.pages.width,preview.pages.height)
         preview.destroy()
+
+    def test_large_workspace_search_virtualizes_rows_and_filters_all_results(self):
+        import time
+        from sidebar import DocumentResults
+        entries=[(self.root/(str(i)+'.html'),'Note '+str(i),'Folder/'+str(i)) for i in range(10000)]
+        opened=[];results=DocumentResults(entries,opened.append);created=[]
+        results.get_factory().connect('setup',lambda *_:created.append(1))
+        window=Gtk.Window(default_width=320,default_height=400)
+        scroll=Gtk.ScrolledWindow();scroll.set_child(results);window.set_child(scroll);window.present()
+        try:
+            for _ in range(10):pump();time.sleep(.01)
+            self.assertEqual(10000,results.get_model().get_n_items())
+            self.assertLess(len(created),500)
+            results.set_query('Note 9999');pump()
+            self.assertEqual(1,results.get_model().get_n_items())
+            results.emit('activate',0);self.assertEqual([entries[-1][0]],opened)
+            results.clear();self.assertEqual(0,results.get_model().get_n_items())
+        finally:window.destroy()
+
+    def test_oversized_insert_and_paragraph_join_are_rejected(self):
+        from model import MAX_PARAGRAPH_CHARS
+        self.w.buffer.set_text('Original')
+        from unittest.mock import patch
+        with patch.object(self.w,'message'):
+            self.w.buffer.insert_at_cursor('a'*(MAX_PARAGRAPH_CHARS+1))
+            self.assertEqual('Original',self.w.snapshot()['text'])
+            self.w.buffer.set_text('a'*10000+'\n'+'b'*10000)
+            start=self.w.buffer.get_iter_at_offset(10000);end=self.w.buffer.get_iter_at_offset(10001)
+            self.w.buffer.delete(start,end)
+            self.assertEqual('a'*10000+'\n'+'b'*10000,self.w.snapshot()['text'])
+
+    def test_document_switch_releases_old_format_tags(self):
+        old=[]
+        for index in range(20):
+            doc=blank();doc['text']='Styled text'
+            doc['spans']=[{'start':0,'end':11,'style':{'foreground':f'#{index:06x}'}}]
+            self.w.restore(doc,reset=True)
+            self.assertEqual(1,len(self.w.tags))
+            self.assertEqual(2,self.w.buffer.get_tag_table().get_size()) # formatting and search
+            if old:self.assertIsNone(old[-1].twinly_value)
+            old.extend(self.w.tags.values())
+
+    def test_rejected_clipboard_paste_preserves_selected_text(self):
+        import time
+        from model import MAX_PARAGRAPH_CHARS
+        self.w.buffer.set_text('Keep this selection')
+        self.w.buffer.select_range(*self.w.buffer.get_bounds())
+        clipboard=self.w.view.get_clipboard();clipboard.set('a'*(MAX_PARAGRAPH_CHARS+1))
+        self.w.view.emit('paste-clipboard')
+        for _ in range(20):pump();time.sleep(.01)
+        self.assertEqual('Keep this selection',self.w.snapshot()['text'])
+        clipboard.set('Accepted paste');self.w.view.emit('paste-clipboard')
+        for _ in range(20):pump();time.sleep(.01)
+        self.assertEqual('Accepted paste',self.w.snapshot()['text'])
 
 
 if __name__=='__main__':unittest.main()

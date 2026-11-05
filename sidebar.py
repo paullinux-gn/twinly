@@ -4,7 +4,7 @@ import os
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, Gdk, Gio, GLib, GObject
+from gi.repository import Gtk, Adw, Gdk, Gio, GLib, GObject, Pango
 from filesystem import move_path,vault_container
 from lifecycle import CallbackOwner
 
@@ -14,6 +14,60 @@ class Node(GObject.Object):
         super().__init__()
         self.path=Path(path)
         self.directory=self.path.is_dir()
+
+
+class DocumentResult(GObject.Object):
+    def __init__(self,path,title,subtitle):
+        super().__init__()
+        self.path=path;self.title=title;self.subtitle=subtitle
+        self.search_text=(title+' '+subtitle).casefold()
+
+
+class DocumentResults(Gtk.ListView):
+    """Virtual rows: large search results retain metadata, not one widget per file."""
+    def __init__(self,entries,activate):
+        self.query=''
+        self.store=Gio.ListStore.new(DocumentResult)
+        self.store.splice(0,0,[DocumentResult(*entry) for entry in entries])
+        self.filter=Gtk.CustomFilter.new(lambda item:self.query in item.search_text)
+        self.filtered=Gtk.FilterListModel(model=self.store,filter=self.filter)
+        factory=Gtk.SignalListItemFactory()
+        factory.connect('setup',self.setup_result)
+        factory.connect('bind',self.bind_result)
+        factory.connect('unbind',self.unbind_result)
+        super().__init__(model=Gtk.NoSelection(model=self.filtered),factory=factory,single_click_activate=True)
+        self.add_css_class('navigation-sidebar')
+        self.connect('activate',lambda _,position:activate(self.filtered.get_item(position).path))
+
+    def set_query(self,text):
+        query=text.casefold()
+        if query==self.query:return
+        self.query=query;self.filter.changed(Gtk.FilterChange.DIFFERENT)
+
+    def clear(self):
+        self.store.remove_all();self.set_query('')
+
+    @staticmethod
+    def setup_result(factory,item):
+        row=Gtk.Box(spacing=10,margin_start=8,margin_end=8,margin_top=8,margin_bottom=8)
+        row.append(Gtk.Image(icon_name='text-x-generic-symbolic'))
+        text=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,hexpand=True,spacing=2)
+        item.title_label=Gtk.Label(xalign=0,ellipsize=Pango.EllipsizeMode.END)
+        item.subtitle_label=Gtk.Label(xalign=0,ellipsize=Pango.EllipsizeMode.END,css_classes=['dim-label','caption'])
+        text.append(item.title_label);text.append(item.subtitle_label);row.append(text)
+        row.append(Gtk.Image(icon_name='go-next-symbolic'));item.set_child(row)
+
+    @staticmethod
+    def bind_result(factory,item):
+        result=item.get_item()
+        item.title_label.set_text(result.title);item.subtitle_label.set_text(result.subtitle)
+        item.subtitle_label.set_visible(bool(result.subtitle))
+        item.get_child().set_tooltip_text(result.subtitle or result.title)
+
+    @staticmethod
+    def unbind_result(factory,item):
+        item.title_label.set_text('');item.subtitle_label.set_text('')
+        item.get_child().set_tooltip_text(None)
 
 
 class Sidebar(CallbackOwner,Gtk.Box):
@@ -106,8 +160,6 @@ class Sidebar(CallbackOwner,Gtk.Box):
         icons=Gtk.Box(spacing=8,homogeneous=True,margin_start=12,margin_end=12,margin_top=8,margin_bottom=8)
         self.search_button=Gtk.Button(icon_name='system-search-symbolic',action_name='win.toggle-search-documents',tooltip_text='Search documents',css_classes=['flat'])
         self.trash_button=Gtk.Button(icon_name='user-trash-symbolic',action_name='win.toggle-trash',tooltip_text='Trash',css_classes=['flat'])
-        self.vault_button=Gtk.Button(icon_name='changes-prevent-symbolic',action_name='win.vaults',tooltip_text='Encrypted workspace',css_classes=['flat'])
-        self.vault_button.set_visible(False)
         for button in (self.search_button,self.trash_button):icons.append(button)
         bottom.append(icons)
         self.toolbar_view.add_bottom_bar(bottom)
@@ -429,7 +481,7 @@ class Sidebar(CallbackOwner,Gtk.Box):
                     monitor.connect('changed',self.disk_changed)
                 monitors.append(monitor)
                 if len(monitors)>=2000:
-                    self.owner.message('This preview monitors up to 2000 folders.');break
+                    self.owner.message('Maximum of 2000 monitored folders reached. Additional folders do not refresh automatically.');break
         except GLib.Error as exc:self.owner.message('Folder monitoring failed: '+str(exc))
         for monitor in previous.values():monitor.cancel()
         self.monitors=monitors;self.monitor_paths=folders;self.known_files=files_known

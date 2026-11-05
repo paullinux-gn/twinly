@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import re
 import struct
-from filesystem import read_bytes,read_import_bytes
+from filesystem import read_import_bytes
 import filesystem
 
 # Retain existing callers of these two compatibility exports.
@@ -44,6 +44,7 @@ MAX_NESTING = 128
 MAX_NODES = 100000
 MAX_ATTRIBUTES = 64
 MAX_PARAGRAPHS = 20000
+MAX_PARAGRAPH_CHARS = 16384
 MAX_IMAGE_PIXELS = 16_000_000
 MAX_TOTAL_PIXELS = 32_000_000
 MAX_TOTAL_IMAGE_BYTES = 32 * 1024 * 1024
@@ -83,13 +84,20 @@ def blank():
     return {'text': '', 'spans': [], 'images': [], 'rules': []}
 
 
+def validate_text(text):
+    """Bound both document size and GTK's expensive per-paragraph shaping work."""
+    if len(text.encode('utf-8'))>MAX_TEXT:raise ResourceLimitError('Document text is larger than 4 MB.')
+    if text.count('\n')>MAX_PARAGRAPHS:raise ResourceLimitError('Too many paragraphs.')
+    if any(len(line)>MAX_PARAGRAPH_CHARS for line in text.split('\n')):
+        raise ResourceLimitError('A paragraph exceeds 16,384 characters. Split it into shorter paragraphs.')
+
+
 def validate_document(doc):
     """Validate before mutating a buffer or writing a file; retain portable dictionaries."""
     if not isinstance(doc,dict) or not isinstance(doc.get('text'),str):
         raise ValueError('Invalid document text.')
     text=doc['text']
-    if len(text.encode('utf-8'))>MAX_TEXT:raise ResourceLimitError('Document text is larger than 4 MB.')
-    if text.count('\n')>MAX_PARAGRAPHS:raise ResourceLimitError('Too many paragraphs.')
+    validate_text(text)
     result={'text':text,'spans':[],'images':[],'rules':[]}
     for key in ('spans','images','rules'):
         if not isinstance(doc.get(key,[]),list):raise ValueError('Invalid document list: '+key)

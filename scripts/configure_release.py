@@ -59,7 +59,7 @@ source=application.read_text(encoding='utf-8')
 for key,entry in {'DEVELOPER_NAME':args.author.strip(),
                   'COPYRIGHT':'Copyright © '+str(datetime.date.today().year)+' '+args.author.strip(),
                   'LICENSE_ID':args.license,'WEBSITE':repository}.items():
-    source=re.sub(r'^'+key+r'=.*$',lambda match:key+'='+repr(entry),source,flags=re.M)
+    source=re.sub(r'^'+key+r'=.*$',lambda match,key=key,entry=entry:key+'='+repr(entry),source,flags=re.M)
 application.write_text(source,encoding='utf-8')
 (root/'packaging'/'publication.json').write_text(json.dumps({'app_id':args.app_id,'repository':repository,'author':args.author.strip(),'license':args.license},indent=2)+'\n')
 print('Configured',args.app_id,'for',repository,'under',args.license)

@@ -1,0 +1,213 @@
+{
+  "date": "2026-11-05",
+  "method": "Synthetic local fixtures; wall times and cumulative peak RSS per process. Samples are not cross-machine guarantees.",
+  "baseline_commit": "7e78e9d",
+  "baseline_10000_documents": [
+    {
+      "case": "editor_100_folders_10000_documents",
+      "seconds": 0.9218,
+      "peak_mib": 99.6
+    },
+    {
+      "case": "open_workspace_search",
+      "seconds": 10.616,
+      "peak_mib": 344.3
+    },
+    {
+      "case": "filter_search",
+      "seconds": 0.7761,
+      "peak_mib": 526.3
+    }
+  ],
+  "optimized_10000_documents": [
+    {
+      "case": "editor_100_folders_10000_documents",
+      "seconds": 3.0512,
+      "peak_mib": 98.7
+    },
+    {
+      "case": "open_workspace_search",
+      "seconds": 1.905,
+      "peak_mib": 122.8
+    },
+    {
+      "case": "filter_search",
+      "seconds": 0.4812,
+      "peak_mib": 134.5
+    },
+    {
+      "case": "one_mib_editor_restore",
+      "seconds": 0.0304,
+      "peak_mib": 135.8
+    },
+    {
+      "case": "one_mib_editor_snapshot",
+      "seconds": 0.0011,
+      "peak_mib": 135.8
+    },
+    {
+      "case": "four_mib_editor_restore",
+      "seconds": 0.1519,
+      "peak_mib": 148.9
+    },
+    {
+      "case": "four_mib_editor_snapshot",
+      "seconds": 0.0056,
+      "peak_mib": 148.9
+    }
+  ],
+  "optimized_30000_documents": [
+    {
+      "case": "editor_3000_folders_30000_documents",
+      "seconds": 1.254,
+      "peak_mib": 117.2
+    },
+    {
+      "case": "open_workspace_search",
+      "seconds": 1.9396,
+      "peak_mib": 165.9
+    },
+    {
+      "case": "filter_search",
+      "seconds": 0.3797,
+      "peak_mib": 178.7
+    },
+    {
+      "case": "one_mib_editor_restore",
+      "seconds": 0.0518,
+      "peak_mib": 179.9
+    },
+    {
+      "case": "one_mib_editor_snapshot",
+      "seconds": 0.0008,
+      "peak_mib": 179.9
+    },
+    {
+      "case": "four_mib_editor_restore",
+      "seconds": 0.1912,
+      "peak_mib": 192.0
+    },
+    {
+      "case": "four_mib_editor_snapshot",
+      "seconds": 0.0027,
+      "peak_mib": 192.0
+    }
+  ],
+  "model_limits": [
+    {
+      "case": "one_mib_html_export",
+      "seconds": 0.0613,
+      "peak_mib": 25.7
+    },
+    {
+      "case": "one_mib_html_import",
+      "seconds": 0.1108,
+      "peak_mib": 27.0
+    },
+    {
+      "case": "four_mib_html_export",
+      "seconds": 0.1486,
+      "peak_mib": 47.2
+    },
+    {
+      "case": "four_mib_html_import",
+      "seconds": 0.5125,
+      "peak_mib": 52.9
+    },
+    {
+      "case": "20000_paragraphs_html_export",
+      "seconds": 0.2087,
+      "peak_mib": 53.1
+    },
+    {
+      "case": "20000_paragraphs_html_import",
+      "seconds": 0.7468,
+      "peak_mib": 60.1
+    },
+    {
+      "case": "20000_spans_export",
+      "seconds": 0.2894,
+      "peak_mib": 60.9
+    },
+    {
+      "case": "20000_spans_import",
+      "seconds": 1.3976,
+      "peak_mib": 60.9
+    }
+  ],
+  "paragraph_layout_baseline": [
+    {
+      "case": "editor_1_folders_10_documents",
+      "seconds": 0.0759,
+      "peak_mib": 91.2
+    },
+    {
+      "case": "open_workspace_search",
+      "seconds": 0.009,
+      "peak_mib": 106.4
+    },
+    {
+      "case": "filter_search",
+      "seconds": 0.0018,
+      "peak_mib": 106.4
+    },
+    {
+      "case": "4096_characters_editor_restore",
+      "seconds": 0.0271,
+      "peak_mib": 106.4
+    },
+    {
+      "case": "4096_characters_editor_snapshot",
+      "seconds": 0.0,
+      "peak_mib": 106.4
+    },
+    {
+      "case": "16384_characters_editor_restore",
+      "seconds": 0.317,
+      "peak_mib": 106.4
+    },
+    {
+      "case": "16384_characters_editor_snapshot",
+      "seconds": 0.0,
+      "peak_mib": 106.4
+    },
+    {
+      "case": "65536_characters_editor_restore",
+      "seconds": 10.622,
+      "peak_mib": 108.8
+    },
+    {
+      "case": "65536_characters_editor_snapshot",
+      "seconds": 0.0009,
+      "peak_mib": 108.8
+    }
+  ],
+  "package": {
+    "before_bytes": 7087050,
+    "after_bytes": 6360989,
+    "saved_bytes": 726061,
+    "scope": "Installed app files, four fonts, pypdf and notices; excludes GNOME runtime and crypto dependencies"
+  },
+  "dependencies": [
+    {
+      "name": "pynacl",
+      "version": "1.6.2",
+      "vulns": []
+    },
+    {
+      "name": "cffi",
+      "version": "2.0.0",
+      "vulns": []
+    },
+    {
+      "name": "pycparser",
+      "version": "2.23",
+      "vulns": []
+    },
+    {
+      "name": "pypdf",
+      "version": "6.21.4",
+      "vulns": []
+    }
+  ]
+}

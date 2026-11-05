@@ -7,12 +7,11 @@ import uuid
 from threading import Thread
 from gi.repository import Gtk,Adw,Gio,GLib,Gdk,GObject
 from editor import Editor,EditorPane,EmbeddedEditor
-from sidebar import Sidebar,Node
+from sidebar import Sidebar,Node,DocumentResults
 from model import blank,from_html,to_html,MAX_DOCUMENT,safe_name
-from filesystem import read_text,read_import_bytes,atomic_write
+from filesystem import read_import_bytes,atomic_write
 from printing import pixbuf_for,clear_image_cache
 from vault import VaultStore,VaultError,identifier,crypto,pack,unpack
-from settings import read_settings,write_settings
 
 @dataclass(frozen=True)
 class VaultRef:
@@ -54,7 +53,6 @@ class VaultSidebar(Sidebar):
         self.store=owner.vault_store
         super().__init__(owner,root)
         self.header.set_title_widget(Gtk.Label(label=owner.launcher.parent.workspace_store().name(owner.vault_store.path),css_classes=['heading']))
-        self.vault_button.set_visible(False)
         self.root_icon.set_tooltip_text('Encrypted — Unlocked')
         self.root_protection.append(Gtk.Image(icon_name='security-high-symbolic'))
         self.root_label.set_text('Encrypted documents');self.root_label.set_tooltip_text('Encrypted workspace — Unlocked')
@@ -155,9 +153,7 @@ class VaultEditing:
     def wipe_editor(self):
         self.loading=True
         self.buffer.set_text('');self.history.clear();self.navigation.clear();self.anchors.clear()
-        for tag in self.tags.values():
-            if tag.twinly_key=='custom_style':tag.twinly_value=None
-        self.tags.clear();self.saved_doc=blank();self.path=None
+        self.clear_format_tags();self.saved_doc=blank();self.path=None
         self.typing_custom_style=None;self.typing_custom_format=None;self.typing_font=None;self.typing_color=None
         self.search_entry.set_text('');self.replace_entry.set_text('')
         self.title_widget.set_title('');self.title_entry.set_text('');self.style_name_label.set_text('')
@@ -402,15 +398,15 @@ class VaultEditing:
         box=self.documents_page
         while box.get_first_child():box.remove(box.get_first_child())
         entry=Gtk.SearchEntry(placeholder_text='Search documents…',margin_start=12,margin_end=12);box.append(entry)
-        rows=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4);scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER,margin_start=12,margin_end=12,margin_bottom=12);scroll.set_child(rows);box.append(scroll)
-        def refresh(*_):
-            while rows.get_first_child():rows.remove(rows.get_first_child())
-            if self.closed or self.vault_store.key is None:return
-            query=entry.get_text().casefold()
-            for key,node in self.vault_store.catalog['nodes'].items():
-                if node['type']=='document' and not node.get('trash') and query in node['name'].casefold():
-                    button=Gtk.Button(label=node['name']);button.connect('clicked',lambda _,i=key:self.open_path(VaultRef(self.vault_store,i)));self.compact_location_labels(button);rows.append(button)
-        self.document_search_handler=entry.connect('search-changed',refresh);refresh();self.document_search_entry=entry;self.show_workspace_panel('documents',self.documents_page);entry.grab_focus()
+        entries=[(VaultRef(self.vault_store,key),node['name'],'')
+                 for key,node in self.vault_store.catalog['nodes'].items()
+                 if node['type']=='document' and not node.get('trash')]
+        self.documents_list=DocumentResults(entries,self.open_path)
+        scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER,
+                                 margin_start=12,margin_end=12,margin_bottom=12)
+        scroll.set_child(self.documents_list);box.append(scroll)
+        self.document_search_handler=entry.connect('changed',lambda entry:self.documents_list.set_query(entry.get_text()))
+        self.document_search_entry=entry;self.show_workspace_panel('documents',self.documents_page);entry.grab_focus()
     def search_documents(self,*_):self.show_documents()
     def choose_beside(self,*_):self.show_documents()
     def open(self,*_):

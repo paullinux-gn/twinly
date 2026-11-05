@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 import shutil
+import gzip
 
 MODULES=('actions.py','application.py','editor.py','editor_view.py','exporting.py','filesystem.py','focus.py','importing.py','lifecycle.py','model.py','managed_workspaces.py','pdf_import.py','preferences.py','private_trash.py','printing.py','session.py','settings.py','sidebar.py','theme.py','workspace.py','writing.py','styles.py','vault.py','vault_ui.py')
 APP_ID='io.github.twinly.Preview'
@@ -15,7 +16,10 @@ def install(source,prefix,destdir):
     data=application/'data';data.mkdir(exist_ok=True)
     shutil.copytree(source/'data'/'fonts',data/'fonts',dirs_exist_ok=True)
     for name in ('getting-started.html','link-example.html'):
-        shutil.copy2(source/'data'/name,data/name)
+        # Source notes remain editable HTML; installed templates are losslessly
+        # compressed and expanded only when creating a workspace.
+        (data/(name+'.gz')).write_bytes(gzip.compress((source/'data'/name).read_bytes(),mtime=0))
+        (data/name).unlink(missing_ok=True)
     for relative,name in [('share/applications',APP_ID+'.desktop'),('share/metainfo',APP_ID+'.metainfo.xml'),('share/icons/hicolor/scalable/apps',APP_ID+'.svg')]:
         directory=target/relative;directory.mkdir(parents=True,exist_ok=True)
         shutil.copy2(source/'data'/name,directory/name)

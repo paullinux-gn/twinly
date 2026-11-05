@@ -32,6 +32,8 @@ class WorkspaceMixin:
                     if handler:
                         entry.disconnect(handler);host.utility_panel_owner.document_search_handler=None
                     entry.set_text('')
+                    results=getattr(host.utility_panel_owner,'documents_list',None)
+                    if results:results.clear()
                 while page.get_first_child():page.remove(page.get_first_child())
         host.utility_panel_owner=None;host.utility_panel_surface=None
         host.utility_panel_page=None;host.utility_panel_kind=None

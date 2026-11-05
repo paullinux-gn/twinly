@@ -62,20 +62,6 @@ BASE_CSS = r"""
             .format-toolbar button, .format-toolbar menubutton > button {
                 background:transparent;box-shadow:none;border-color:transparent;border-radius:6px;}
             .format-toolbar button:hover {background:alpha(currentColor,.07);}
-                        .floating-toolbar .format-toolbar {
-                background:@view_bg_color;border-radius:999px;
-                padding:4px 8px;border:1px solid alpha(currentColor,.10);
-                box-shadow:0 3px 8px alpha(black,.15);
-            }
-            .floating-toolbar .format-toolbar button {
-                min-width:24px;min-height:24px;padding:2px 4px;
-            }
-            .floating-toolbar .format-toolbar flowboxchild {
-                padding:0;
-            }
-            .floating-toolbar .format-toolbar .linked {
-                padding-left:4px;
-            }
             .pane-title {min-height:0;}
             .pane-title, .pane-title button, .pane-title button label,
             .pane-title button image {transition:none;}
