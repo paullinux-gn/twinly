@@ -12,6 +12,20 @@ from model import blank,ResourceLimitError
 from test_exporting import sample
 
 class Importing(unittest.TestCase):
+    def test_office_import_through_portal_directory_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);grant=root/'grant';grant.mkdir()
+            portal=root/'doc';portal.symlink_to(grant,target_is_directory=True)
+            original=sample()
+            for kind,encode in [('odt',odt_bytes),('docx',docx_bytes)]:
+                with self.subTest(kind=kind):
+                    source=grant/('document.'+kind);raw=encode(original);source.write_bytes(raw)
+                    doc,warnings=import_document(portal/source.name)
+                    self.assertIn('Title é漢',doc['text']);self.assertEqual(2,len(doc['images']))
+                    self.assertEqual(raw,source.read_bytes())
+                    link=portal/('link.'+kind);link.symlink_to(source)
+                    with self.assertRaises(OSError):import_document(link)
+
     def convert(self,raw,kind):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/('document.'+kind);path.write_bytes(raw)

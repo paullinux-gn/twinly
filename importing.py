@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from model import (blank,validate_document,valid_link,decode_image,image_dimensions,
                    MAX_DOCUMENT,MAX_TEXT,MAX_SPANS,MAX_IMAGES,MAX_TOTAL_IMAGE_BYTES,
                    MAX_TOTAL_PIXELS,MAX_PARAGRAPHS,MAX_NODES,MAX_NESTING,MAX_ATTRIBUTES,ResourceLimitError)
-from filesystem import read_bytes
+from filesystem import read_import_bytes
 
 MAX_XML=16*1024*1024
 MAX_UNPACKED=128*1024*1024
@@ -360,7 +360,7 @@ def import_document(path):
         return import_pdf(path)
     if path.suffix.lower() not in ('.odt','.docx'):raise ValueError('Choose an ODT, DOCX or PDF file; the legacy .doc format is not supported.')
     try:
-        package=Package(read_bytes(path,MAX_DOCUMENT))
+        package=Package(read_import_bytes(path,MAX_DOCUMENT))
         try:return import_docx(package) if path.suffix.lower()=='.docx' else import_odt(package)
         finally:package.zip.close()
     except (BadZipFile,RuntimeError,NotImplementedError) as exc:raise ValueError('The Office file is damaged, encrypted or unsupported.') from exc

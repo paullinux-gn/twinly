@@ -28,6 +28,16 @@ def pdf_bytes(texts,password=None):
     output=io.BytesIO();writer.write(output);return output.getvalue()
 
 class PDFImport(unittest.TestCase):
+    def test_pdf_import_through_portal_directory_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);grant=root/'grant';grant.mkdir()
+            portal=root/'doc';portal.symlink_to(grant,target_is_directory=True)
+            source=grant/'document.pdf';raw=pdf_bytes(['Portal import']);source.write_bytes(raw)
+            doc,warnings=import_document(portal/source.name)
+            self.assertEqual('Portal import',doc['text']);self.assertEqual(raw,source.read_bytes())
+            link=portal/'link.pdf';link.symlink_to(source)
+            with self.assertRaises(OSError):import_document(link)
+
     def run_import(self,raw):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'input.pdf';path.write_bytes(raw)

@@ -9,7 +9,7 @@ import tempfile
 BASE=Path(__file__).resolve().parent
 # -I deliberately removes the script directory; only this trusted app is added.
 if str(BASE) not in sys.path:sys.path.insert(0,str(BASE))
-from filesystem import read_bytes
+from filesystem import read_import_bytes
 from model import blank,validate_document,MAX_DOCUMENT,MAX_TEXT,ResourceLimitError
 
 MAX_PDF_PAGES=1000
@@ -66,7 +66,7 @@ def worker():
     sys.stdout.buffer.write(payload)
 
 def import_pdf(path):
-    raw=read_bytes(path,MAX_DOCUMENT)
+    raw=read_import_bytes(path,MAX_DOCUMENT)
     if not raw.startswith(b'%PDF-'):raise ValueError('This file is not a valid PDF.')
     with tempfile.TemporaryFile() as output:
         process=subprocess.Popen([sys.executable,'-I',str(Path(__file__).resolve()),'--worker'],
