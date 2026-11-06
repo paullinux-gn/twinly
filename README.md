@@ -115,7 +115,7 @@ Install `flatpak` and `flatpak-builder`, then run:
 ```sh
 sh scripts/build-flatpak.sh
 flatpak install --user dist/Twinly-0.4.0.flatpak
-flatpak run io.github.twinly.Preview
+flatpak run io.github.paullinux_gn.Twinly
 ```
 
 The manifest uses the **GNOME 51** platform and SDK and builds the pinned crypto
@@ -124,7 +124,7 @@ The GitHub **Build Flatpak preview** workflow can also produce a downloadable
 workflow artifact. It does not publish to Flathub automatically.
 
 The current version is **0.4.0**, with Flatpak application ID
-`io.github.twinly.Preview`. There is no published Flathub release at present.
+`io.github.paullinux_gn.Twinly`. There is no published Flathub release at present.
 See [publishing instructions](docs/PUBLISHING.md) for release preparation.
 
 The Flatpak requests Wayland/fallback X11, graphics/IPC and CUPS printing, with
@@ -150,7 +150,7 @@ Default native locations:
 
 Without XDG overrides, these are under `~/.local/share/twinly/` and
 `~/.config/twinly/`. Flatpak uses private directories under
-`~/.var/app/io.github.twinly.Preview/`. Legacy installations may retain their
+`~/.var/app/io.github.paullinux_gn.Twinly/`. Legacy installations may retain their
 existing storage location; migration copies and verifies source data and leaves
 originals intact. Back up your data before upgrading or reorganising it.
 

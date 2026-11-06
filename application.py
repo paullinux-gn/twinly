@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from settings import read_settings
 
-APP_ID='io.github.twinly.Preview'
+APP_ID='io.github.paullinux_gn.Twinly'
 VERSION='0.4.0'
 DEVELOPER_NAME='Paullinux'
 COPYRIGHT='Copyright © 2026 Paullinux'

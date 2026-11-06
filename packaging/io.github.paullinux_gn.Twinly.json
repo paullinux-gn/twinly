@@ -1,5 +1,5 @@
 {
-  "app-id": "io.github.twinly.Preview",
+  "app-id": "io.github.paullinux_gn.Twinly",
   "runtime": "org.gnome.Platform",
   "runtime-version": "51",
   "sdk": "org.gnome.Sdk",

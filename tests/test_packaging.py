@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from application import default_root,locations
+from application import APP_ID,default_root,locations
 from model import from_html
 from settings import read_settings
 
@@ -89,7 +89,7 @@ class Packaging(unittest.TestCase):
             self.assertTrue((project/'LICENSE').is_file())
             self.assertNotIn('<copyright holders>',(project/'LICENSE').read_text())
             self.assertTrue((project/'packaging/io.github.TestOwner.Twinly.json').is_file())
-            self.assertNotIn('io.github.twinly.Preview',(project/'scripts/build-flatpak.sh').read_text())
+            self.assertNotIn(APP_ID,(project/'scripts/build-flatpak.sh').read_text())
             self.assertIn('flatpak run io.github.TestOwner.Twinly',(project/'README.md').read_text())
 
     def test_project_license_is_gpl_version_three_or_later(self):

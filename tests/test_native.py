@@ -2183,7 +2183,7 @@ class Native(unittest.TestCase):
         import os
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as directory:
-            with patch.dict(os.environ,{'FLATPAK_ID':'io.github.twinly.Preview','XDG_CONFIG_HOME':directory+'/config','XDG_DATA_HOME':directory+'/data'}):
+            with patch.dict(os.environ,{'FLATPAK_ID':'io.github.paullinux_gn.Twinly','XDG_CONFIG_HOME':directory+'/config','XDG_DATA_HOME':directory+'/data'}):
                 fresh=Editor(self.app)
                 self.assertEqual('Start to note.html',fresh.initial_document.name)
                 fresh.open_path(fresh.initial_document)
@@ -2225,7 +2225,7 @@ class Native(unittest.TestCase):
         from unittest.mock import patch
         source=self.root/'Trash.html';source.write_text('<p>Trash</p>')
         self.w.sidebar.refresh();self.w.sidebar.select_path(source)
-        with patch.dict(os.environ,{'FLATPAK_ID':'io.github.twinly.Preview'}),patch.object(self.w,'ask') as ask:
+        with patch.dict(os.environ,{'FLATPAK_ID':'io.github.paullinux_gn.Twinly'}),patch.object(self.w,'ask') as ask:
             self.w.trash();ask.call_args.args[3]('trash')
             self.assertFalse(source.exists())
             items=self.w.load_trash_items();self.assertEqual(1,len(items))

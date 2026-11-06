@@ -6,7 +6,7 @@ import shutil
 import gzip
 
 MODULES=('actions.py','application.py','editor.py','editor_view.py','exporting.py','filesystem.py','focus.py','importing.py','lifecycle.py','model.py','managed_workspaces.py','pdf_import.py','preferences.py','private_trash.py','printing.py','session.py','settings.py','sidebar.py','theme.py','workspace.py','writing.py','styles.py','vault.py','vault_ui.py')
-APP_ID='io.github.twinly.Preview'
+APP_ID='io.github.paullinux_gn.Twinly'
 
 def install(source,prefix,destdir):
     target=destdir/str(prefix).lstrip('/') if destdir else prefix

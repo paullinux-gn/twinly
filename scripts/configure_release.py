@@ -5,6 +5,7 @@ import datetime
 import json
 from pathlib import Path
 import re
+import struct
 import sys
 import xml.etree.ElementTree as ET
 
@@ -42,10 +43,13 @@ if screenshots is None:screenshots=ET.SubElement(component,'screenshots')
 if not screenshots.findall('screenshot'):
     shot=ET.SubElement(screenshots,'screenshot',{'type':'default'})
     ET.SubElement(shot,'caption').text='The calm writing workspace and English Start to note guide'
-    ET.SubElement(shot,'image',{'type':'source','width':'1120','height':'820'}).text=repository.replace('https://github.com/','https://raw.githubusercontent.com/')+'/main/docs/screenshots/twinly.png'
+    screenshot=root/'docs/screenshots/screenshot.png'
+    width,height=struct.unpack('>II',screenshot.read_bytes()[16:24])
+    ET.SubElement(shot,'image',{'type':'source','width':str(width),'height':str(height)}).text=repository.replace('https://github.com/','https://raw.githubusercontent.com/')+'/main/docs/screenshots/screenshot.png'
 value('url',repository,type='homepage');value('url',repository+'/issues',type='bugtracker');value('url',repository,type='vcs-browser')
 developer=component.find('developer')
-if developer is None:developer=ET.SubElement(component,'developer',{'id':repository.split('/')[3]})
+if developer is None:developer=ET.SubElement(component,'developer')
+developer.set('id','io.github.'+repository.split('/')[3].lower())
 name=developer.find('name')
 if name is None:name=ET.SubElement(developer,'name')
 name.text=args.author.strip()

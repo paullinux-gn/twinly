@@ -1,87 +1,105 @@
-# Publishing checklist
+# Publishing Twinly
 
-The source, initial content, metadata, installer, Flatpak manifest and CI workflows
-are prepared and the source is hosted on GitHub. Creating a GitHub release and
-submitting to Flathub are separate steps. A manifest is not an already-tested
-Flatpak binary.
+## Release identity
 
-## 1. Set the real identity and licence
+The permanent application ID is **`io.github.paullinux_gn.Twinly`**, for the
+[paullinux-gn/twinly](https://github.com/paullinux-gn/twinly) repository.
+Developer/copyright attribution is **Paullinux** and the licence is
+**GPL-3.0-or-later**. These choices are recorded in `packaging/publication.json`.
 
-Create/choose your GitHub account and repository name. Choose an application ID
-derived from an identity you control. The current `io.github.twinly.Preview`
-is the existing preview identifier, not a claim that a GitHub account is owned.
-Twinly is licensed under GPL-3.0-or-later, copyright Paullinux. Keep that choice
-when configuring the final application ID:
+The Flatpak manifest, desktop entry, icon, AppStream metadata, installer and CI
+use this ID. The displayed application name remains **Twinly**.
+
+Run the publication checks before building:
 
 ```sh
-python3 scripts/configure_release.py \
-  --app-id io.github.YOUR_ACCOUNT.Twinly \
-  --repository https://github.com/YOUR_ACCOUNT/twinly \
-  --author 'Paullinux' \
-  --license GPL-3.0-or-later
 python3 scripts/check_release.py --publication
+desktop-file-validate data/io.github.paullinux_gn.Twinly.desktop
+appstreamcli validate --pedantic data/io.github.paullinux_gn.Twinly.metainfo.xml
 ```
 
-The helper also supports MIT for other projects. For another licence, add its full text
-and AppStream SPDX identifier deliberately. Application-ID segments cannot contain
-hyphens. The helper updates application IDs, filenames, manifest, desktop entry,
-metadata, installer and workflows, then writes LICENSE and developer/repository data.
-Do this **before distributing Flatpaks**, because changing IDs later changes storage
-and installation identity.
+The metadata uses the supplied screenshot at `docs/screenshots/screenshot.png`.
+Review version numbers, release notes and screenshot URLs for each release.
 
-## 2. Review the public source
+## Existing preview installations
 
-Confirm README, LICENSE, CREDITS, provisional icon and English guide. Add real
-screenshots to AppStream after the public repository provides stable screenshot URLs.
-Review SECURITY.md and test the tightened portal permissions. The About window includes Paullinux attribution, GPL details, project links and third-party credits. Do not include personal
-Documenten/Instellingen directories, logs, credentials or local build outputs.
-No project git history or invented public URLs have been created for you.
+The previous Flatpak ID was `io.github.twinly.Preview`. Flatpak treats the new
+ID as another application, with separate storage:
 
-## 3. Push to GitHub
+- Previous: `~/.var/app/io.github.twinly.Preview/`
+- Permanent: `~/.var/app/io.github.paullinux_gn.Twinly/`
 
-From the clean project directory, after creating an empty repository:
+Existing preview data is not automatically moved or deleted. Back it up and
+keep the preview installation while verifying the new one. Use **Workspaces →
+More… → Import workspace…** to copy the desired old workspace folders into the
+new installation; the file portal grants access and the originals are retained.
+Rename imported workspaces as needed. Preferences and open-document sessions
+are not transferred by workspace import. Encrypted workspaces must be locked
+before making their backup/import copy.
+
+Native installations continue using Twinly's existing XDG data/preferences paths;
+the Flatpak sandbox change is specific to the application ID.
+
+## Build the Flatpak
+
+On GitHub:
+
+1. Open **Actions → Build Flatpak preview → Run workflow** on `main`.
+2. Wait for success and download the **Twinly-Flatpak** artifact.
+3. Unzip it to obtain `Twinly-0.4.0.flatpak`.
+
+Or install `flatpak` and `flatpak-builder` locally, then run:
 
 ```sh
-git init -b main
-git add .
-git commit -m 'Prepare Twinly preview'
-git remote add origin https://github.com/YOUR_ACCOUNT/twinly.git
-git push -u origin main
+sh scripts/build-flatpak.sh
 ```
 
-Review `git status` before committing. Native tests run on push and pull requests.
-In GitHub Actions, run **Build Flatpak preview** manually. Download its artifact,
-which contains the `.flatpak` bundle. The workflow does not create a public release.
+The bundle is written to `dist/Twinly-0.4.0.flatpak`. Building downloads the GNOME
+51 SDK/runtime and pinned dependencies. The workflow builds an artifact; it does
+not create a GitHub release or publish to Flathub.
 
-## 4. Verify the actual Flatpak
-
-Install the bundle on a clean GNOME user account. Verify first-start English guide
-and photo, restart persistence, files outside the sandbox through the folder picker,
-HTML file association, image insertion, links/moves, both panes, the sandbox’s private library trash,
-restoration, PDF, printers, light/dark and blur. Check on Wayland and fallback X11.
-GNOME runtime 51 availability was checked, but a full sandbox build/run must still
-be completed on a host with working Flatpak and user namespaces.
-
-Validate metadata with current tools:
+## Test the actual bundle
 
 ```sh
-desktop-file-validate data/APP_ID.desktop
-appstreamcli validate --pedantic data/APP_ID.metainfo.xml
+flatpak install --user ./Twinly-0.4.0.flatpak
+flatpak run io.github.paullinux_gn.Twinly
 ```
 
-Replace APP_ID with your configured ID. A public catalogue submission also needs
-real homepage/issue URLs, developer attribution, a selected licence, actual screenshots
-and any current Flathub review requirements. Do not call the app “on Flathub” before
-it is accepted and published there.
+Verify the first-start **Start to note** guide and images, workspace creation,
+restart persistence, encryption/unlock/locking, both panes, Search and Trash,
+file-portal imports and exports, image insertion, links/moves, PDF and printing.
+Check theme/blur behaviour on the intended desktop, including Wayland and
+fallback X11 where supported. A passing source test suite is not a substitute
+for testing the built sandbox and its portal permissions.
 
-## 5. Make a release
+See [SECURITY.md](../SECURITY.md) for resource limits and remaining test gaps.
 
-After all checks, create a version tag and a GitHub release, attach the tested
-Flatpak and checksums, and state runtime requirements and preview limitations.
-Publishing to GitHub Releases and submitting to Flathub are separate operations.
+## Publish a GitHub release
+
+After testing:
+
+1. Open the repository's **Releases → Draft a new release**.
+2. Create/select the matching version tag, such as `v0.4.0`.
+3. Attach the tested `.flatpak` bundle and a checksum file.
+4. Write release notes describing the version and relevant known limitations.
+5. Publish the release.
+
+Create the checksum locally with:
+
+```sh
+sha256sum Twinly-0.4.0.flatpak > SHA256SUMS
+```
+
+## Submit to Flathub separately
+
+A GitHub release does not put the application on Flathub. Follow the current
+[Flathub submission process](https://docs.flathub.org/docs/for-app-authors/submission/)
+using the permanent ID, public source, licence, metadata and screenshots.
+Only describe Twinly as available on Flathub after it has been accepted and
+published there.
 
 References:
+
 - https://docs.flatpak.org/en/latest/python.html
 - https://docs.flatpak.org/en/latest/manifests.html
 - https://docs.flathub.org/docs/for-app-authors/submission/
-- https://www.freedesktop.org/software/appstream/docs/chap-Metadata.html
