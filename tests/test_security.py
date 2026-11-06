@@ -217,8 +217,10 @@ class Security(unittest.TestCase):
             self.assertFalse(private_trash.items(root))
 
     def test_flatpak_has_no_blanket_document_or_trash_grants(self):
+        from application import APP_ID
         root=Path(__file__).resolve().parents[1]
-        manifest=json.loads(next((root/'packaging').glob('*.json')).read_text())
+        manifest=json.loads((root/'packaging'/(APP_ID+'.json')).read_text())
+        self.assertEqual(APP_ID,manifest['app-id'])
         flags=manifest['finish-args']
         self.assertFalse(any(flag.startswith('--filesystem=') or flag.startswith('--talk-name=org.gtk.vfs') for flag in flags))
         self.assertNotIn('--share=network',flags)
