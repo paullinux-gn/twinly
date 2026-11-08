@@ -1748,6 +1748,43 @@ class Native(unittest.TestCase):
         if not self.w.blur_available:self.assertFalse(self.w.has_css_class('twinly-blur'))
         self.w.appearance_mode='system';self.w.apply_appearance();window.destroy()
 
+    def test_first_install_defaults_to_dark_light_without_blur(self):
+        self.w.config=self.root/'fresh-preferences.json'
+        self.w.load_appearance()
+        self.assertEqual('dark-light',self.w.appearance_mode)
+        self.assertFalse(self.w.blur_requested)
+        self.assertTrue(self.w.has_css_class('light-document'))
+        self.assertFalse(self.w.has_css_class('twinly-blur'))
+
+    def test_blur_requires_acknowledgement_before_enabling(self):
+        from unittest.mock import patch
+        from settings import read_settings
+        self.w.blur_requested=False;self.w.blur_available=True
+        def descendants(widget):
+            yield widget
+            child=widget.get_first_child()
+            while child:
+                yield from descendants(child);child=child.get_next_sibling()
+        with patch.object(self.w,'apply_appearance'):
+            window=self.w.show_preferences();pump()
+            row=next(w for w in descendants(window) if isinstance(w,Adw.SwitchRow) and w.get_title()=='Blur')
+            def prompt():
+                row.set_active(True);pump()
+                self.assertFalse(row.get_active());self.assertFalse(self.w.blur_requested)
+                self.w.flush_preferences();self.assertFalse(read_settings(self.w.config).get('blur',False))
+                return next(w for w in Gtk.Window.get_toplevels()
+                            if isinstance(w,Adw.MessageDialog) and w.get_transient_for()==window and w.get_heading()=='Enable blur?')
+            dialog=prompt();self.assertIn('GNOME 51',dialog.get_body())
+            dialog.response('cancel');dialog.destroy();pump()
+            self.assertFalse(self.w.blur_requested)
+            dialog=prompt();dialog.response('enable');dialog.destroy();pump()
+            self.assertTrue(row.get_active());self.assertTrue(self.w.blur_requested)
+            self.w.flush_preferences();self.assertTrue(read_settings(self.w.config)['blur'])
+            row.set_active(False);pump()
+            self.assertFalse(self.w.blur_requested)
+            dialog=prompt();window.destroy();pump()
+            self.assertFalse(self.w.blur_requested)
+
     def test_dark_interface_light_document_applies_to_both_panes_and_persists(self):
         from gi.repository import Adw
         self.w.buffer.set_text('Keep content');before=self.w.snapshot()

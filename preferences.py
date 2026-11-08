@@ -29,7 +29,7 @@ class PreferencesMixin:
         self.appearance_mode=settings.get('appearance','dark-light')
         if self.appearance_mode not in ('system','light','dark','dark-light'):
             self.appearance_mode='dark-light'
-        self.blur_requested=settings.get('blur',True) is True
+        self.blur_requested=settings.get('blur',False) is True
         def number(key,default,low,high):
             return finite_number(settings.get(key),default,low,high)
         self.blur_radius=number('blur_radius',30,0,40)
@@ -168,7 +168,7 @@ class PreferencesMixin:
             button.connect('toggled',lambda b,p=preview:p.queue_draw())
             choices.append(button);theme_buttons[mode]=button
         theme_box.append(choices);theme.set_child(theme_box)
-        blur=Adw.SwitchRow(title='Blur',subtitle='Sidebar, menus, preferences and focus toolbar. Requires a compatible Wayland compositor.' if self.blur_available else 'Not available with this GTK version or display session. The interface remains opaque.')
+        blur=Adw.SwitchRow(title='Blur',subtitle='Requires GNOME 51+ on Wayland. Sidebar, menus, preferences and formatting toolbar.' if self.blur_available else 'Requires GNOME 51+ on Wayland. Not available with this GTK version or display session.')
         blur.set_active(self.blur_requested);blur.set_sensitive(self.blur_available)
         radius=Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL,0,40,1)
         radius.set_value(self.blur_radius);radius.set_digits(0);radius.set_draw_value(True)
@@ -176,7 +176,7 @@ class PreferencesMixin:
         tint.set_value(self.blur_tint);tint.set_digits(0);tint.set_draw_value(True)
         radius_row=Adw.PreferencesRow()
         tint_row=Adw.PreferencesRow()
-        for row,slider,title,description in [(radius_row,radius,'Blur strength','0–40 px · Sidebar, menus and focus toolbar'),(tint_row,tint,'Background opacity','10–100% · Lower values reveal more of the background')]:
+        for row,slider,title,description in [(radius_row,radius,'Blur strength','0–40 px · Sidebar, menus and formatting toolbar'),(tint_row,tint,'Background opacity','10–100% · Lower values reveal more of the background')]:
             box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4,margin_start=16,margin_end=16,margin_top=12,margin_bottom=12)
             box.append(Gtk.Label(label=title,xalign=0))
             box.append(Gtk.Label(label=description,xalign=0,wrap=True,max_width_chars=32,css_classes=['dim-label']))
@@ -193,7 +193,32 @@ class PreferencesMixin:
             self.queue_preferences(appearance=self.appearance_mode,blur=self.blur_requested,blur_radius=self.blur_radius,blur_tint=self.blur_tint)
         for button in theme_buttons.values():
             button.connect('toggled',lambda b:changed() if b.get_active() else None)
-        blur.connect('notify::active',changed)
+        blur_sync=False;blur_dialog=None
+        def blur_changed(*_):
+            nonlocal blur_sync,blur_dialog
+            if blur_sync:return
+            if not blur.get_active():
+                if self.blur_requested:changed()
+                return
+            # Keep the effect off until the user acknowledges its requirements.
+            blur_sync=True;blur.set_active(False);blur_sync=False
+            if blur_dialog is not None:return
+            dialog=Adw.MessageDialog(transient_for=window,modal=True,
+                heading='Enable blur?',
+                body='Blur only works on GNOME 51 or newer, using a compatible Wayland session. Acknowledge this requirement to enable blur.')
+            blur_dialog=dialog
+            dialog.set_destroy_with_parent(True)
+            dialog.add_response('cancel','Cancel')
+            dialog.add_response('enable','I understand — Enable blur')
+            dialog.set_default_response('cancel');dialog.set_close_response('cancel')
+            def responded(_,response):
+                nonlocal blur_sync,blur_dialog
+                blur_dialog=None
+                if response!='enable' or self.closed or not window.get_visible() or not self.blur_available:return
+                blur_sync=True;blur.set_active(True);blur_sync=False
+                changed()
+            dialog.connect('response',responded);dialog.present()
+        blur.connect('notify::active',blur_changed)
         radius.connect('value-changed',changed);tint.connect('value-changed',changed)
         radius_row.set_sensitive(self.blur_requested and self.blur_available)
         tint_row.set_sensitive(self.blur_requested and self.blur_available)

@@ -37,6 +37,8 @@ development, and licensed under **[GPL-3.0-or-later](LICENSE)**.
   permanent deletion.
 - **Make it yours.** Choose System, Light, Dark or Dark + Light, adjust document
   zoom, and enable background blur where your GTK/Wayland setup supports it.
+  Fresh installs start in **Dark + Light**, with **blur off**. Enabling blur in
+  Preferences requires acknowledging that it needs **GNOME 51+ on Wayland**.
 
 The interface and bundled **Start to note** guide are in English. Documents
 use bundled **Noto Sans Regular** for Body (12 pt), and **Noto Sans Bold** for
