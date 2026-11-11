@@ -23,7 +23,10 @@ development, and licensed under **[GPL-3.0-or-later](LICENSE)**.
   highlighting, alignment, bullets, numbered lists and checkboxes. The formatting
   toolbar appears on hover; the eye button can keep it visible. Its line-spacing
   icon offers 0.95, 1.00, 1.15, 1.25, 1.50 and 2.00 for the current or selected
-  paragraphs; spacing is preserved when saving, printing and exporting.
+  paragraphs; spacing is preserved when saving, printing and exporting. The
+  highlight and text-colour palettes have identical grids: 10 columns of colours
+  with 6 progressively darker shades,
+  including black. Dark highlights use white text; lighter ones keep your text colour.
 - **Add tables.** Choose rows and columns with the table icon beside the line icon.
   Select a cell, then use its **Table** handle to add or delete rows and columns,
   or delete the table. Drag column grips to resize; set **Border** to 0–10 pixels

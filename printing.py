@@ -5,7 +5,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('PangoCairo', '1.0')
 from gi.repository import Gtk, Pango, PangoCairo, GdkPixbuf, Gdk, GLib, Gio
-from model import (blank,decode_image,validate_document,MAX_IMAGE_PIXELS,ResourceLimitError,resolved_style,
+from model import (blank,decode_image,validate_document,MAX_IMAGE_PIXELS,ResourceLimitError,resolved_style,highlight_foreground,StyleCursor,
                    DOCUMENT_DPI,POINTS_PER_PIXEL,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_HEIGHT_PX,fit_image_dimensions)
 from filesystem import atomic_export
 from application import register_document_fonts
@@ -144,6 +144,14 @@ class Pages:
                 attr.start_index = byte_offsets[start-offset]
                 attr.end_index = byte_offsets[end-offset]
                 attrs.insert(attr)
+        # Contrast overrides are applied after all ordinary foreground/link spans.
+        cursor=StyleCursor(spans)
+        cuts=sorted({offset,offset+len(text)}|{max(offset,s['start']) for s in spans}|{min(offset+len(text),s['end']) for s in spans})
+        for start,end in zip(cuts,cuts[1:]):
+            if not highlight_foreground(cursor.at(start).get('background')):continue
+            attr=Pango.attr_foreground_new(65535,65535,65535)
+            attr.start_index=byte_offsets[start-offset];attr.end_index=byte_offsets[end-offset]
+            attrs.change(attr)
         layout.set_attributes(attrs)
         return layout
 

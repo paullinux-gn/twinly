@@ -2,7 +2,7 @@
 import copy
 import uuid
 from gi.repository import Gtk,Adw,Gio,Pango
-from model import PARAGRAPH_STYLES,CUSTOM_FORMAT_KEYS,resolved_style,validate_custom_style
+from model import PARAGRAPH_STYLES,CUSTOM_FORMAT_KEYS,resolved_style,validate_custom_style,highlight_foreground
 from settings import read_settings
 
 class CustomStylesMixin:
@@ -179,7 +179,7 @@ class CustomStylesMixin:
             if definition['format'].get('underline'):attrs.insert(Pango.attr_underline_new(Pango.Underline.SINGLE))
             if definition['format'].get('strike'):attrs.insert(Pango.attr_strikethrough_new(True))
             for key,make in (('foreground',Pango.attr_foreground_new),('background',Pango.attr_background_new)):
-                colour=definition['format'].get(key)
+                colour=(highlight_foreground(definition['format'].get('background')) or definition['format'].get(key)) if key=='foreground' else definition['format'].get(key)
                 if colour:attrs.insert(make(*(int(colour[i:i+2],16)*257 for i in (1,3,5))))
             preview.set_attributes(attrs)
         chooser.connect('notify::font-desc',preview_font);preview_font()

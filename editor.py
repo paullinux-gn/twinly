@@ -15,7 +15,7 @@ gi.require_version('Adw','1')
 gi.require_version('GdkPixbuf','2.0')
 from gi.repository import Gtk, Adw, Gio, GLib, Gdk, Pango
 from model import (blank, to_html, from_html, image_data, stamp, atomic_write,
-                   safe_name, COLORS, MAX_DOCUMENT, valid_link, relocated_href, relocate_html_links, validate_document,validate_image_budget,PARAGRAPH_STYLES,resolved_style,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_PADDING_PX,fit_image_dimensions)
+                   safe_name, COLORS, highlight_foreground, MAX_DOCUMENT, valid_link, relocated_href, relocate_html_links, validate_document,validate_image_budget,PARAGRAPH_STYLES,resolved_style,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_PADDING_PX,fit_image_dimensions)
 from printing import pixbuf_for, PrintPreview,clear_image_cache
 from sidebar import Sidebar,DocumentResults
 from model import validate_text,MAX_PARAGRAPH_CHARS,ResourceLimitError
@@ -891,7 +891,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         for label,signal in [('Cut','cut-clipboard'),('Copy','copy-clipboard'),('Paste','paste-clipboard')]:
             menu_button(label,lambda signal=signal:self.view.emit(signal))
         box.append(Gtk.Separator())
-        palette=self.palette_grid(columns=4)
+        palette=self.palette_grid()
         box.append(palette)
         palette.set_sensitive(self.editing)
         # Bind palette buttons explicitly, including those hidden while collapsed.
@@ -953,9 +953,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8,
                     margin_start=12,margin_end=12,margin_top=12,margin_bottom=12)
         grid=Gtk.Grid(column_spacing=6,row_spacing=6)
-        colours=[('Black','#202020'),('Gray','#77767b'),('Red','#c01c28'),('Orange','#c64600'),
-                 ('Green','#268034'),('Blue','#1c71d8'),('Purple','#9141ac'),('White','#ffffff')]
-        for i,(name,value) in enumerate(colours):grid.attach(self.text_color_swatch(name,value),i%4,i//4,1,1)
+        for i,(name,value) in enumerate(COLORS.items()):grid.attach(self.text_color_swatch(name,value),i%10,i//10,1,1)
         box.append(grid)
         self.recent_text_color_row=Gtk.Box(spacing=6,visible=False)
         box.append(self.recent_text_color_row)
@@ -1030,7 +1028,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.text_color_popover.popdown()
         self.view.grab_focus()
 
-    def palette_grid(self,columns=None):
+    def palette_grid(self,columns=10):
         box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
         for method in ('set_margin_start','set_margin_end','set_margin_top','set_margin_bottom'):getattr(box,method)(12)
         row=Gtk.Grid(column_spacing=6,row_spacing=6)
@@ -1051,7 +1049,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 cr.set_source_rgba(rgba.red,rgba.green,rgba.blue,1);cr.fill()
             swatch.set_draw_func(draw_color)
             b.set_child(swatch)
-            row.attach(b,i%(columns or (len(COLORS)+1)),i//(columns or (len(COLORS)+1)),1,1)
+            row.attach(b,i%columns,i//columns,1,1)
         remove=Gtk.Button(tooltip_text='Clear highlight',action_name='win.unhighlight',focus_on_click=False)
         remove.add_css_class('highlight-swatch')
         remove.update_property([Gtk.AccessibleProperty.LABEL],['Clear highlight'])
@@ -1070,9 +1068,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             cr.move_to(6,height-6);cr.line_to(width-6,6);cr.stroke()
         swatch.set_draw_func(draw_clear)
         remove.set_child(swatch)
-        i=len(COLORS)
-        row.attach(remove,i%(columns or (len(COLORS)+1)),i//(columns or (len(COLORS)+1)),1,1)
         box.append(row)
+        remove.set_halign(Gtk.Align.START);box.append(remove)
         return box
 
     def tag_for(self,key,value):
@@ -1090,7 +1087,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             tag.set_property('foreground','#9141ac' if value['kind']=='document' else '#1c71d8')
             tag.set_property('underline',Pango.Underline.SINGLE)
         elif key=='background':
-            tag.set_property('foreground','#202020')
+            contrast=highlight_foreground(value)
+            if contrast:tag.set_property('foreground',contrast)
         elif key=='paragraph':
             defaults=PARAGRAPH_STYLES[value][1]
             tag.set_property('size-points',defaults['size']*self.zoom)
@@ -1106,6 +1104,10 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.buffer.get_tag_table().add(tag)
         self.tags[token]=tag
         if key in ('background','paragraph'):tag.set_priority(0)
+        for candidate in self.tags.values():
+            if candidate.twinly_key=='background' and highlight_foreground(candidate.twinly_value):
+                candidate.set_priority(self.buffer.get_tag_table().get_size()-1)
+        if hasattr(self,'search_tag'):self.search_tag.set_priority(self.buffer.get_tag_table().get_size()-1)
         return tag
 
     def bounds(self):

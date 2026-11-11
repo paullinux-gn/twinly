@@ -1338,7 +1338,7 @@ class Native(unittest.TestCase):
         self.assertEqual(7,len(buttons))
         self.assertTrue(all(b.is_sensitive() for b in buttons))
         grid=buttons[0].get_parent()
-        self.assertEqual([(0,0),(1,0),(2,0),(3,0),(0,1),(1,1),(2,1)],
+        self.assertEqual([(0,0),(1,0),(2,0),(3,0),(4,0),(5,0),(6,0)],
                          [grid.query_child(b)[:2] for b in buttons])
         self.assertEqual(['Yellow','Green','Blue','Pink','Orange','Purple','Turquoise'],[b.get_tooltip_text() for b in buttons])
         buttons[1].emit('clicked');pump()

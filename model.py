@@ -33,8 +33,32 @@ def fit_image_dimensions(width,height,available_width=None,available_height=None
                available_height/height if available_height is not None else 1)
     return max(1,round(width*factor)),max(1,round(height*factor))
 
-COLORS = {'Yellow': '#fff099', 'Green': '#b9efb2', 'Blue': '#b8ddff',
-          'Pink': '#ffc5df', 'Orange': '#ffd0a0', 'Purple': '#dcc5f5', 'Turquoise': '#a8e6df'}
+def highlight_colors():
+    import colorsys
+    bases=(('Yellow','#fff099'),('Green','#b9efb2'),('Blue','#b8ddff'),
+           ('Pink','#ffc5df'),('Orange','#ffd0a0'),('Purple','#dcc5f5'),
+           ('Turquoise','#a8e6df'),('Red','#ffb3b3'),('Lime','#d8ee9a'),('Gray','#ffffff'))
+    result={}
+    for row,factor in enumerate((1,.8,.6,.4,.25,.12)):
+        for column,(name,color) in enumerate(bases):
+            if row:
+                h,l,s=colorsys.rgb_to_hls(*(int(color[i:i+2],16)/255 for i in (1,3,5)))
+                color='#'+''.join(f'{round(v*255):02x}' for v in colorsys.hls_to_rgb(h,l*factor,s))
+            label=('White' if column==9 else name) if row==0 else f'{name} — shade {row+1}'
+            if row==5 and column==9:label='Black';color='#000000'
+            result[label]=color
+    return result
+
+COLORS=highlight_colors()
+
+def highlight_foreground(background):
+    """Use white only where its WCAG contrast against the background is >=4.5:1."""
+    if not background:return None
+    channels=[int(background[i:i+2],16)/255 for i in (1,3,5)]
+    linear=[v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4 for v in channels]
+    luminance=sum(v*w for v,w in zip(linear,(.2126,.7152,.0722)))
+    return '#ffffff' if (1.05/(luminance+.05))>=4.5 else None
+
 MAX_IMAGE = 20 * 1024 * 1024
 MAX_DOCUMENT = 64 * 1024 * 1024
 LINE_SPACINGS=(.95,1.0,1.15,1.25,1.5,2.0)
@@ -281,6 +305,8 @@ def css(style):
     if style.get('background'):
         parts += ['background-color:' + style['background'], 'border-radius:6px','padding:2px 3px','box-decoration-break:clone']
     if style.get('foreground'):parts.append('color:'+style['foreground'])
+    contrast=highlight_foreground(style.get('background'))
+    if contrast:parts.append('color:'+contrast)
     if style.get('family'):
         # Only family names accepted by the importer, never arbitrary CSS.
         family = re.sub(r'[^\w .,-]', '', style['family'])
@@ -352,8 +378,10 @@ def to_html(doc, title='Document'):
             if link and valid_link(link['href']):
                 part=f'<a href="{html.escape(link["href"],quote=True)}" data-twinly-link="{link["kind"]}" style="color:{"#9141ac" if link["kind"]=="document" else "#1c71d8"};text-decoration:underline">{part}</a>'
             metadata=''
+            if highlight_foreground(style.get('background')):
+                metadata=' data-twinly-highlight-foreground="'+style.get('foreground','inherit')+'"'
             if style.get('custom_style'):
-                metadata=' data-twinly-custom="'+html.escape(json.dumps(style['custom_style'],ensure_ascii=False,separators=(',',':')),quote=True)+'"'
+                metadata+=' data-twinly-custom="'+html.escape(json.dumps(style['custom_style'],ensure_ascii=False,separators=(',',':')),quote=True)+'"'
             parts.append(f'<span style="{html.escape(code, quote=True)}"{metadata}>{part}</span>' if code or metadata else part)
         spacing=';line-height:'+str(paragraph['line_spacing']) if 'line_spacing' in paragraph else ''
         paras.append(f'<{block} data-twinly-style="{paragraph_style}" style="text-align:{align}{spacing}">{"".join(parts) or "<br>"}</{block}>')
@@ -474,6 +502,10 @@ class Reader(HTMLParser):
             self.paragraph=True;self.paragraph_start=self.length
             self.table_capture=TableReader(self.length,attrs);return
         style = parse_style(attrs.get('style', ''))
+        original=attrs.get('data-twinly-highlight-foreground')
+        if highlight_foreground(style.get('background')) and original is not None:
+            if original=='inherit':style.pop('foreground',None)
+            elif re.fullmatch(r'#[0-9a-fA-F]{6}',original):style['foreground']=original
         if 'data-twinly-custom' in attrs:
             try:style['custom_style']=validate_custom_style(json.loads(attrs['data-twinly-custom']))
             except (ValueError,TypeError,KeyError,RecursionError):self.warnings.append('An invalid custom style was skipped.')

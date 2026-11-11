@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from zipfile import ZipFile,ZIP_DEFLATED,ZIP_STORED
 import xml.etree.ElementTree as ET
-from model import validate_document,decode_image,resolved_style
+from model import validate_document,decode_image,resolved_style,highlight_foreground
 from filesystem import atomic_export
 
 NS={
@@ -152,6 +152,9 @@ def docx_bytes(doc):
             node(rp,'w:sz',{'w:val':size});node(rp,'w:szCs',{'w:val':size})
             if style.get('foreground') and not style.get('link'):node(rp,'w:color',{'w:val':style['foreground'][1:].upper()})
             if style.get('link'):node(rp,'w:color',{'w:val':'9141AC' if style['link']['kind']=='document' else '1C71D8'})
+            if highlight_foreground(style.get('background')):
+                for color in list(rp.findall(q('w:color'))):rp.remove(color)
+                node(rp,'w:color',{'w:val':'FFFFFF'})
             if style.get('background'):node(rp,'w:shd',{'w:val':'clear','w:fill':style['background'][1:]})
             if image:
                 counter+=1;name,raw,width,height=image_info(image,counter);media['word/media/'+name]=raw
@@ -217,6 +220,7 @@ def odt_bytes(doc):
             if s.get('background'):attrs['fo:background-color']=s['background']
             if s.get('foreground'):attrs['fo:color']=s['foreground']
             if s.get('link'):attrs['fo:color']='#9141ac' if s['link']['kind']=='document' else '#1c71d8'
+            if highlight_foreground(s.get('background')):attrs['fo:color']='#ffffff'
             node(style,'style:text-properties',attrs)
             parent=p
             if s.get('link'):parent=node(p,'text:a',{'xlink:href':clean(s['link']['href']),'xlink:type':'simple'})
