@@ -96,8 +96,8 @@ class ActionsMixin:
             'zoom-in':['<Primary>plus','<Primary>equal'], 'zoom-out':['<Primary>minus'],
             'zoom-reset':['<Primary>0']}
         bindings['shortcuts']=(self.show_shortcuts,[])
-        bindings['zoom-in']=(lambda *_:self.change_zoom(.1),[])
-        bindings['zoom-out']=(lambda *_:self.change_zoom(-.1),[])
+        bindings['zoom-in']=(lambda *_:self.change_zoom(.05),[])
+        bindings['zoom-out']=(lambda *_:self.change_zoom(-.05),[])
         bindings['zoom-reset']=(lambda *_:self.change_zoom(1-self.zoom),[])
         for name,keys in extra.items():bindings[name]=(bindings[name][0],keys)
         self.shortcut_bindings={name:keys for name,(_,keys) in bindings.items() if keys}

@@ -385,7 +385,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.zoom_label.add_css_class('zoom-pill')
         zoom_popover=Gtk.Popover()
         zoom_controls=Gtk.Box(spacing=6)
-        for label,step in [('−',-.1),('100%',None),('+',.1)]:
+        for label,step in [('−',-.05),('100%',None),('+',.05)]:
             button=Gtk.Button(label=label,tooltip_text='Reset zoom' if step is None else ('Zoom out' if step<0 else 'Zoom in'))
             button.connect('clicked',lambda _,v=step:self.change_zoom(1-self.zoom if v is None else v))
             zoom_controls.append(button)
