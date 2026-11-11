@@ -114,6 +114,7 @@ class Pages:
             if end <= start: continue
             style = resolved_style(s['style'])
             items = []
+            if style.get('line_spacing') is not None:items.append(Pango.attr_line_height_new(style['line_spacing']))
             if style.get('weight'): items.append(Pango.attr_weight_new(Pango.Weight.BOLD))
             if style.get('font_weight'):
                 # Numeric CSS weights include values without a Pango.Weight enum.

@@ -154,7 +154,7 @@ class VaultEditing:
         self.loading=True
         self.buffer.set_text('');self.history.clear();self.navigation.clear();self.anchors.clear()
         self.clear_format_tags();self.saved_doc=blank();self.path=None
-        self.typing_custom_style=None;self.typing_custom_format=None;self.typing_font=None;self.typing_color=None
+        self.typing_line_spacing=None;self.typing_custom_style=None;self.typing_custom_format=None;self.typing_font=None;self.typing_color=None
         self.search_entry.set_text('');self.replace_entry.set_text('')
         self.title_widget.set_title('');self.title_entry.set_text('');self.style_name_label.set_text('')
         if self.outline_popover.get_child():self.outline_popover.set_child(None)

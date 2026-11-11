@@ -20,7 +20,8 @@ def install(source,prefix,destdir):
         # compressed and expanded only when creating a workspace.
         (data/(name+'.gz')).write_bytes(gzip.compress((source/'data'/name).read_bytes(),mtime=0))
         (data/name).unlink(missing_ok=True)
-    shutil.copy2(source/'data'/'twinly-table-symbolic.svg',data/'twinly-table-symbolic.svg')
+    for icon in ('twinly-table-symbolic.svg','twinly-line-spacing-symbolic.svg'):
+        shutil.copy2(source/'data'/icon,data/icon)
     for old in ('getting-started.html','getting-started.html.gz'):
         (data/old).unlink(missing_ok=True)
     for relative,name in [('share/applications',APP_ID+'.desktop'),('share/metainfo',APP_ID+'.metainfo.xml'),('share/icons/hicolor/scalable/apps',APP_ID+'.svg')]:

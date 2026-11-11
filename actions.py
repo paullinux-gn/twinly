@@ -1,6 +1,6 @@
 """Action registration and active-document routing."""
 from gi.repository import Gio,GLib
-from model import COLORS,PARAGRAPH_STYLES
+from model import COLORS,PARAGRAPH_STYLES,LINE_SPACINGS
 
 class ActionsMixin:
     EDIT_ACTIONS=frozenset((
@@ -11,7 +11,7 @@ class ActionsMixin:
     ))
 
     def edit_action(self,name):
-        return name in self.EDIT_ACTIONS or name.startswith(('style-','highlight-'))
+        return name in self.EDIT_ACTIONS or name.startswith(('style-','highlight-','line-spacing-'))
 
     def refresh_edit_actions(self):
         owner=self.workspace_owner or self
@@ -74,6 +74,8 @@ class ActionsMixin:
             'switch-pane':(lambda *_:self.switch_pane(),['F6']),
             'swap-panes':(lambda *_:(self.workspace_owner or self).swap_panes(),[]),
             'pin-pane':(lambda *_:self.toggle_pin(),[])}
+        for index,value in enumerate(LINE_SPACINGS):
+            bindings['line-spacing-'+str(index)]=(lambda *_,v=value:self.set_line_spacing(v),[])
         for style in PARAGRAPH_STYLES:
             bindings['style-'+style]=(lambda *_,s=style:self.apply_paragraph_style(s),[])
         for key,attr,shortcut in [('bold','weight','b'),('italic','italic','i'),('underline','underline','u'),('strike','strike',None)]:

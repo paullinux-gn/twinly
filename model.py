@@ -37,6 +37,7 @@ COLORS = {'Yellow': '#fff099', 'Green': '#b9efb2', 'Blue': '#b8ddff',
           'Pink': '#ffc5df', 'Orange': '#ffd0a0', 'Purple': '#dcc5f5', 'Turquoise': '#a8e6df'}
 MAX_IMAGE = 20 * 1024 * 1024
 MAX_DOCUMENT = 64 * 1024 * 1024
+LINE_SPACINGS=(.95,1.0,1.15,1.25,1.5,2.0)
 MAX_TEXT = 4 * 1024 * 1024
 MAX_SPANS = 20000
 MAX_IMAGES = 128
@@ -166,6 +167,7 @@ def validate_document(doc):
             elif key=='paragraph':
                 if not isinstance(value,str) or value not in PARAGRAPH_STYLES:raise ValueError('Invalid paragraph style.')
             elif key=='size':number(value,1,1000)
+            elif key=='line_spacing':number(value,.5,3)
             elif key=='font_weight':number(value,100,1000)
             elif key=='stretch':
                 if type(value) is not int or not 0<=value<len(STRETCH_NAMES):raise ValueError('Invalid font stretch.')
@@ -283,6 +285,7 @@ def css(style):
         # Only family names accepted by the importer, never arbitrary CSS.
         family = re.sub(r'[^\w .,-]', '', style['family'])
         parts.append('font-family:' + family)
+    if style.get('line_spacing'):parts.append('line-height:'+str(style['line_spacing']))
     if style.get('size'): parts.append(f"font-size:{float(style['size']):g}pt")
     return ';'.join(parts)
 
@@ -352,7 +355,8 @@ def to_html(doc, title='Document'):
             if style.get('custom_style'):
                 metadata=' data-twinly-custom="'+html.escape(json.dumps(style['custom_style'],ensure_ascii=False,separators=(',',':')),quote=True)+'"'
             parts.append(f'<span style="{html.escape(code, quote=True)}"{metadata}>{part}</span>' if code or metadata else part)
-        paras.append(f'<{block} data-twinly-style="{paragraph_style}" style="text-align:{align}">{"".join(parts) or "<br>"}</{block}>')
+        spacing=';line-height:'+str(paragraph['line_spacing']) if 'line_spacing' in paragraph else ''
+        paras.append(f'<{block} data-twinly-style="{paragraph_style}" style="text-align:{align}{spacing}">{"".join(parts) or "<br>"}</{block}>')
         offset = end + 1
     return ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
             '<meta name="generator" content="Twinly Preview 0.2">'
@@ -392,6 +396,9 @@ def parse_style(value):
         elif key == 'font-size':
             m = re.fullmatch(r'(\d+(?:\.\d+)?)(pt|px)', val)
             if m: out['size'] = max(6, min(144, float(m[1]) * (.75 if m[2] == 'px' else 1)))
+        elif key == 'line-height' and re.fullmatch(r'(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)',val):
+            factor=float(val)
+            if .5<=factor<=3:out['line_spacing']=factor
         elif key == 'text-align' and val in ('left', 'right', 'center', 'justify'): out['align'] = val
     return out
 

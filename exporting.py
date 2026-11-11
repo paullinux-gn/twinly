@@ -132,6 +132,8 @@ def docx_bytes(doc):
         paragraph_style=next((style['paragraph'] for _,style,_,_ in paragraph if 'paragraph' in style),'body')
         if any(rule for _,_,_,rule in paragraph):
             node(node(props,'w:pBdr'),'w:bottom',{'w:val':'single','w:sz':6,'w:space':1,'w:color':'808080'})
+        spacing=next((s['line_spacing'] for _,s,_,_ in paragraph if 'line_spacing' in s),None)
+        if spacing is not None:node(props,'w:spacing',{'w:line':round(spacing*240),'w:lineRule':'auto'})
         node(props,'w:jc',{'w:val':{'justify':'both'}.get(alignment,alignment)})
         if paragraph_style in ('title','h1','h2','h3'):
             node(props,'w:outlineLvl',{'w:val':0 if paragraph_style=='title' else int(paragraph_style[1])-1})
@@ -193,6 +195,8 @@ def odt_bytes(doc):
         name='P'+str(index);style=node(styles,'style:style',{'style:name':name,'style:family':'paragraph'})
         alignment=next((s['align'] for _,s,_,_ in paragraph if 'align' in s),'left')
         attrs={'fo:text-align':alignment}
+        spacing=next((s['line_spacing'] for _,s,_,_ in paragraph if 'line_spacing' in s),None)
+        if spacing is not None:attrs['fo:line-height']=f'{spacing*100:g}%'
         if any(rule for _,_,_,rule in paragraph):attrs['fo:border-bottom']='0.5pt solid #808080'
         node(style,'style:paragraph-properties',attrs)
         paragraph_style=next((s['paragraph'] for _,s,_,_ in paragraph if 'paragraph' in s),'body')

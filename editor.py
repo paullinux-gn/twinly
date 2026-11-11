@@ -70,7 +70,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.buffer=Gtk.TextBuffer()
         self.typing_font=None
         self.typing_color=None
-        self.typing_paragraph=None
+        self.typing_paragraph=None;self.typing_line_spacing=None
         self.typing_custom_style=None
         self.typing_custom_format=None
         self.typing_style_reset=False
@@ -181,6 +181,13 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             alignment.append(label,'win.'+action)
         self.paragraph_group.append(Gtk.MenuButton(icon_name='format-justify-left-symbolic',menu_model=alignment,
                                                tooltip_text='Paragraph alignment'))
+        from model import LINE_SPACINGS
+        spacing=Gio.Menu()
+        for index,value in enumerate(LINE_SPACINGS):spacing.append(f'{value:.2f}','win.line-spacing-'+str(index))
+        self.line_spacing_button=Gtk.MenuButton(menu_model=spacing,tooltip_text='Line spacing')
+        self.line_spacing_button.set_child(Gtk.Image.new_from_gicon(Gio.FileIcon.new(Gio.File.new_for_path(str(DATA_DIR/'twinly-line-spacing-symbolic.svg')))))
+        self.line_spacing_button.update_property([Gtk.AccessibleProperty.LABEL],['Line spacing'])
+        self.paragraph_group.append(self.line_spacing_button)
         self.format_controls.insert(self.paragraph_group,-1)
         self.list_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,css_classes=['linked'])
         for icon,label,action in [('view-list-bullet-symbolic','Bullets','list-bullet'),
@@ -1092,6 +1099,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         elif key=='foreground':tag.set_property('foreground',value)
         elif key=='family':tag.set_property('family',value)
         elif key=='size':tag.set_property('size-points',value*self.zoom)
+        elif key=='line_spacing':tag.set_property('line-height',value)
         elif key=='align':tag.set_property('justification',{'left':Gtk.Justification.LEFT,
             'center':Gtk.Justification.CENTER,'right':Gtk.Justification.RIGHT,'justify':Gtk.Justification.FILL}[value])
         tag.twinly_key,tag.twinly_value=key,value
@@ -1150,11 +1158,24 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if not end.is_end():end.forward_char()
         self.apply_style('align',value,(start,end))
 
+    def set_line_spacing(self,value):
+        if not self.editing:return
+        from model import LINE_SPACINGS
+        if value not in LINE_SPACINGS:raise ValueError('Invalid line spacing.')
+        start,end=self.paragraph_bounds()
+        if not end.is_end():end.forward_char()
+        if start.equal(end):
+            self.typing_line_spacing=value
+            self.line_spacing_button.set_tooltip_text(f'Line spacing: {value:.2f}')
+            self.view.grab_focus();return
+        self.apply_style('line_spacing',value,(start,end))
+        self.line_spacing_button.set_tooltip_text(f'Line spacing: {value:.2f}')
+
     def clear(self):
         if not self.editing:return
         bounds=self.bounds()
         if bounds:
-            self.typing_font=None;self.typing_color=None;self.typing_paragraph=None
+            self.typing_font=None;self.typing_color=None;self.typing_paragraph=None;self.typing_line_spacing=None
             self.typing_custom_style=None;self.typing_custom_format=None
             self.typing_family=None;self.typing_style_reset=False
             self.buffer.remove_all_tags(*bounds)
@@ -1186,6 +1207,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def apply_typing_font(self,buffer,end,text,length):
         if self.loading or not text:return
         start=buffer.get_iter_at_offset(end.get_offset()-len(text))
+        if self.typing_line_spacing is not None:
+            buffer.apply_tag(self.tag_for('line_spacing',self.typing_line_spacing),start,end)
+            self.typing_line_spacing=None
         if self.typing_style_reset:
             for tag in self.tags.values():
                 if tag.twinly_key in ('size','weight','font_weight','italic','font_style','custom_style'):buffer.remove_tag(tag,start,end)
@@ -1358,7 +1382,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.autosave_pending=0
         self.typing_font=None
         self.typing_color=None
-        self.typing_paragraph=None
+        self.typing_paragraph=None;self.typing_line_spacing=None
         self.typing_custom_style=None
         self.typing_custom_format=None
         self.typing_style_reset=False
@@ -1566,6 +1590,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         for tag in where.get_tags():
             if hasattr(tag,'twinly_key'):styles[tag.twinly_key]=tag.twinly_value
         styles=resolved_style(styles)
+        if hasattr(self,'line_spacing_button'):
+            value=styles.get('line_spacing')
+            self.line_spacing_button.set_tooltip_text(f'Line spacing: {value:.2f}' if value is not None else 'Line spacing')
         active={'win.bold':bool(styles.get('weight') or styles.get('font_weight',0)>=600),
                 'win.italic':bool(styles.get('italic') or styles.get('font_style')=='oblique'),
                 'win.underline':bool(styles.get('underline')),'win.strike':bool(styles.get('strike'))}

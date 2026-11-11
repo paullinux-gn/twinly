@@ -143,6 +143,9 @@ def word_properties(properties):
             color={'yellow':'#ffff00','green':'#00ff00','cyan':'#00ffff','magenta':'#ff00ff','blue':'#0000ff','red':'#ff0000','darkYellow':'#808000','lightGray':'#c0c0c0'}.get(value)
             if color:style['background']=color
         elif name=='outlineLvl' and value in ('0','1','2'):style['paragraph']='h'+str(int(value)+1)
+        elif name=='spacing' and attr(element,'lineRule','auto')=='auto':
+            spacing=number(attr(element,'line'))
+            if spacing is not None and .5<=spacing/240<=3:style['line_spacing']=spacing/240
         elif name=='jc':
             alignment={'both':'justify','start':'left','end':'right'}.get(value,value)
             if alignment in ('left','center','right','justify'):style['align']=alignment
@@ -256,6 +259,9 @@ def odf_properties(properties):
         elif name=='text-line-through-style':result['strike']=value!='none'
         elif name=='color' and re.fullmatch('#[0-9a-fA-F]{6}',value):result['foreground']=value.lower()
         elif name=='background-color' and re.fullmatch('#[0-9a-fA-F]{6}',value):result['background']=value
+        elif name=='line-height' and value.endswith('%'):
+            spacing=number(value[:-1])
+            if spacing is not None and .5<=spacing/100<=3:result['line_spacing']=spacing/100
         elif name=='text-align':
             value={'start':'left','end':'right'}.get(value,value)
             if value in ('left','center','right','justify'):result['align']=value
