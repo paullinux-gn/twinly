@@ -28,7 +28,7 @@ BASE_CSS = r"""
                 box-shadow:0 3px 8px alpha(black,.15);
             }
             .floating-toolbar .format-toolbar button {
-                min-width:24px;min-height:24px;padding:2px 4px;
+                min-width:24px;min-height:24px;padding:2px 3px;
             }
             .floating-toolbar .format-toolbar flowboxchild {
                 padding:0;
@@ -36,6 +36,10 @@ BASE_CSS = r"""
             .floating-toolbar .format-toolbar .linked {
                 padding-left:4px;
             }
+            .document-table .table-cell {border:1px solid alpha(currentColor,.35);border-radius:0;}
+            .document-table textview {font-family:"Noto Sans";font-size:12pt;}
+            .light-document .document-table textview, .light-document .document-table textview text {background:#fff;color:#202020;}
+            .light-document .document-table {color:#202020;}
             headerbar, headerbar:backdrop {
                 background:@headerbar_bg_color;color:@headerbar_fg_color;}
             .blur-sidebar headerbar, .blur-sidebar headerbar:backdrop {

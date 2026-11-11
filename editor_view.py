@@ -64,6 +64,8 @@ class DocumentView(Gtk.TextView):
         while child:
             if isinstance(child,Gtk.Separator) and child.get_size_request()[0]!=available:
                 child.set_size_request(available,1)
+            if hasattr(child,'table_entry'):
+                child.set_available_width(available)
             if hasattr(child,'photo_entry'):
                 entry=child.photo_entry
                 zoom=entry.get('display_zoom',1)

@@ -186,9 +186,30 @@ class Pages:
             row.append((pix,w,h,gap,img['offset']));width+=gap+w
         flush()
 
+    def table(self,table):
+        widths=[self.content_width*w/sum(table['widths']) for w in table['widths']]
+        for row in table['cells']:
+            layouts=[]
+            for value,width in zip(row,widths):
+                layout=self.text_layout('',table['offset'])
+                layout.set_attributes(Pango.AttrList());layout.set_alignment(Pango.Alignment.LEFT);layout.set_justify(False)
+                layout.set_text(value or ' ',-1)
+                layout.set_width(max(1,round((width-12)/POINTS_PER_PIXEL))*Pango.SCALE)
+                layouts.append(layout)
+            height=max(l.get_size()[1]/Pango.SCALE*POINTS_PER_PIXEL for l in layouts)+12
+            consumed=0
+            while consumed<height:
+                fragment=min(height-consumed,self.height-2*self.margin)
+                self.reserve(fragment)
+                fragment=min(fragment,self.height-self.margin-self.y)
+                self.pages[-1].append(('table-row',layouts,widths,self.y,fragment,consumed,table.get('border',1)))
+                self.y+=fragment;consumed+=fragment
+        self.y+=PARAGRAPH_SPACING_PX*POINTS_PER_PIXEL
+
     def paginate(self):
         images={i['offset']:i for i in self.doc['images']}
         rules=set(self.doc.get('rules',[]))
+        tables={t['offset']:t for t in self.doc.get('tables',[])}
         offset=0
         for line in self.doc['text'].split('\n'):
             pos=0;pending=[]
@@ -196,7 +217,7 @@ class Pages:
                 if pending:self.image_rows(pending);pending.clear()
             for index,char in enumerate(line):
                 absolute=offset+index
-                if char!='\ufffc' or absolute not in images and absolute not in rules:continue
+                if char!='\ufffc' or absolute not in images and absolute not in rules and absolute not in tables:continue
                 segment=line[pos:index]
                 gap=0
                 if segment:
@@ -204,7 +225,9 @@ class Pages:
                         gap=self.text_layout(segment,offset+pos).get_size()[0]/Pango.SCALE*POINTS_PER_PIXEL
                     else:
                         flush_images();self.text(segment,offset+pos)
-                if absolute in rules:
+                if absolute in tables:
+                    flush_images();self.table(tables[absolute])
+                elif absolute in rules:
                     flush_images()
                     height=RULE_HEIGHT_PX*POINTS_PER_PIXEL
                     self.reserve(height+PARAGRAPH_SPACING_PX*POINTS_PER_PIXEL)
@@ -235,6 +258,16 @@ class Pages:
                 cr.move_to(0,0)
                 PangoCairo.show_layout_line(cr, line)
                 cr.restore()
+            elif item[0]=='table-row':
+                _,layouts,widths,y,height,consumed,border=item
+                x=self.margin
+                for layout,width in zip(layouts,widths):
+                    cr.save();cr.rectangle(x,y,width,height);cr.clip()
+                    cr.set_source_rgb(.08,.08,.08);cr.translate(x+6,y+6-consumed)
+                    cr.scale(POINTS_PER_PIXEL,POINTS_PER_PIXEL);PangoCairo.show_layout(cr,layout);cr.restore()
+                    cr.save();cr.set_source_rgb(.5,.5,.5);cr.set_line_width(border*POINTS_PER_PIXEL)
+                    if border:cr.rectangle(x,y,width,height);cr.stroke()
+                    cr.restore();x+=width
             elif item[0]=='rule':
                 _,x,y,width=item
                 cr.save()

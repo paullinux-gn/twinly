@@ -8,6 +8,7 @@ from model import validate_document,decode_image,resolved_style
 from filesystem import atomic_export
 
 NS={
+ 'table':'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
  'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
  'r':'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
  'wp':'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',
@@ -50,7 +51,7 @@ def clean(text):return re.sub('[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uf
 
 def runs(doc):
     """Sweep span boundaries once, preserving paragraph and inline-object positions."""
-    events={};text=doc['text'];images={i['offset']:i for i in doc['images']};rules=set(doc['rules'])
+    events={};text=doc['text'];images={i['offset']:i for i in doc['images']};rules=set(doc['rules']);tables={t['offset']:t for t in doc.get('tables',[])}
     cuts={0,len(text)}
     for index,span in enumerate(doc['spans']):
         for offset,add in ((span['start'],True),(span['end'],False)):
@@ -65,9 +66,49 @@ def runs(doc):
         style={}
         for index in sorted(active):style.update(active[index])
         value=text[start:end]
-        if value=='\n':yield paragraph;paragraph=[]
+        if start in tables:
+            if paragraph:yield paragraph;paragraph=[]
+            yield [(value,style,None,tables[start])]
+        elif value=='\n':yield paragraph;paragraph=[]
         else:paragraph.append((value,style,images.get(start),'rule' if start in rules else None))
     yield paragraph
+
+def word_table(body,table):
+    tbl=node(body,'w:tbl');props=node(tbl,'w:tblPr')
+    node(props,'w:tblW',{'w:w':5000,'w:type':'pct'})
+    borders=node(props,'w:tblBorders');border=table.get('border',1)
+    for side in ('top','left','bottom','right','insideH','insideV'):
+        node(borders,'w:'+side,{'w:val':'single' if border else 'nil','w:sz':max(2,round(border*6)),'w:color':'808080'})
+    widths=[round(10206*w/sum(table['widths'])) for w in table['widths']]
+    grid=node(tbl,'w:tblGrid')
+    for width in widths:node(grid,'w:gridCol',{'w:w':width})
+    for row in table['cells']:
+        tr=node(tbl,'w:tr')
+        for value,width in zip(row,widths):
+            tc=node(tr,'w:tc');node(node(tc,'w:tcPr'),'w:tcW',{'w:w':width,'w:type':'dxa'})
+            p=node(tc,'w:p');run=node(p,'w:r')
+            node(node(run,'w:rPr'),'w:rFonts',{'w:ascii':'Noto Sans','w:hAnsi':'Noto Sans'})
+            for index,line in enumerate(value.split('\n')):
+                if index:node(run,'w:br')
+                t=node(run,'w:t');t.set('{http://www.w3.org/XML/1998/namespace}space','preserve');t.text=clean(line)
+
+
+def odf_table(body,styles,table,index):
+    name='Table'+str(index)
+    cellstyle=node(styles,'style:style',{'style:name':name+'Cell','style:family':'table-cell'})
+    border=table.get('border',1)
+    node(cellstyle,'style:table-cell-properties',{'fo:border':str(border*.75)+'pt solid #808080' if border else 'none','fo:padding':'0.06in'})
+    tbl=node(body,'table:table',{'table:name':name})
+    for col,width in enumerate(table['widths']):
+        style=node(styles,'style:style',{'style:name':name+'Col'+str(col),'style:family':'table-column'})
+        node(style,'style:table-column-properties',{'style:rel-column-width':str(round(width/sum(table['widths'])*10000))+'*'})
+        node(tbl,'table:table-column',{'table:style-name':name+'Col'+str(col)})
+    for row in table['cells']:
+        tr=node(tbl,'table:table-row')
+        for value in row:
+            tc=node(tr,'table:table-cell',{'table:style-name':name+'Cell','office:value-type':'string'})
+            for line in value.split('\n'):node(tc,'text:p').text=clean(line)
+
 
 def image_info(image,index):
     raw=decode_image(image['src']);ext='png' if raw.startswith(b'\x89PNG') else 'jpeg'
@@ -84,6 +125,8 @@ def docx_bytes(doc):
         ET.SubElement(rels,'{'+rel_ns+'}Relationship',{'Id':rid,'Type':NS['r']+'/'+kind,'Target':target,**({'TargetMode':'External'} if external else {})})
         return rid
     for paragraph in runs(doc):
+        if paragraph and isinstance(paragraph[0][3],dict):
+            word_table(body,paragraph[0][3]);continue
         p=node(body,'w:p');props=node(p,'w:pPr')
         alignment=next((style['align'] for _,style,_,_ in paragraph if 'align' in style),'left')
         paragraph_style=next((style['paragraph'] for _,style,_,_ in paragraph if 'paragraph' in style),'body')
@@ -145,6 +188,8 @@ def odt_bytes(doc):
     styles=node(content,'office:automatic-styles');body=node(node(content,'office:body'),'office:text')
     media={};counter=0
     for index,paragraph in enumerate(runs(doc)):
+        if paragraph and isinstance(paragraph[0][3],dict):
+            odf_table(body,styles,paragraph[0][3],index);continue
         name='P'+str(index);style=node(styles,'style:style',{'style:name':name,'style:family':'paragraph'})
         alignment=next((s['align'] for _,s,_,_ in paragraph if 'align' in s),'left')
         attrs={'fo:text-align':alignment}

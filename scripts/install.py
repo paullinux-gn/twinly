@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import gzip
 
-MODULES=('actions.py','application.py','editor.py','editor_view.py','exporting.py','filesystem.py','focus.py','importing.py','lifecycle.py','model.py','managed_workspaces.py','pdf_import.py','preferences.py','private_trash.py','printing.py','session.py','settings.py','sidebar.py','theme.py','workspace.py','writing.py','styles.py','vault.py','vault_ui.py')
+MODULES=('tables.py','table_editor.py','actions.py','application.py','editor.py','editor_view.py','exporting.py','filesystem.py','focus.py','importing.py','lifecycle.py','model.py','managed_workspaces.py','pdf_import.py','preferences.py','private_trash.py','printing.py','session.py','settings.py','sidebar.py','theme.py','workspace.py','writing.py','styles.py','vault.py','vault_ui.py')
 APP_ID='io.github.paullinux_gn.Twinly'
 
 def install(source,prefix,destdir):
@@ -20,6 +20,7 @@ def install(source,prefix,destdir):
         # compressed and expanded only when creating a workspace.
         (data/(name+'.gz')).write_bytes(gzip.compress((source/'data'/name).read_bytes(),mtime=0))
         (data/name).unlink(missing_ok=True)
+    shutil.copy2(source/'data'/'twinly-table-symbolic.svg',data/'twinly-table-symbolic.svg')
     for old in ('getting-started.html','getting-started.html.gz'):
         (data/old).unlink(missing_ok=True)
     for relative,name in [('share/applications',APP_ID+'.desktop'),('share/metainfo',APP_ID+'.metainfo.xml'),('share/icons/hicolor/scalable/apps',APP_ID+'.svg')]:

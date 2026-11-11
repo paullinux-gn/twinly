@@ -16,8 +16,12 @@ Resource limits are enforced before replacing the current document:
 | Resource | Limit |
 | --- | ---: |
 | HTML input | 64 MiB |
-| Text | 4 MiB UTF-8 |
-| Paragraph breaks | 20,000 |
+| Text, including table cells | 4 MiB UTF-8 |
+| Tables | 32 |
+| Rows / columns per table | 100 / 20 |
+| Cells per table / document | 1,000 / 2,000 |
+| Characters per table cell | 4,096 |
+| Paragraph breaks, including table cells | 20,000 |
 | Characters in one paragraph | 16,384 |
 | Formatting spans | 20,000 |
 | HTML nesting | 128 levels |

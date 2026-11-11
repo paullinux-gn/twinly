@@ -548,7 +548,7 @@ class VaultController(VaultEditing):
             action=Gio.SimpleAction.new(name,None);action.connect('activate',callback);self.add_action(action)
         for name in ('root','new-root','back','forward','vault-create','vault-open','vaults'):self.lookup_action(name).set_enabled(False)
         menu=Gio.Menu()
-        for label,name in [('Import HTML / ODT / Word / PDF…','open'),('Export HTML copy…','vault-export-html'),('Export PDF…','export-pdf'),('Export ODT…','export-odt'),('Export Word…','export-docx'),('Make a copy in encrypted workspace','duplicate'),('Document outline','outline'),('Find and replace','replace')]:menu.append(label,'win.'+name)
+        for label,name in [('Insert table…','insert-table'),('Import HTML / ODT / Word / PDF…','open'),('Export HTML copy…','vault-export-html'),('Export PDF…','export-pdf'),('Export ODT…','export-odt'),('Export Word…','export-docx'),('Make a copy in encrypted workspace','duplicate'),('Document outline','outline'),('Find and replace','replace')]:menu.append(label,'win.'+name)
         self.document_menu_button.set_menu_model(menu)
         lock=Gtk.Button(icon_name='changes-prevent-symbolic',tooltip_text='Lock encrypted workspace');lock.connect('clicked',self.lock_vault);self.document_header.pack_end(lock)
         self.set_sidebar_pixel_width(store.catalog['settings'].get('sidebar_width',290))

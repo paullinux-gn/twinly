@@ -66,6 +66,14 @@
         },
         {
           "type": "file",
+          "path": "../tables.py"
+        },
+        {
+          "type": "file",
+          "path": "../table_editor.py"
+        },
+        {
+          "type": "file",
           "path": "../lifecycle.py"
         },
         {

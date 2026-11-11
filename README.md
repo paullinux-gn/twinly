@@ -22,6 +22,11 @@ development, and licensed under **[GPL-3.0-or-later](LICENSE)**.
 - **Write comfortably.** Use paragraph styles, custom styles, text colours,
   highlighting, alignment, bullets, numbered lists and checkboxes. The formatting
   toolbar appears on hover; the eye button can keep it visible.
+- **Add tables.** Choose rows and columns with the table icon beside the line icon.
+  Select a cell, then use its **Table** handle to add or delete rows and columns,
+  or delete the table. Drag column grips to resize; set **Border** to 0–10 pixels
+  (0 hides borders). Cells contain plain text; Tab moves between cells. Tables
+  are preserved in HTML, PDF, ODT and DOCX exports.
 - **Read before editing.** Existing notes open read-only. Click the pencil to
   the left of a title to edit; its checkmark saves and returns to reading.
 - **Work with two notes.** Open beside, pin a reference, swap panes and adjust

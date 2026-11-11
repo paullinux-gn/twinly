@@ -13,6 +13,7 @@ import re
 import struct
 from filesystem import read_import_bytes
 import filesystem
+from tables import validate_table,table_html,TableReader,MAX_TABLES,MAX_TOTAL_CELLS
 
 # Retain existing callers of these two compatibility exports.
 atomic_write=filesystem.atomic_write
@@ -113,6 +114,21 @@ def validate_document(doc):
             raise ValueError('Invalid image or rule position.')
         return value
     occupied=set()
+    tables=doc.get('tables',[])
+    if not isinstance(tables,list) or len(tables)>MAX_TABLES:raise ResourceLimitError('Too many tables.')
+    if tables:
+        result['tables']=[]
+        cell_bytes=0;cell_count=0;cell_breaks=0
+        for table in tables:
+            clean=validate_table(table);offset=position(clean['offset'])
+            cell_count+=sum(map(len,clean['cells']))
+            if cell_count>MAX_TOTAL_CELLS:raise ResourceLimitError('A document supports up to 2000 table cells.')
+            if offset in occupied:raise ValueError('Duplicate document anchor position.')
+            occupied.add(offset);result['tables'].append(clean)
+            cell_bytes+=sum(len(cell.encode('utf-8')) for row in clean['cells'] for cell in row)
+            cell_breaks+=sum(cell.count('\n') for row in clean['cells'] for cell in row)
+            if cell_breaks+text.count('\n')>MAX_PARAGRAPHS:raise ResourceLimitError('Too many paragraphs, including table cells.')
+        if cell_bytes+len(text.encode('utf-8'))>MAX_TEXT:raise ResourceLimitError('Document and table text exceeds 4 MB.')
     for image in doc.get('images',[]):
         if not isinstance(image,dict):raise ValueError('Invalid image.')
         offset=position(image.get('offset'))
@@ -295,12 +311,15 @@ def to_html(doc, title='Document'):
     text = doc['text']
     images = {i['offset']: i for i in doc['images']}
     rules = set(doc.get('rules', []))
+    tables={t['offset']:t for t in doc.get('tables',[])}
     paras = []
     offset = 0
     cursor=StyleCursor(doc['spans'])
-    boundaries=sorted({p for span in doc['spans'] for p in (span['start'],span['end'])}|set(images)|rules|{p+1 for p in set(images)|rules})
+    boundaries=sorted({p for span in doc['spans'] for p in (span['start'],span['end'])}|set(images)|rules|set(tables)|{p+1 for p in set(images)|rules|set(tables)})
     for line in text.split('\n'):
         end = offset + len(line)
+        if line=='\ufffc' and offset in tables:
+            paras.append(table_html(tables[offset]));offset=end+1;continue
         if line=='\ufffc' and offset in rules:
             paras.append('<hr>')
             offset=end+1
@@ -313,7 +332,9 @@ def to_html(doc, title='Document'):
         parts = []
         bounds = sorted(cuts)
         for start, stop in zip(bounds, bounds[1:]):
-            if start in rules:
+            if start in tables:
+                part='</'+block+'>'+table_html(tables[start])+'<'+block+'>'
+            elif start in rules:
                 part='</p><hr><p style="text-align:'+align+'">'
             elif start in images:
                 img = images[start]
@@ -339,6 +360,8 @@ def to_html(doc, title='Document'):
             '<style>body{font-family:"Noto Sans",sans-serif;font-weight:400;font-size:12pt;line-height:1.4;'
             'max-width:900px;margin:32px auto;padding:0 24px}'
             'h1,h2,h3{font-weight:700}'
+            'table{border-collapse:collapse;width:100%;table-layout:fixed;margin:8px 0}'
+            'td,th{border:1px solid #888;padding:6px;vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}'
             'p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 8px}'
             'img{max-width:100%;height:auto;vertical-align:middle}'
             'hr{border:0;border-top:1px solid #888;margin:12px 0}'
@@ -391,6 +414,7 @@ class Reader(HTMLParser):
         self.paragraph_count=0
         self.image_bytes=0
         self.image_pixels=0
+        self.table_capture=None
 
     def add(self, text):
         self.paragraph_count+=text.count('\n')
@@ -428,6 +452,8 @@ class Reader(HTMLParser):
         if self.node_count>MAX_NODES or len(self.stack)+self.ignore>=MAX_NESTING:
             raise ResourceLimitError('The HTML document is too complex or too deeply nested.')
         attrs = dict(attrs)
+        if self.table_capture is not None:
+            self.table_capture.start(tag,attrs);return
         if tag == 'body':
             self.body = self.in_body = True
             return
@@ -435,6 +461,11 @@ class Reader(HTMLParser):
             self.ignore += 1
             return
         if self.ignore or not self.in_body: return
+        if tag=='table':
+            if len(self.doc.get('tables',[]))>=MAX_TABLES:raise ResourceLimitError('Too many tables.')
+            if self.paragraph:self.add('\n')
+            self.paragraph=True;self.paragraph_start=self.length
+            self.table_capture=TableReader(self.length,attrs);return
         style = parse_style(attrs.get('style', ''))
         if 'data-twinly-custom' in attrs:
             try:style['custom_style']=validate_custom_style(json.loads(attrs['data-twinly-custom']))
@@ -490,6 +521,12 @@ class Reader(HTMLParser):
             self.stack.append((tag, style))
 
     def handle_endtag(self, tag):
+        if self.table_capture is not None:
+            if tag=='table' and not self.table_capture.ignored:
+                self.doc.setdefault('tables',[]).append(self.table_capture.finish())
+                self.table_capture=None;self.add('\ufffc')
+            else:self.table_capture.end(tag)
+            return
         if tag == 'body': self.in_body = False
         if tag in ('head', 'script', 'style', 'iframe', 'object'):
             self.ignore = max(0, self.ignore - 1)
@@ -500,6 +537,8 @@ class Reader(HTMLParser):
                 break
 
     def handle_data(self, data):
+        if self.table_capture is not None:
+            self.table_capture.data(data);return
         if self.ignore or not self.in_body: return
         # Pretty-print whitespace between block elements is not document content.
         if not self.stack and not data.strip(): return
@@ -513,6 +552,7 @@ def from_html(content):
     if '<body' not in content.lower(): content = '<body>' + content + '</body>'
     parser.feed(content)
     parser.close()
+    if parser.table_capture is not None:raise ValueError('The table is not closed.')
     parser.doc['text']=''.join(parser.parts)
     return validate_document(parser.doc), list(dict.fromkeys(parser.warnings))
 

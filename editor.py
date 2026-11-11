@@ -123,7 +123,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         for items in [
             [('New document','new'),('Open…','open'),('Import…','import-office')],
             [('Save','save'),('Save as…','save-as'),('Make a copy','duplicate')],
-            [('Find…','find'),('Insert link…','link'),('Insert photo…','photo')],
+            [('Find…','find'),('Insert link…','link'),('Insert photo…','photo'),('Insert table…','insert-table')],
             [('Print preview…','print'),('Print…','print-direct')],
             [('Open beside current document…','open-beside'),('Swap panes','swap-panes'),('Pin as reference','pin-pane'),('Close pane','close')],
         ]:
@@ -192,6 +192,10 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.insert_group.append(self.button('insert-link-symbolic','Insert link · Ctrl+K','win.link'))
         self.insert_group.append(self.button('insert-image-symbolic','Insert photo','win.photo'))
         self.insert_group.append(self.button('list-remove-symbolic','Insert horizontal rule','win.horizontal-rule'))
+        table_button=Gtk.Button(tooltip_text='Insert table…',action_name='win.insert-table')
+        table_button.set_child(Gtk.Image.new_from_gicon(Gio.FileIcon.new(Gio.File.new_for_path(str(DATA_DIR/'twinly-table-symbolic.svg')))))
+        table_button.update_property([Gtk.AccessibleProperty.LABEL],['Insert table'])
+        self.insert_group.append(table_button)
         self.format_controls.insert(self.insert_group,-1)
         self.undo_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,halign=Gtk.Align.END,valign=Gtk.Align.START)
         self.undo_group.add_css_class('linked')
@@ -458,6 +462,8 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.edit_button.set_tooltip_text(label)
         self.edit_button.update_property([Gtk.AccessibleProperty.LABEL],[label])
         self.toolbar.set_sensitive(self.editing)
+        for entry in self.anchors:
+            if entry.get('kind')=='table':entry['frame'].set_editing(self.editing)
         self.replace_toggle.set_sensitive(self.editing)
         self.replace_row.set_sensitive(self.editing)
         if not self.editing:
@@ -1245,7 +1251,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 if tag.twinly_key=='size':tag.set_property('size-points',tag.twinly_value*self.zoom)
                 elif tag.twinly_key=='paragraph':tag.set_property('size-points',PARAGRAPH_STYLES[tag.twinly_value][1]['size']*self.zoom)
             for entry in self.anchors:
-                if not entry['anchor'].get_deleted() and entry.get('kind')!='rule':self.set_picture_size(entry)
+                if entry['anchor'].get_deleted():continue
+                if entry.get('kind')=='table':entry['frame'].update_border()
+                elif entry.get('kind')!='rule':self.set_picture_size(entry)
         finally:self.loading=was_loading
         self.zoom_label.set_label(f'{int(self.zoom*100)}%')
 
@@ -1277,7 +1285,13 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def guard_text_insertion(self,buffer,where,text,length):
         if self.loading:return
         current=buffer.get_slice(*buffer.get_bounds(),True);offset=where.get_offset()
-        try:validate_text(current[:offset]+text+current[offset:])
+        try:
+            validate_text(current[:offset]+text+current[offset:])
+            from model import MAX_TEXT,MAX_PARAGRAPHS
+            cell_bytes=sum(len(v.encode('utf-8')) for t in self.snapshot().get('tables',[]) for row in t['cells'] for v in row) if self.anchors else 0
+            breaks=sum(v.count('\n') for t in self.snapshot().get('tables',[]) for row in t['cells'] for v in row) if self.anchors else 0
+            if (current+text).count('\n')+breaks>MAX_PARAGRAPHS:raise ResourceLimitError('Too many paragraphs, including table cells.')
+            if len((current+text).encode('utf-8'))+cell_bytes>MAX_TEXT:raise ResourceLimitError('Document and table text exceeds 4 MB.')
         except ResourceLimitError as exc:
             buffer.stop_emission_by_name('insert-text')
             self.message('Text insertion failed: '+str(exc))
@@ -1308,17 +1322,23 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             if start is not None and start<len(text):
                 spans.append({'start':start,'end':len(text),'style':{tag.twinly_key:tag.twinly_value}})
         images=[]
-        rules=[]
+        rules=[];tables=[]
         for entry in self.anchors:
             if not entry['anchor'].get_deleted():
+                if entry.get('kind')=='table':
+                    data=copy.deepcopy(entry['frame'].data)
+                    data['offset']=self.buffer.get_iter_at_child_anchor(entry['anchor']).get_offset()
+                    tables.append(data);continue
                 if entry.get('kind')=='rule':
                     rules.append(self.buffer.get_iter_at_child_anchor(entry['anchor']).get_offset())
                     continue
                 image=copy.deepcopy(entry['data'])
                 image['offset']=self.buffer.get_iter_at_child_anchor(entry['anchor']).get_offset()
                 images.append(image)
-        return {'text':text,'spans':sorted(spans,key=lambda s:(s['start'],s['end'],str(s['style']))),
+        result={'text':text,'spans':sorted(spans,key=lambda s:(s['start'],s['end'],str(s['style']))),
                 'images':sorted(images,key=lambda i:i['offset']),'rules':sorted(rules)}
+        if tables:result['tables']=sorted(tables,key=lambda t:t['offset'])
+        return result
 
     def clear_format_tags(self):
         table=self.buffer.get_tag_table()
@@ -1365,6 +1385,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 end=self.buffer.get_iter_at_offset(offset+1)
                 self.buffer.delete(start,end)
                 self.attach_rule(self.buffer.get_iter_at_offset(offset))
+            for table in doc.get('tables',[]):
+                offset=table['offset'];self.buffer.delete(self.buffer.get_iter_at_offset(offset),self.buffer.get_iter_at_offset(offset+1))
+                self.attach_table(table,self.buffer.get_iter_at_offset(offset))
             for span in doc['spans']:
                 start=self.buffer.get_iter_at_offset(span['start'])
                 end=self.buffer.get_iter_at_offset(span['end'])
@@ -1984,7 +2007,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if mark==buffer.get_insert():
             self.update_format_state()
             for entry in self.anchors:
-                if entry['anchor'].get_deleted() or entry.get('kind')=='rule':continue
+                if entry['anchor'].get_deleted() or entry.get('kind') in ('rule','table'):continue
                 offset=buffer.get_iter_at_child_anchor(entry['anchor']).get_offset()
                 if location.get_offset() in (offset,offset+1):
                     self.select_photo(entry);return
@@ -2012,6 +2035,57 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             available if available>24 else None)
         entry['picture'].set_size_request(width,height)
         if 'outline' in entry:entry['outline'].queue_draw()
+
+    def insert_table(self,*_):
+        if not self.editing:return
+        from tables import MAX_ROWS,MAX_COLUMNS,MAX_CELLS,MAX_TABLES
+        if len(self.snapshot().get('tables',[]))>=MAX_TABLES:self.error('A document supports up to 32 tables.');return
+        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),modal=True,heading='Insert table',body='Choose the number of rows and columns. Cells contain editable text.')
+        box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
+        rows=Gtk.SpinButton.new_with_range(1,MAX_ROWS,1);rows.set_value(3)
+        columns=Gtk.SpinButton.new_with_range(1,MAX_COLUMNS,1);columns.set_value(3)
+        for label,control in [('Rows',rows),('Columns',columns)]:
+            line=Gtk.Box(spacing=12);line.append(Gtk.Label(label=label,hexpand=True,xalign=0));line.append(control);box.append(line)
+        dialog.set_extra_child(box);dialog.add_response('cancel','Cancel');dialog.add_response('insert','Insert table');dialog.set_close_response('cancel')
+        def update(*_):dialog.set_response_enabled('insert',rows.get_value_as_int()*columns.get_value_as_int()<=MAX_CELLS)
+        rows.connect('value-changed',update);columns.connect('value-changed',update)
+        def response(_,choice):
+            if choice!='insert' or self.closed or not self.editing:return
+            try:self.create_table(rows.get_value_as_int(),columns.get_value_as_int())
+            except ValueError as exc:self.error(str(exc))
+        dialog.connect('response',response);dialog.set_destroy_with_parent(True);dialog.present()
+        return dialog
+
+    def create_table(self,rows,columns):
+        if not self.editing:return
+        from tables import validate_table,MAX_TABLES,MAX_ROWS,MAX_COLUMNS,MAX_TOTAL_CELLS
+        if type(rows) is not int or type(columns) is not int or not 1<=rows<=MAX_ROWS or not 1<=columns<=MAX_COLUMNS:raise ValueError('Invalid table dimensions.')
+        if sum(len(row) for t in self.snapshot().get('tables',[]) for row in t['cells'])+rows*columns>MAX_TOTAL_CELLS:raise ValueError('A document supports up to 2000 table cells.')
+        data=validate_table({'offset':0,'cells':[['']*columns for _ in range(rows)],'widths':[1]*columns})
+        if len(self.snapshot().get('tables',[]))>=MAX_TABLES:raise ValueError('Too many tables.')
+        self.capture();self.buffer.begin_user_action()
+        try:
+            self.buffer.delete_selection(True,True)
+            cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert())
+            if cursor.get_line_offset():self.buffer.insert(cursor,'\n')
+            entry=self.attach_table(data,self.buffer.get_iter_at_mark(self.buffer.get_insert()))
+            self.buffer.insert_at_cursor('\n')
+        finally:self.buffer.end_user_action()
+        self.changed();self.capture();entry['frame'].cells[0][0].grab_focus()
+        return entry
+
+    def attach_table(self,data,where):
+        from table_editor import TableEditor
+        anchor=self.buffer.create_child_anchor(where)
+        frame=TableEditor(self,data);entry={'anchor':anchor,'kind':'table','frame':frame}
+        frame.table_entry=entry;self.view.add_child_at_anchor(frame,anchor);self.anchors.append(entry)
+        return entry
+
+    def delete_table(self,widget):
+        entry=widget.table_entry
+        if not self.editing or entry['anchor'].get_deleted():return
+        self.capture();start=self.buffer.get_iter_at_child_anchor(entry['anchor']);end=start.copy();end.forward_char()
+        self.buffer.delete(start,end);self.changed();self.capture();self.view.grab_focus()
 
     def attach_rule(self,where):
         anchor=self.buffer.create_child_anchor(where)
