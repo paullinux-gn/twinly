@@ -227,7 +227,6 @@ class WebEditorMixin:
             button.connect('clicked',lambda *_:(callback(),pop.popdown()));box.append(button)
         item('Insert link…',self.link_dialog,self.editing)
         for label,signal in [('Cut    Ctrl+X','cut-clipboard'),('Copy    Ctrl+C','copy-clipboard'),('Paste    Ctrl+V','paste-clipboard')]:item(label,lambda s=signal:self.view.emit(s),self.editing or signal=='copy-clipboard')
-        palette=self.palette_grid();palette.set_sensitive(self.editing);box.append(palette)
         item('Select all    Ctrl+A',lambda:self.view.evaluate('editor.select(1,editor.view.state.doc.content.size-1)'))
         pop.set_child(box);self.text_popover=pop
         pop.connect('closed',lambda *_:self.defer(lambda:(pop.unparent() if pop.get_parent() else None,False)[1]))

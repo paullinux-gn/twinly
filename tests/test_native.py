@@ -1282,37 +1282,27 @@ class Native(unittest.TestCase):
         self.assertEqual('Empty trash',self.w.empty_trash_button.get_label())
         self.assertFalse(self.w.empty_trash_button.get_sensitive())
 
-    def test_selected_text_context_highlight_submenu(self):
+    def test_selected_text_context_has_only_menu_items(self):
         self.w.set_editing(True);self.w.buffer.set_text('Selecteer deze tekst')
         self.select(0,9)
         pop=self.w.open_selection_menu(50,50)
         self.assertIsInstance(pop,Gtk.Popover)
-        def descendants(widget):
-            yield widget
-            child=widget.get_first_child()
-            while child:
-                yield from descendants(child);child=child.get_next_sibling()
-        self.assertTrue(self.w.view.is_ancestor(self.w.document_scroll))
-        self.assertFalse(any(isinstance(w,Gtk.ToggleButton) for w in descendants(pop)))
-        buttons=[w for w in descendants(pop) if isinstance(w,Gtk.Button)
-                 and w.get_tooltip_text() in ['Yellow','Green','Blue','Pink','Orange','Purple','Turquoise']]
-        self.assertEqual(7,len(buttons))
-        self.assertTrue(all(b.is_sensitive() for b in buttons))
-        grid=buttons[0].get_parent()
-        self.assertEqual([(0,0),(1,0),(2,0),(3,0),(4,0),(5,0),(6,0)],
-                         [grid.query_child(b)[:2] for b in buttons])
-        self.assertEqual(['Yellow','Green','Blue','Pink','Orange','Purple','Turquoise'],[b.get_tooltip_text() for b in buttons])
-        buttons[1].emit('clicked');pump()
-        self.assertEqual((0,9),tuple(i.get_offset() for i in self.w.buffer.get_selection_bounds()))
-        self.assertTrue(any(s['style'].get('background')=='#b9efb2' for s in self.w.snapshot()['spans']))
+        labels=[]
+        child=pop.get_child().get_first_child()
+        while child:
+            if not isinstance(child,Gtk.Separator):
+                self.assertIsInstance(child,Gtk.Button)
+                labels.append(child.get_label().split('    ')[0])
+            child=child.get_next_sibling()
+        self.assertEqual(['Insert link…','Cut','Copy','Paste','Select all'],labels)
+        pop.popdown()
         self.w.buffer.place_cursor(self.w.buffer.get_end_iter())
         self.assertIsNone(self.w.open_selection_menu(0,0))
 
     def test_palette_clear_swatch_removes_highlight(self):
         self.w.set_editing(True);self.w.buffer.set_text('Arcering')
         self.select(0,8);self.w.apply_style('background','#fff099')
-        pop=self.w.open_selection_menu(50,50)
-        box=pop.get_child()
+        box=self.w.palette.get_child()
         def descendants(widget):
             yield widget
             child=widget.get_first_child()

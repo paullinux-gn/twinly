@@ -879,22 +879,6 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
         for label,signal in [('Cut','cut-clipboard'),('Copy','copy-clipboard'),('Paste','paste-clipboard')]:
             menu_button(label,lambda signal=signal:self.view.emit(signal))
         box.append(Gtk.Separator())
-        palette=self.palette_grid()
-        box.append(palette)
-        palette.set_sensitive(self.editing)
-        # Bind palette buttons explicitly, including those hidden while collapsed.
-        def bind_colors(widget):
-            if isinstance(widget,Gtk.Button) and widget.get_action_name():
-                name=widget.get_action_name().removeprefix('win.')
-                widget.set_action_name(None)
-                widget.set_sensitive(True)
-                widget.connect('clicked',lambda *_,name=name:run(lambda:self.lookup_action(name).activate(None)))
-            child=widget.get_first_child()
-            while child:
-                bind_colors(child);child=child.get_next_sibling()
-        bind_colors(palette)
-        box.set_size_request(palette.measure(Gtk.Orientation.HORIZONTAL,-1)[1],-1)
-        box.append(Gtk.Separator())
         menu_button('Select all',lambda:self.view.emit('select-all',True))
         pop.set_child(box)
         start=self.buffer.get_iter_at_offset(selected[0])
