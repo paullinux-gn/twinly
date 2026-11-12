@@ -4,7 +4,7 @@ from pathlib import Path
 from settings import read_settings
 
 APP_ID='io.github.paullinux_gn.Twinly'
-VERSION='0.4.1'
+VERSION='0.4.2'
 DEVELOPER_NAME='Paullinux'
 COPYRIGHT='Copyright © 2026 Paullinux'
 LICENSE_ID='GPL-3.0-or-later'
