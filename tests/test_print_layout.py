@@ -24,62 +24,42 @@ class PrintLayout(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
         self.locations=patch('editor.locations',return_value=(self.root/'settings.json',self.root));self.locations.start()
-        self.w=Editor(self.app,self.root);self.w.present();settle()
+        self.w=Editor(self.app,self.root);self.w.present();self.assertTrue(self.w.view.ensure_ready());settle()
 
     def tearDown(self):
         self.w.saved_doc=self.w.snapshot();self.w.destroy();settle()
         self.locations.stop();self.tmp.cleanup()
 
-    def test_preview_preserves_editor_hinting_settings(self):
-        import cairo
-        from gi.repository import PangoCairo
-        context=self.w.view.get_pango_context()
-        original=PangoCairo.context_get_font_options(context).copy()
-        original_round=context.get_round_glyph_positions()
+    def test_preview_is_frozen_and_uses_same_document_engine(self):
+        from web_print import WebPrintDialog
+        self.w.view.evaluate('editor.exec("insertText",{text:"Café heading and serif text"})')
+        preview=WebPrintDialog(self.w,self.w.snapshot())
         try:
-            # Exercise older GTK's hinted metrics explicitly, independently of
-            # the current GTK version's default (unhinted on modern GTK).
-            hinted=original.copy();hinted.set_hint_metrics(cairo.HINT_METRICS_ON)
-            hinted.set_hint_style(cairo.HINT_STYLE_FULL)
-            PangoCairo.context_set_font_options(context,hinted)
-            context.set_round_glyph_positions(True)
-            doc=blank();doc['text']='Café heading and serif text'
-            preview=PrintPreview(self.w,doc)
-            try:
-                layout=preview.pages.pages[0][0][1];printed=layout.get_context()
-                options=PangoCairo.context_get_font_options(printed)
-                self.assertEqual(cairo.HINT_METRICS_ON,options.get_hint_metrics())
-                self.assertEqual(cairo.HINT_STYLE_FULL,options.get_hint_style())
-                self.assertTrue(printed.get_round_glyph_positions())
-                font=Pango.FontDescription('Serif Italic 14')
-                actual=context.get_metrics(font,context.get_language())
-                expected=printed.get_metrics(font,printed.get_language())
-                self.assertEqual(actual.get_height(),expected.get_height())
-            finally:preview.destroy()
-        finally:
-            PangoCairo.context_set_font_options(context,original)
-            context.set_round_glyph_positions(original_round)
+            self.assertTrue(preview.webview.ensure_ready())
+            self.assertEqual(self.w.view.evaluate('editor.getState().json'),preview.webview.evaluate('editor.getState().json'))
+            self.w.web_command('insertText',{'text':' Later edits'})
+            self.assertNotEqual(self.w.view.evaluate('editor.getText()'),preview.webview.evaluate('editor.getText()'))
+            self.assertFalse(preview.webview.evaluate('editor.view.editable'))
+        finally:preview.dialog.destroy();preview.close()
 
     def test_preview_paper_orientation_and_margins(self):
-        doc=blank();doc['text']='Print preview remains configurable.'
-        preview=PrintPreview(self.w,doc)
+        from web_print import WebPrintDialog
+        preview=WebPrintDialog(self.w,blank())
         try:
-            preview.paper.set_selected(2)
-            preview.orientation.set_selected(1)
-            preview.margin.set_value(20)
-            self.assertEqual((792,612),(preview.pages.width,preview.pages.height))
-            self.assertAlmostEqual(20*72/25.4,preview.pages.margin)
-            output=self.root/'preview.pdf';preview.pages.pdf(output)
-            self.assertTrue(output.read_bytes().startswith(b'%PDF'))
-        finally:preview.destroy()
+            page=preview.dialog.get_page_setup();page.set_paper_size(Gtk.PaperSize.new(Gtk.PAPER_NAME_LETTER));page.set_orientation(Gtk.PageOrientation.LANDSCAPE)
+            page.set_top_margin(20,Gtk.Unit.MM);preview.dialog.set_page_setup(page)
+            self.assertAlmostEqual(792,page.get_paper_width(Gtk.Unit.POINTS),delta=.1)
+            self.assertAlmostEqual(612,page.get_paper_height(Gtk.Unit.POINTS),delta=.1)
+            self.assertEqual(20,page.get_top_margin(Gtk.Unit.MM))
+        finally:preview.dialog.destroy();preview.close()
 
     def test_obsolete_layout_settings_are_ignored(self):
         from settings import write_settings
         self.w.saved_doc=self.w.snapshot();self.w.destroy();settle()
         write_settings(self.root/'settings.json',page_view=True,
                        page_setup={'paper':'A5','landscape':True,'margin_mm':40})
-        self.w=Editor(self.app,self.root);self.w.present();settle()
-        self.assertIs(self.w.view,self.w.document_scroll.get_child())
+        self.w=Editor(self.app,self.root);self.w.present();self.assertTrue(self.w.view.ensure_ready());settle()
+        self.assertTrue(self.w.view.is_ancestor(self.w.document_scroll))
         self.assertEqual((-1,-1),self.w.view.get_size_request())
         for action in ('page-view','fit-window-to-page'):
             self.assertIsNone(self.w.lookup_action(action))
@@ -97,17 +77,13 @@ class PrintLayout(unittest.TestCase):
             self.assertEqual(15,preview.margin.get_value())
         finally:preview.destroy()
 
-    def test_photo_size_and_caption_gap_match(self):
+    def test_photo_width_and_caption_survive_restore(self):
         doc=blank();doc['text']='\ufffc\nCaption.'
-        doc['images']=[{'offset':0,'src':image_data(Path(__file__).parent/'fixtures/tiny.jpg'),
-                        'width':120,'height':80,'alt':'Photo'}]
-        self.w.restore(doc,reset=True);settle();pages=Pages(doc)
-        image=next(item for item in pages.pages[0] if item[0]=='image')
-        self.assertEqual(self.w.anchors[0]['picture'].get_size_request(),
-                         (round(image[4]/POINTS_PER_PIXEL),round(image[5]/POINTS_PER_PIXEL)))
-        line=next(item for item in pages.pages[0] if item[0]=='line')
-        top=line[3]+line[2].get_extents()[1].y/Pango.SCALE*POINTS_PER_PIXEL
-        self.assertAlmostEqual(top-pages.margin,image[5]+PARAGRAPH_SPACING_PX*POINTS_PER_PIXEL,delta=2)
+        doc['images']=[{'offset':0,'src':image_data(Path(__file__).parent/'fixtures/tiny.jpg'),'width':120,'height':80,'alt':'Photo'}]
+        self.w.restore(doc,reset=True);settle()
+        self.assertEqual(120,self.w.view.evaluate('Number(document.querySelector(".ProseMirror img[src]").getAttribute("width"))'))
+        self.assertIn('Caption.',self.w.view.evaluate('editor.getText()'))
+        self.assertEqual(doc['images'][0]['src'],self.w.snapshot()['images'][0]['src'])
 
     def test_printed_tall_photo_fits_printable_area(self):
         doc=blank();doc['text']='\ufffc'
@@ -119,9 +95,10 @@ class PrintLayout(unittest.TestCase):
         self.assertLessEqual(image[5],pages.content_height_pixels*POINTS_PER_PIXEL)
         self.assertEqual(1600,self.w.snapshot()['images'][0]['height'])
 
-    def test_zoom_scales_paragraph_gap(self):
-        self.w.change_zoom(.5)
-        self.assertEqual(round(PARAGRAPH_SPACING_PX*1.5),self.w.view.get_pixels_below_lines())
+    def test_zoom_magnifies_view_without_changing_document(self):
+        self.w.buffer.set_text('First\nSecond');before=self.w.snapshot()
+        self.w.change_zoom(.5);settle()
+        self.assertEqual(1.5,self.w.view.get_zoom_level());self.assertEqual(before,self.w.snapshot())
 
     def test_print_line_advances_and_paragraph_gap_are_exact(self):
         doc=blank();doc['text']=('A paragraph with enough text to wrap across multiple lines. '*10)+'\nNext paragraph.'

@@ -128,28 +128,19 @@ class Editing(unittest.TestCase):
         self.assertTrue(self.w.focus_revealer.get_reveal_child())
 
     def test_photos_cannot_be_changed_while_reading(self):
-        from model import blank,image_data,to_html
-        doc=blank();doc['text']='\ufffc'
-        doc['images']=[{'offset':0,'src':image_data(Path(__file__).parent/'fixtures'/'tiny.jpg'),
-                        'width':100,'height':60,'alt':'Photo'}]
-        self.path.write_text(to_html(doc,'Photo'));self.w.open_path(self.path)
-        entry=self.w.anchors[0];self.w.select_photo(entry)
-        self.assertFalse(self.w.photo_bar.get_visible())
-        before=self.w.snapshot()
-        self.w.resize_photo(self.w.photo_width,width=200);self.w.delete_photo()
-        self.assertEqual(before,self.w.snapshot())
-        self.w.edit_button.emit('clicked');self.w.select_photo(entry)
-        self.assertTrue(self.w.photo_bar.get_visible())
-        self.w.resize_photo(self.w.photo_width,width=200)
-        self.assertEqual(200,self.w.snapshot()['images'][0]['width'])
+        from test_native import photo
+        from model import blank
+        doc=blank();doc['text']='\ufffc';doc['images']=[photo()]
+        self.w.restore(doc,reset=True);self.w.view.ensure_ready();self.w.set_editing(False)
+        before=self.w.snapshot();self.w.delete_photo();self.w.insert_photo()
+        self.assertEqual(before,self.w.snapshot());self.assertFalse(self.w.lookup_action('photo').get_enabled())
 
     def test_links_still_open_while_reading_without_control(self):
-        self.w.open_path(self.path)
-        link={'kind':'external','href':'https://example.com'}
-        from unittest.mock import Mock
-        gesture=Mock();gesture.get_current_event_state.return_value=0
-        with patch.object(self.w.view,'get_iter_at_location',return_value=(False,None)), \
-             patch.object(self.w,'link_at_position',return_value=(0,1,link)), \
-             patch.object(self.w,'open_document_link') as opened:
-            self.w.link_control_click(gesture,1,10,10)
-            opened.assert_called_once_with(link)
+        self.path.write_text('<p><a href="https://example.com">Example</a></p>')
+        self.w.open_path(self.path);self.w.view.ensure_ready()
+        with patch.object(self.w,'open_document_link') as opened:
+            self.w.view.evaluate('document.querySelector("a").dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true}))')
+            import time
+            deadline=time.monotonic()+1
+            while not opened.called and time.monotonic()<deadline:pump();time.sleep(.01)
+            opened.assert_called_once_with({'kind':'external','href':'https://example.com'})

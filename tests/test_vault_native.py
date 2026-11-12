@@ -14,10 +14,13 @@ import vault
 try:vault.crypto();AVAILABLE=True
 except ValueError:AVAILABLE=False
 
-def pump():
-    for _ in range(40):
-        if not GLib.MainContext.default().pending():break
-        GLib.MainContext.default().iteration(False)
+def pump(seconds=.06):
+    deadline=time.monotonic()+seconds
+    while time.monotonic()<deadline:
+        for _ in range(30):
+            if not GLib.MainContext.default().pending():break
+            GLib.MainContext.default().iteration(False)
+        time.sleep(.002)
 
 @unittest.skipUnless(AVAILABLE,'Optional PyNaCl >=1.6.2 is not installed')
 class VaultNative(unittest.TestCase):
@@ -36,7 +39,7 @@ class VaultNative(unittest.TestCase):
         private_directory(manager.folder)
         self.store,self.recovery=vault.VaultStore.create(manager.path(item),'long testing password');manager.publish(item)
         self.launcher=VaultLauncher(self.normal);self.normal.vault_launch=self.launcher
-        self.w=VaultEditor(self.app,self.store,self.normal.config,self.launcher);self.launcher.windows.add(self.w);self.w.present();pump()
+        self.w=VaultEditor(self.app,self.store,self.normal.config,self.launcher);self.launcher.windows.add(self.w);self.w.present();self.w.view.ensure_ready();pump()
     def tearDown(self):
         for window in list(self.launcher.windows):window.lock_vault()
         self.launcher.pending.clear()
@@ -235,10 +238,11 @@ class VaultNative(unittest.TestCase):
             self.w.restore_trash_item(key);self.assertTrue(error.called)
         self.assertTrue(self.store.catalog['nodes'][key]['trash'])
     def test_direct_print_releases_hidden_preview(self):
-        with patch.object(self.w,'disclosure',side_effect=lambda callback:callback()),patch('printing.PrintPreview.print_document',autospec=True) as printing:
-            self.w.print_document()
-            preview=printing.call_args.args[0]
-            self.assertTrue(preview.closed);self.assertIsNone(preview.pages)
+        with patch.object(self.w,'disclosure',side_effect=lambda callback:callback()):self.w.print_document()
+        preview=self.w.web_print_dialog
+        self.assertIs(self.w,preview.owner);self.assertTrue(preview.webview.get_network_session().is_ephemeral())
+        preview.dialog.response(Gtk.ResponseType.CANCEL);pump()
+        self.assertTrue(preview.closed);self.assertTrue(preview.webview.disposed)
     def test_normal_document_search_does_not_descend_into_vaults(self):
         hidden=self.store.path/'stray.html';hidden.write_text('<p>Private stray file</p>')
         ordinary=self.root/'visible.html';ordinary.write_text('<p>Ordinary document</p>')

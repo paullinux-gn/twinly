@@ -24,3 +24,15 @@ Twinly's project license does not replace their notices.
 The Noto Sans Regular, Bold, Italic and Bold Italic fonts in `data/fonts/` are Copyright Google and licensed under the
 SIL Open Font License 1.1. The bundled copyright and license notice is retained
 in `data/fonts/LICENSE.txt` in source and installed copies.
+
+## WebKit editor
+
+The local ProseMirror editor and table implementation are adapted from Paullinux’s
+[Webkit-GN](https://github.com/paullinux-gn/Webkit-GN), revision
+`ec78fd77634f78fd1269b9c324ae054c294ce8f6`, GPL-3.0-or-later. The source,
+build instructions and upstream notices are in `web/`. ProseMirror dependencies
+retain their MIT notices in `web/licenses/`, included in installed copies.
+
+WebKitGTK is a system/runtime dependency and retains its own licences. Poppler
+is used to render the PDF preview; the Flatpak builds the pinned upstream
+version and includes its notices from `data/poppler-licenses/`.

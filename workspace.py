@@ -159,7 +159,7 @@ class WorkspaceMixin:
             self.activate_pane(active);active.view.grab_focus()
             for pane,item in zip((self,self.peer),session.get('documents',[])):
                 if pane and str(pane.path)==item.get('path'):
-                    pane.document_scroll.get_vadjustment().set_value(finite_number(item.get('scroll'),0,0,1e9))
+                    pane.restore_document_scroll(finite_number(item.get('scroll'),0,0,1e9))
             return False
         self.add_tick_callback(resume)
 
@@ -600,16 +600,25 @@ class WorkspaceMixin:
             peer.capture()
             selection=peer.buffer.get_selection_bounds()
             offsets=tuple(i.get_offset() for i in selection) if selection else (peer.buffer.get_iter_at_mark(peer.buffer.get_insert()).get_offset(),)*2
-            scroll_value=peer.document_scroll.get_vadjustment().get_value()
+            scroll_value=peer.document_scroll_value()
             self.path=peer.path;self.saved_stamp=peer.saved_stamp
-            self.restore(peer.snapshot(),reset=True)
+            if hasattr(self,'web_backend'):
+                # Move the live editor, including ProseMirror's undo history and
+                # scroll position, when the surviving pane takes the main slot.
+                self.document_scroll.set_child(None);peer.document_scroll.set_child(None)
+                self.view,peer.view=peer.view,self.view;self.view.owner=self;peer.view.owner=peer
+                self.document_scroll.set_child(self.view);peer.document_scroll.set_child(peer.view)
+                self.loading=True
+                try:self.buffer.set_text(self.view.plain_text)
+                finally:self.loading=False
+            else:self.restore(peer.snapshot(),reset=True)
             self.set_editing(peer.editing)
             self.saved_doc=copy.deepcopy(peer.saved_doc)
             self.history=copy.deepcopy(peer.history);self.history_index=peer.history_index
             self.navigation=copy.deepcopy(peer.navigation);self.navigation_index=peer.navigation_index
             self.change_zoom(peer.zoom-self.zoom)
             self.buffer.select_range(*(self.buffer.get_iter_at_offset(i) for i in offsets))
-            self.defer(lambda:(self.document_scroll.get_vadjustment().set_value(scroll_value),False)[1])
+            self.defer(lambda:(self.restore_document_scroll(scroll_value),False)[1])
         current=self.shared_toolbar.get_first_child()
         if current:self.shared_toolbar.remove(current)
         self.toolbar_size_group.remove_widget(self.toolbar)
@@ -680,7 +689,7 @@ class WorkspaceMixin:
     def save_workspace(self):
         def entry(editor):
             return {'path':str(editor.path) if editor.path else None,
-                    'scroll':editor.document_scroll.get_vadjustment().get_value(),
+                    'scroll':editor.document_scroll_value(),
                     'cursor':editor.buffer.get_iter_at_mark(editor.buffer.get_insert()).get_offset(),
                     'zoom':editor.zoom,'pinned':editor.pinned}
         session={'documents':[entry(self)],'active':0,'swapped':self.swapped}
@@ -729,7 +738,7 @@ class WorkspaceMixin:
                 self.activate_pane(active);active.view.grab_focus()
             for editor,item in restored:
                 value=item.get('scroll',0)
-                if isinstance(value,(int,float)):editor.document_scroll.get_vadjustment().set_value(finite_number(value,0,0,1e9))
+                if isinstance(value,(int,float)):editor.restore_document_scroll(finite_number(value,0,0,1e9))
             return False
         self.add_tick_callback(positions)
 

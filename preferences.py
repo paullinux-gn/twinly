@@ -1,4 +1,5 @@
 """Preferences UI, appearance and shortcut reference."""
+from lifecycle import cancel_source
 import logging
 import math
 import weakref
@@ -12,7 +13,7 @@ class PreferencesMixin:
     def queue_preferences(self,**updates):
         pending=getattr(self,'preference_updates',{})
         pending.update(updates);self.preference_updates=pending
-        if getattr(self,'preference_pending',0):GLib.source_remove(self.preference_pending)
+        if getattr(self,'preference_pending',0):cancel_source(self.preference_pending)
         self.preference_pending=GLib.timeout_add(250,self.flush_preferences)
 
     def flush_preferences(self):

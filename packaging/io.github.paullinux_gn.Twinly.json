@@ -13,6 +13,54 @@
   ],
   "modules": [
     {
+      "name": "poppler-preview",
+      "buildsystem": "cmake-ninja",
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DENABLE_UTILS=ON",
+        "-DENABLE_CPP=OFF",
+        "-DENABLE_GLIB=OFF",
+        "-DENABLE_QT5=OFF",
+        "-DENABLE_QT6=OFF",
+        "-DENABLE_GOBJECT_INTROSPECTION=OFF",
+        "-DENABLE_LIBCURL=OFF",
+        "-DENABLE_NSS3=OFF",
+        "-DENABLE_GPGME=OFF",
+        "-DENABLE_LIBTIFF=OFF",
+        "-DENABLE_LIBOPENJPEG=OFF",
+        "-DENABLE_BOOST=OFF",
+        "-DBUILD_GTK_TESTS=OFF",
+        "-DBUILD_QT5_TESTS=OFF",
+        "-DBUILD_QT6_TESTS=OFF",
+        "-DBUILD_CPP_TESTS=OFF",
+        "-DBUILD_MANUAL_TESTS=OFF",
+        "-DCMAKE_REQUIRE_FIND_PACKAGE_PNG=TRUE"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://deb.debian.org/debian/pool/main/p/poppler/poppler_26.07.0.orig.tar.xz",
+          "sha256": "304832f48f8a47fdca90c6b6d1f684e68f37c10c9a0726f345f4ca9df4ca01e2"
+        }
+      ],
+      "cleanup": [
+        "/include",
+        "/lib/pkgconfig",
+        "/share/man",
+        "/share/doc",
+        "/bin/pdfattach",
+        "/bin/pdfdetach",
+        "/bin/pdffonts",
+        "/bin/pdfimages",
+        "/bin/pdfseparate",
+        "/bin/pdftocairo",
+        "/bin/pdftohtml",
+        "/bin/pdftops",
+        "/bin/pdftotext",
+        "/bin/pdfunite"
+      ]
+    },
+    {
       "name": "twinly",
       "buildsystem": "simple",
       "build-commands": [
@@ -70,7 +118,49 @@
         },
         {
           "type": "file",
-          "path": "../table_editor.py"
+          "path": "../web_view.py"
+        },
+        {
+          "type": "file",
+          "path": "../web_editor.py"
+        },
+        {
+          "type": "file",
+          "path": "../web_document.py"
+        },
+        {
+          "type": "file",
+          "path": "../web_dialogs.py"
+        },
+        {
+          "type": "file",
+          "path": "../web/editor.html",
+          "dest": "web"
+        },
+        {
+          "type": "file",
+          "path": "../web/editor.bundle.js",
+          "dest": "web"
+        },
+        {
+          "type": "file",
+          "path": "../web/editor.bundle.js.LEGAL.txt",
+          "dest": "web"
+        },
+        {
+          "type": "file",
+          "path": "../web/README.md",
+          "dest": "web"
+        },
+        {
+          "type": "file",
+          "path": "../web/UPSTREAM-NOTICES.md",
+          "dest": "web"
+        },
+        {
+          "type": "dir",
+          "path": "../web/licenses",
+          "dest": "web/licenses"
         },
         {
           "type": "file",
@@ -144,6 +234,14 @@
         {
           "type": "file",
           "path": "../managed_workspaces.py"
+        },
+        {
+          "type": "file",
+          "path": "../web_print.py"
+        },
+        {
+          "type": "file",
+          "path": "../web_print_preview.py"
         }
       ],
       "modules": [

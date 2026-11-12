@@ -21,7 +21,7 @@ class DocumentSession:
         """Bound structural history; immutable embedded image strings remain shared."""
         self.history=self.history[:self.history_index+1]+[document]
         def cost(doc):
-            return len(doc['text'])*4+len(doc['spans'])*256+len(doc['images'])*256+sum(len(v)*4+64 for t in doc.get('tables',[]) for row in t['cells'] for v in row)
+            return len(doc.get('web_html',''))*2+len(doc['text'])*4+len(doc['spans'])*256+len(doc['images'])*256+sum(len(v)*4+64 for t in doc.get('tables',[]) for row in t['cells'] for v in row)
         def total_cost():
             images={id(image['src']):image['src'] for doc in self.history for image in doc['images']}
             return sum(cost(doc) for doc in self.history)+sum(len(src) for src in images.values())

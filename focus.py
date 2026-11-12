@@ -1,4 +1,5 @@
 """Shared floating formatting toolbar."""
+from lifecycle import cancel_source
 from gi.repository import Gtk,GLib
 import math
 from settings import read_settings
@@ -13,7 +14,7 @@ class FocusRevealer(Gtk.Revealer):
             while child:
                 widths.append(child.measure(Gtk.Orientation.HORIZONTAL,-1)[1])
                 child=child.get_next_sibling()
-            full=sum(widths)+max(0,len(widths)-1)*flow.get_column_spacing()
+            full=max((sum(widths[i:i+6])+max(0,len(widths[i:i+6])-1)*flow.get_column_spacing() for i in range(0,len(widths),6)),default=0)
             natural=max(minimum,natural+full-flow.measure(Gtk.Orientation.HORIZONTAL,-1)[1])
             min_baseline=nat_baseline=-1
         return minimum,natural,min_baseline,nat_baseline
@@ -42,7 +43,7 @@ class FocusMixin:
         self.queue_preferences(toolbar_always_visible=self.toolbar_always_visible)
 
     def cancel_focus_hide(self):
-        if getattr(self,'focus_hide_timer',0):GLib.source_remove(self.focus_hide_timer)
+        if getattr(self,'focus_hide_timer',0):cancel_source(self.focus_hide_timer)
         self.focus_hide_timer=0
 
     def release_focus_toolbar(self):
@@ -90,14 +91,14 @@ class FocusMixin:
                 pane.format_controls.set_hexpand(True)
                 count=0;item=pane.format_controls.get_first_child()
                 while item:count+=1;item=item.get_next_sibling()
-                pane.format_controls.set_min_children_per_line(max(1,count))
+                pane.format_controls.set_min_children_per_line(min(6,max(1,count)))
+                pane.format_controls.set_max_children_per_line(6)
                 # A FlowBox can report a cached smaller width after reparenting.
                 # Reserve its complete row before GTK measures it vertically.
-                row=0;item=pane.format_controls.get_first_child()
+                widths=[];item=pane.format_controls.get_first_child()
                 while item:
-                    row+=item.measure(Gtk.Orientation.HORIZONTAL,-1)[1]
-                    item=item.get_next_sibling()
-                row+=max(0,count-1)*pane.format_controls.get_column_spacing()
+                    widths.append(item.measure(Gtk.Orientation.HORIZONTAL,-1)[1]);item=item.get_next_sibling()
+                row=max((sum(widths[i:i+6])+max(0,len(widths[i:i+6])-1)*pane.format_controls.get_column_spacing() for i in range(0,len(widths),6)),default=0)
                 pane.toolbar.set_size_request(row+pane.right_controls.measure(Gtk.Orientation.HORIZONTAL,-1)[1]+pane.toolbar.get_spacing(),-1)
         if self.focus_revealer:
             header_height=max(self.document_header.get_height(),self.document_header.measure(Gtk.Orientation.VERTICAL,-1)[1])

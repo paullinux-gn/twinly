@@ -73,19 +73,23 @@ def runs(doc):
         else:paragraph.append((value,style,images.get(start),'rule' if start in rules else None))
     yield paragraph
 
-def word_table(body,table):
+def word_table(body,table,writer=None):
     tbl=node(body,'w:tbl');props=node(tbl,'w:tblPr')
-    node(props,'w:tblW',{'w:w':5000,'w:type':'pct'})
+    node(props,'w:tblW',{'w:w':round(table.get('width',100)*50),'w:type':'pct'})
     borders=node(props,'w:tblBorders');border=table.get('border',1)
     for side in ('top','left','bottom','right','insideH','insideV'):
         node(borders,'w:'+side,{'w:val':'single' if border else 'nil','w:sz':max(2,round(border*6)),'w:color':'808080'})
     widths=[round(10206*w/sum(table['widths'])) for w in table['widths']]
     grid=node(tbl,'w:tblGrid')
     for width in widths:node(grid,'w:gridCol',{'w:w':width})
-    for row in table['cells']:
+    for row_index,row in enumerate(table['cells']):
         tr=node(tbl,'w:tr')
-        for value,width in zip(row,widths):
+        if row_index==0 and table.get('header'):node(node(tr,'w:trPr'),'w:tblHeader')
+        for column_index,(value,width) in enumerate(zip(row,widths)):
             tc=node(tr,'w:tc');node(node(tc,'w:tcPr'),'w:tcW',{'w:w':width,'w:type':'dxa'})
+            if writer and table.get('cell_docs'):
+                for paragraph in runs(table['cell_docs'][row_index][column_index]):writer(tc,paragraph)
+                continue
             p=node(tc,'w:p');run=node(p,'w:r')
             node(node(run,'w:rPr'),'w:rFonts',{'w:ascii':'Noto Sans','w:hAnsi':'Noto Sans'})
             for index,line in enumerate(value.split('\n')):
@@ -93,7 +97,7 @@ def word_table(body,table):
                 t=node(run,'w:t');t.set('{http://www.w3.org/XML/1998/namespace}space','preserve');t.text=clean(line)
 
 
-def odf_table(body,styles,table,index):
+def odf_table(body,styles,table,index,writer=None):
     name='Table'+str(index)
     cellstyle=node(styles,'style:style',{'style:name':name+'Cell','style:family':'table-cell'})
     border=table.get('border',1)
@@ -103,11 +107,14 @@ def odf_table(body,styles,table,index):
         style=node(styles,'style:style',{'style:name':name+'Col'+str(col),'style:family':'table-column'})
         node(style,'style:table-column-properties',{'style:rel-column-width':str(round(width/sum(table['widths'])*10000))+'*'})
         node(tbl,'table:table-column',{'table:style-name':name+'Col'+str(col)})
-    for row in table['cells']:
+    for row_index,row in enumerate(table['cells']):
         tr=node(tbl,'table:table-row')
-        for value in row:
+        for column_index,value in enumerate(row):
             tc=node(tr,'table:table-cell',{'table:style-name':name+'Cell','office:value-type':'string'})
-            for line in value.split('\n'):node(tc,'text:p').text=clean(line)
+            if writer and table.get('cell_docs'):
+                for paragraph in runs(table['cell_docs'][row_index][column_index]):writer(tc,paragraph)
+            else:
+                for line in value.split('\n'):node(tc,'text:p').text=clean(line)
 
 
 def image_info(image,index):
@@ -124,10 +131,11 @@ def docx_bytes(doc):
         rid='rId'+str(len(rels)+1)
         ET.SubElement(rels,'{'+rel_ns+'}Relationship',{'Id':rid,'Type':NS['r']+'/'+kind,'Target':target,**({'TargetMode':'External'} if external else {})})
         return rid
-    for paragraph in runs(doc):
+    def write_paragraph(parent,paragraph):
+        nonlocal counter
         if paragraph and isinstance(paragraph[0][3],dict):
-            word_table(body,paragraph[0][3]);continue
-        p=node(body,'w:p');props=node(p,'w:pPr')
+            word_table(parent,paragraph[0][3],write_paragraph);return
+        p=node(parent,'w:p');props=node(p,'w:pPr')
         alignment=next((style['align'] for _,style,_,_ in paragraph if 'align' in style),'left')
         paragraph_style=next((style['paragraph'] for _,style,_,_ in paragraph if 'paragraph' in style),'body')
         if any(rule for _,_,_,rule in paragraph):
@@ -174,6 +182,7 @@ def docx_bytes(doc):
                 if value=='\t':node(run,'w:tab')
                 else:
                     t=node(run,'w:t');t.set('{http://www.w3.org/XML/1998/namespace}space','preserve');t.text=clean(value.replace('\ufffc',''))
+    for paragraph in runs(doc):write_paragraph(body,paragraph)
     section=node(body,'w:sectPr');node(section,'w:pgSz',{'w:w':11906,'w:h':16838})
     node(section,'w:pgMar',{'w:top':850,'w:right':850,'w:bottom':850,'w:left':850})
     content_ns='http://schemas.openxmlformats.org/package/2006/content-types';types=ET.Element('{'+content_ns+'}Types')
@@ -192,9 +201,11 @@ def odt_bytes(doc):
     content=ET.Element(q('office:document-content'),{q('office:version'):'1.3'})
     styles=node(content,'office:automatic-styles');body=node(node(content,'office:body'),'office:text')
     media={};counter=0
-    for index,paragraph in enumerate(runs(doc)):
+    def write_paragraph(parent,paragraph):
+        nonlocal counter
+        counter+=1;index=counter
         if paragraph and isinstance(paragraph[0][3],dict):
-            odf_table(body,styles,paragraph[0][3],index);continue
+            odf_table(parent,styles,paragraph[0][3],index,write_paragraph);return
         name='P'+str(index);style=node(styles,'style:style',{'style:name':name,'style:family':'paragraph'})
         alignment=next((s['align'] for _,s,_,_ in paragraph if 'align' in s),'left')
         attrs={'fo:text-align':alignment}
@@ -206,7 +217,7 @@ def odt_bytes(doc):
         attrs={'text:style-name':name}
         if paragraph_style in ('title','h1','h2','h3'):
             attrs['text:outline-level']=1 if paragraph_style=='title' else int(paragraph_style[1])
-        p=node(body,'text:h' if 'text:outline-level' in attrs else 'text:p',attrs)
+        p=node(parent,'text:h' if 'text:outline-level' in attrs else 'text:p',attrs)
         for value,s,image,rule in paragraph:
             s=resolved_style(s)
             counter+=1;name='T'+str(counter)
@@ -238,6 +249,7 @@ def odt_bytes(doc):
                     elif part.isspace():node(span,'text:s',{'text:c':len(part)})
                     elif len(span):span[-1].tail=(span[-1].tail or '')+part
                     else:span.text=(span.text or '')+part
+    for paragraph in runs(doc):write_paragraph(body,paragraph)
     manifest=ET.Element(q('manifest:manifest'),{q('manifest:version'):'1.3'})
     for path,media_type in [('/',mime),('content.xml','text/xml')]+[(path,'image/png' if path.endswith('.png') else 'image/jpeg') for path in media]:
         node(manifest,'manifest:file-entry',{'manifest:full-path':path,'manifest:media-type':media_type})

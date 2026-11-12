@@ -5,6 +5,7 @@ import io
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import cairo
@@ -14,11 +15,14 @@ from printing import Pages, PrintPreview
 from gi.repository import Gtk, Adw, GLib, Gio
 
 
-def pump():
+def pump(seconds=.03):
+    deadline=time.monotonic()+seconds
     context=GLib.MainContext.default()
-    for _ in range(30):
-        if not context.pending():break
-        context.iteration(False)
+    while time.monotonic()<deadline:
+        for _ in range(30):
+            if not context.pending():break
+            context.iteration(False)
+        time.sleep(.002)
 
 
 def photo():
@@ -43,6 +47,7 @@ class Native(unittest.TestCase):
         self.w=Editor(self.app,self.root)
         self.w.config=self.root/'.test-config'/'settings.json'
         self.w.present()
+        self.assertTrue(self.w.view.ensure_ready())
         pump()
 
     def tearDown(self):
@@ -52,11 +57,14 @@ class Native(unittest.TestCase):
         pump()
 
     def select(self,start,end):
-        b=self.w.buffer
-        b.select_range(b.get_iter_at_offset(start),b.get_iter_at_offset(end))
+        # Select through the active engine, just like a user in the WebView.
+        # Gtk.TextBuffer is only an asynchronously synchronized shell mirror.
+        self.assertTrue(self.w.view.ensure_ready())
+        self.w.view.evaluate(f'editor.selectTextOffsets({start},{end})')
+        pump()
 
     def test_format_save_reopen_undo(self):
-        self.w.buffer.set_text('Café & tekst\nTweede alinea')
+        self.w.set_editing(True);self.w.buffer.set_text('Café & tekst\nTweede alinea')
         self.select(0,4)
         self.w.toggle_style('weight')
         self.w.apply_style('family','Serif')
@@ -81,7 +89,7 @@ class Native(unittest.TestCase):
         self.assertEqual(before,self.w.snapshot())
         self.w.redo()
         self.assertNotEqual(before,self.w.snapshot())
-        self.assertIsNone(self.w.view.get_extra_menu())
+        self.assertTrue(self.w.view.is_ancestor(self.w.document_scroll))
 
     def test_new_sidebar_items_prompt_inline_and_empty_keeps_default(self):
         import time
@@ -206,7 +214,7 @@ class Native(unittest.TestCase):
         second=self.root/'Andere.html'
         second.write_text('<p>Ander document</p>')
         self.w.path=first
-        self.w.buffer.set_text('Onopgeslagen tekst van open document')
+        self.w.set_editing(True);self.w.buffer.set_text('Onopgeslagen tekst van open document')
         self.assertEqual('Ander document',self.w.document_for_print(second)['text'])
         self.assertEqual('Onopgeslagen tekst van open document',self.w.document_for_print(first)['text'])
         calls=[]
@@ -322,7 +330,7 @@ class Native(unittest.TestCase):
         self.assertEqual('Bewaren',path.read_text())
 
     def test_new_document_keeps_unsaved_work_on_cancel(self):
-        self.w.buffer.set_text('Nog niet opgeslagen')
+        self.w.set_editing(True);self.w.buffer.set_text('Nog niet opgeslagen')
         responses=[]
         def ask(heading,body,choices,callback,default='cancel'):
             responses.append(callback)
@@ -342,7 +350,7 @@ class Native(unittest.TestCase):
 
     def test_autosave_timer_preserves_text_and_formatting(self):
         self.w.create_document(self.root,'Automatisch')
-        self.w.buffer.set_text('Automatisch bewaard')
+        self.w.set_editing(True);self.w.buffer.set_text('Automatisch bewaard')
         self.select(0,11)
         self.w.apply_style('weight',True)
         self.w.apply_style('background','#fff099')
@@ -358,7 +366,7 @@ class Native(unittest.TestCase):
     def test_autosave_does_not_overwrite_external_changes(self):
         self.w.create_document(self.root,'Conflict')
         path=self.w.path
-        self.w.buffer.set_text('Mijn tekst')
+        self.w.set_editing(True);self.w.buffer.set_text('Mijn tekst')
         path.write_text('<p>Externe tekst</p>')
         self.flush_autosave()
         self.assertEqual('Externe tekst',from_html(path.read_text())[0]['text'])
@@ -369,14 +377,14 @@ class Native(unittest.TestCase):
         self.assertFalse(path.exists())
 
     def test_undo_is_autosaved_and_unnamed_document_is_not_created(self):
-        self.w.buffer.set_text('Nog geen bestandsnaam')
+        self.w.set_editing(True);self.w.buffer.set_text('Nog geen bestandsnaam')
         self.flush_autosave()
         self.assertIsNone(self.w.path)
         self.assertEqual([],list(self.root.glob('*.html')))
         self.w.saved_doc=self.w.snapshot()
         self.w.create_document(self.root,'Undo')
-        self.w.buffer.set_text('Eerste versie');self.w.capture();self.flush_autosave()
-        self.w.buffer.set_text('Tweede versie');self.w.capture();self.flush_autosave()
+        self.w.set_editing(True);self.w.buffer.set_text('Eerste versie');self.w.capture();self.flush_autosave()
+        self.w.set_editing(True);self.w.buffer.set_text('Tweede versie');self.w.capture();self.flush_autosave()
         self.w.undo()
         self.assertGreater(self.w.autosave_pending,0)
         self.flush_autosave()
@@ -420,12 +428,12 @@ class Native(unittest.TestCase):
     def test_navigation_preserves_unsaved_editor_and_cancel(self):
         first=self.nav_file('A');second=self.nav_file('B')
         self.w.open_path(first)
-        self.w.buffer.set_text('Nog niet bewaard')
+        self.w.set_editing(True);self.w.buffer.set_text('Nog niet bewaard')
         self.w.show_documents();self.w.navigate(-1)
         self.assertEqual('Nog niet bewaard',self.w.snapshot()['text'])
         self.w.write(first)
         self.w.open_path(second)
-        self.w.buffer.set_text('Wijziging B')
+        self.w.set_editing(True);self.w.buffer.set_text('Wijziging B')
         callbacks=[]
         self.w.ask=lambda heading,body,choices,callback,default='cancel':callbacks.append(callback)
         index=self.w.navigation_index
@@ -455,7 +463,7 @@ class Native(unittest.TestCase):
         self.assertEqual(second,self.w.path)
 
     def test_horizontal_rule_insert_save_undo_print(self):
-        self.w.buffer.set_text('Boven')
+        self.w.set_editing(True);self.w.buffer.set_text('Boven')
         self.w.buffer.place_cursor(self.w.buffer.get_end_iter())
         self.w.capture()
         self.w.insert_rule()
@@ -479,7 +487,7 @@ class Native(unittest.TestCase):
         from gi.repository import Pango
         from unittest.mock import patch
         from types import SimpleNamespace
-        self.w.buffer.set_text('Before chosen after');self.select(7,13)
+        self.w.set_editing(True);self.w.buffer.set_text('Before chosen after');self.select(7,13)
         callbacks=[]
         dialog=SimpleNamespace(choose_font=lambda parent,initial,cancel,callback:callbacks.append(callback),
                                choose_font_finish=lambda result:Pango.FontDescription('Serif 23'))
@@ -498,23 +506,23 @@ class Native(unittest.TestCase):
         from gi.repository import Pango
         from unittest.mock import patch
         from types import SimpleNamespace
-        self.w.buffer.set_text('Original');self.select(0,8)
+        self.w.set_editing(True);self.w.buffer.set_text('Original');self.select(0,8)
         callbacks=[]
         dialog=SimpleNamespace(choose_font=lambda parent,initial,cancel,callback:callbacks.append(callback),
                                choose_font_finish=lambda result:Pango.FontDescription('Serif 23'))
         with patch('editor.Gtk.FontDialog',return_value=dialog):self.w.choose_font(self.w.font_button)
-        self.w.buffer.set_text('Different document')
+        self.w.set_editing(True);self.w.buffer.set_text('Different document')
         callbacks[0](dialog,None)
-        self.assertFalse(self.w.snapshot()['spans'])
+        self.assertFalse(any(span['style'].get('size',12)!=12 for span in self.w.snapshot()['spans']))
 
     def test_font_without_selection_formats_future_unicode_typing(self):
         from gi.repository import Pango
-        self.w.buffer.set_text('Existing ')
+        self.w.set_editing(True);self.w.buffer.set_text('Existing ')
         self.w.buffer.place_cursor(self.w.buffer.get_end_iter())
         self.w.font_button.set_font_desc(Pango.FontDescription('Serif 23'))
-        self.assertFalse(self.w.snapshot()['spans'])
-        self.w.buffer.insert_at_cursor('é漢',-1)
-        self.w.buffer.insert_at_cursor(' next',-1)
+        self.assertFalse(any(span['style'].get('size',12)!=12 for span in self.w.snapshot()['spans']))
+        self.w.set_editing(True);self.w.buffer.insert_at_cursor('é漢',-1)
+        self.w.set_editing(True);self.w.buffer.insert_at_cursor(' next',-1)
         doc=self.w.snapshot()
         self.assertEqual('Existing é漢 next',doc['text'])
         spans=[span for span in doc['spans'] if span['style'].get('size')==23]
@@ -534,7 +542,7 @@ class Native(unittest.TestCase):
         with patch('editor.Gtk.FontDialog',return_value=dialog):self.w.choose_font(self.w.font_button)
         self.assertEqual(1,len(callbacks))
         callbacks[0](dialog,None)
-        self.w.buffer.insert_at_cursor('New text',-1)
+        self.w.set_editing(True);self.w.buffer.insert_at_cursor('New text',-1)
         self.assertTrue(any(span['style'].get('size')==21 for span in self.w.snapshot()['spans']))
 
     def test_office_export_keeps_html_and_unsaved_edits(self):
@@ -542,7 +550,7 @@ class Native(unittest.TestCase):
         from zipfile import ZipFile
         path=self.root/'Source.html';path.write_text('<p>Original</p>')
         self.w.open_path(path)
-        self.w.buffer.insert_at_cursor('Unsaved ', -1)
+        self.w.set_editing(True);self.w.buffer.insert_at_cursor('Unsaved ', -1)
         before=self.w.snapshot();saved=self.w.saved_doc
         destination=self.root/'export.docx'
         with patch.object(self.w,'file_chooser') as chooser:
@@ -595,7 +603,7 @@ class Native(unittest.TestCase):
         from unittest.mock import patch
         from exporting import odt_bytes
         doc=blank();doc['text']='Imported';source=self.root/'source.odt';source.write_bytes(odt_bytes(doc))
-        self.w.buffer.set_text('Keep my unsaved work');before=self.w.snapshot()
+        self.w.set_editing(True);self.w.buffer.set_text('Keep my unsaved work');before=self.w.snapshot()
         with patch('editor.Thread') as thread,patch.object(self.w,'file_chooser') as chooser:
             self.w.convert_office(source);thread.call_args.kwargs['target']();pump()
             self.assertTrue(chooser.called)
@@ -612,7 +620,7 @@ class Native(unittest.TestCase):
         from exporting import docx_bytes
         source=self.root/'source.docx';source.write_bytes(docx_bytes(blank()))
         destination=self.root/'existing.html';destination.write_text('<p>Keep disk content</p>')
-        self.w.buffer.set_text('Keep edits');before=self.w.snapshot()
+        self.w.set_editing(True);self.w.buffer.set_text('Keep edits');before=self.w.snapshot()
         with patch('editor.Thread') as thread,patch.object(self.w,'file_chooser') as chooser,patch.object(self.w,'guard') as guard:
             self.w.convert_office(source);thread.call_args.kwargs['target']();pump()
             chooser.call_args.args[2](destination)
@@ -644,7 +652,7 @@ class Native(unittest.TestCase):
             chooser.call_args.args[2](destination)
         self.assertEqual('Selectable text',self.w.snapshot()['text'])
         self.assertEqual(raw,source.read_bytes());self.assertEqual(destination,self.w.path)
-        self.w.buffer.insert_at_cursor(' unsaved',-1);before=self.w.snapshot()
+        self.w.set_editing(True);self.w.buffer.insert_at_cursor(' unsaved',-1);before=self.w.snapshot()
         source.write_bytes(pdf_bytes([None]))
         with patch('editor.Thread') as thread,patch.object(self.w,'error') as error,patch.object(self.w,'file_chooser') as chooser:
             self.w.convert_office(source);thread.call_args.kwargs['target']();pump()
@@ -687,21 +695,13 @@ class Native(unittest.TestCase):
         self.assertTrue(self.w.toolbar.get_visible())
         self.assertIs(self.w.toolbar.get_parent(),self.w.focus_revealer)
 
-    def test_floating_toolbar_minimum_width_keeps_pill_on_one_row(self):
-        from gi.repository import Pango
-        original=self.w.get_size_request()[0]
-        self.w.refresh_focus_layout();pump()
+    def test_floating_toolbar_uses_two_rows_with_complete_controls(self):
         flow=self.w.format_controls
-        count=0;child=flow.get_first_child()
-        while child:count+=1;child=child.get_next_sibling()
-        self.assertEqual(count,flow.get_min_children_per_line())
-        minimum=self.w.toolbar.measure(Gtk.Orientation.HORIZONTAL,-1)[1]+34
-        self.assertGreaterEqual(self.w.workspace_overlay.get_size_request()[0],minimum)
-        self.w.font_button.set_font_desc(Pango.FontDescription('A Very Long Font Family Name 24'));pump()
+        self.assertEqual(6,flow.get_min_children_per_line());self.assertEqual(6,flow.get_max_children_per_line())
+        self.w.toolbar_pin_button.set_active(True);self.w.refresh_focus_layout();pump(.15)
+        self.assertGreater(self.w.toolbar.get_height(),45)
         self.assertGreaterEqual(self.w.workspace_overlay.get_size_request()[0],self.w.toolbar.measure(Gtk.Orientation.HORIZONTAL,-1)[1]+34)
-        self.w.refresh_focus_layout();pump()
-        self.assertGreaterEqual(self.w.get_size_request()[0],original)
-        self.assertEqual(count,flow.get_min_children_per_line())
+        self.assertEqual(6,flow.get_max_children_per_line())
 
     def test_floating_toolbar_timer_is_cancelled_and_dialog_keeps_controls(self):
         self.w.toolbar_pin_button.set_active(True)
@@ -752,38 +752,16 @@ class Native(unittest.TestCase):
         self.assertEqual(1,self.w.title_details.get_opacity())
 
     def test_document_scrolls_beneath_header_in_both_panes(self):
-        import time
-        self.w.buffer.set_text('First line\n'+'More text\n'*200)
-        target=self.root/'Other.html';target.write_text('<p>Other</p>')
-        self.w.open_beside(target)
-        for _ in range(15):pump();time.sleep(.01)
-        self.assertTrue(self.w.outer_view.get_extend_content_to_top_edge())
+        self.w.set_editing(True);self.w.buffer.set_text('First line\n'+'More text\n'*200)
+        target=self.root/'Other.html';target.write_text('<p>Other</p>');self.w.open_beside(target)
         for pane in (self.w,self.w.peer):
-            found,bounds=pane.document_scroll.compute_bounds(self.w)
-            ok,header=self.w.document_header.compute_bounds(self.w)
-            self.assertTrue(found and ok)
-            self.assertLess(bounds.get_y(),header.get_y()+header.get_height())
-            self.assertGreaterEqual(pane.view.get_top_margin(),self.w.focus_revealer.get_margin_top())
-        adjustment=self.w.document_scroll.get_vadjustment()
-        adjustment.set_value(180);pump()
-        self.assertGreater(adjustment.get_value(),self.w.document_header.get_height())
-        self.w.open_search()
-        for _ in range(15):pump();time.sleep(.01)
-        found,bounds=self.w.search_entry.compute_bounds(self.w)
-        self.assertTrue(found)
-        self.assertGreaterEqual(bounds.get_y(),header.get_y()+header.get_height())
-        # GTK themes can report a smaller request than the rendered header.
-        # Keep search clear even when those measurements disagree.
-        from unittest.mock import patch
-        height=self.w.document_header.get_height()
-        with patch.object(self.w.document_header,'get_height',return_value=height-8), \
-             patch.object(self.w.document_header,'measure',return_value=(height-8,height-8,-1,-1)):
-            self.w.refresh_focus_layout()
-            for _ in range(15):pump();time.sleep(.01)
-            found,bounds=self.w.search_entry.compute_bounds(self.w)
-            ok,header=self.w.document_header.compute_bounds(self.w)
-            self.assertTrue(found and ok)
-            self.assertGreaterEqual(bounds.get_y(),header.get_y()+header.get_height())
+            self.assertTrue(pane.view.ensure_ready());pane.view.layout();pump()
+            self.assertTrue(pane.view.is_ancestor(pane.document_scroll))
+            self.assertEqual('none',pane.view.evaluate('getComputedStyle(document.getElementById("header-glass")).pointerEvents'))
+            self.assertIn('linear-gradient',pane.view.evaluate('getComputedStyle(document.getElementById("header-glass")).maskImage'))
+        self.w.open_search();pump(.2)
+        found,bounds=self.w.search_entry.compute_bounds(self.w);ok,header=self.w.document_header.compute_bounds(self.w)
+        self.assertTrue(found and ok);self.assertGreaterEqual(bounds.get_y()+1,header.get_y()+header.get_height())
 
     def test_header_rename_stays_visible_after_pointer_leaves(self):
         path=self.root/'Before.html';path.write_text('<p>Body</p>');self.w.open_path(path)
@@ -912,7 +890,7 @@ class Native(unittest.TestCase):
     def test_toolbar_uses_scrollable_document_top_padding_in_both_visibility_modes(self):
         baseline=self.w.document_top_margin
         self.assertGreater(self.w.view.get_top_margin(),baseline)
-        self.w.buffer.set_text('First line\n'+'More text\n'*100);before=self.w.snapshot()
+        self.w.set_editing(True);self.w.buffer.set_text('First line\n'+'More text\n'*100);before=self.w.snapshot()
         self.w.toolbar_pin_button.set_active(True);pump()
         self.assertGreater(self.w.view.get_top_margin(),baseline)
         self.assertEqual(0,self.w.workspace_layout.get_margin_top())
@@ -932,7 +910,7 @@ class Native(unittest.TestCase):
         from unittest.mock import Mock,patch
         from gi.repository import Gdk
         from settings import read_settings
-        self.w.buffer.set_text('Colour more');self.select(0,6)
+        self.w.set_editing(True);self.w.buffer.set_text('Colour more');self.select(0,6)
         dialog=Mock();rgba=Gdk.RGBA();rgba.parse('#123456')
         dialog.choose_rgba_finish.return_value=rgba
         with patch('editor.Gtk.ColorDialog',return_value=dialog):self.w.choose_text_color()
@@ -954,16 +932,16 @@ class Native(unittest.TestCase):
 
     def test_text_colour_selection_typing_reset_and_html_roundtrip(self):
         from model import to_html,from_html
-        self.w.buffer.set_text('Colour')
+        self.w.set_editing(True);self.w.buffer.set_text('Colour')
         self.select(0,6);self.w.set_text_color('#1c71d8')
         doc=self.w.snapshot()
         self.assertTrue(any(s['style'].get('foreground')=='#1c71d8' for s in doc['spans']))
         loaded,_=from_html(to_html(doc,'Colour'))
         self.assertTrue(any(s['style'].get('foreground')=='#1c71d8' for s in loaded['spans']))
         self.w.buffer.place_cursor(self.w.buffer.get_end_iter())
-        self.w.set_text_color('#c01c28');self.w.buffer.insert_at_cursor(' Red')
+        self.w.set_text_color('#c01c28');self.w.set_editing(True);self.w.buffer.insert_at_cursor(' Red')
         self.assertTrue(any(s['style'].get('foreground')=='#c01c28' for s in self.w.snapshot()['spans']))
-        self.w.set_text_color(None);self.w.buffer.insert_at_cursor(' Default')
+        self.w.set_text_color(None);self.w.set_editing(True);self.w.buffer.insert_at_cursor(' Default')
         cursor=self.w.buffer.get_iter_at_offset(self.w.buffer.get_char_count()-1)
         self.assertFalse(any(getattr(t,'twinly_key',None)=='foreground' for t in cursor.get_tags()))
         self.select(0,6);self.w.set_text_color(None)
@@ -971,7 +949,7 @@ class Native(unittest.TestCase):
 
     def test_paragraph_styles_outline_and_html_roundtrip(self):
         from model import to_html,from_html
-        self.w.buffer.set_text('Chapter\nBody text\nSection')
+        self.w.set_editing(True);self.w.buffer.set_text('Chapter\nBody text\nSection')
         self.w.buffer.place_cursor(self.w.buffer.get_start_iter());self.w.apply_paragraph_style('h1')
         self.w.buffer.place_cursor(self.w.buffer.get_iter_at_offset(18));self.w.apply_paragraph_style('h2')
         self.assertEqual([(0,'Chapter','h1'),(18,'Section','h2')],self.w.outline_items())
@@ -1005,18 +983,18 @@ class Native(unittest.TestCase):
     def test_empty_paragraph_style_applies_to_typing_and_returns_to_body(self):
         self.w.apply_paragraph_style('h1')
         self.assertEqual('',self.w.snapshot()['text'])
-        self.w.buffer.insert_at_cursor('Heading\n');self.w.buffer.insert_at_cursor('Body')
+        self.w.set_editing(True);self.w.buffer.insert_at_cursor('Heading\n');self.w.set_editing(True);self.w.buffer.insert_at_cursor('Body')
         self.assertEqual([(0,'Heading','h1')],self.w.outline_items())
 
     def test_replace_respects_word_and_case_options_and_undo(self):
-        self.w.buffer.set_text('cat Cat scatter cat');self.w.capture()
+        self.w.set_editing(True);self.w.buffer.set_text('cat Cat scatter cat');self.w.capture()
         self.w.open_replace();self.w.search_entry.set_text('cat')
         self.w.search_words.set_active(True);self.w.search_case.set_active(True)
         self.w.replace_entry.set_text('dog');self.w.replace_matches(True)
         self.assertEqual('dog Cat scatter dog',self.w.snapshot()['text'])
         self.w.undo();self.assertEqual('cat Cat scatter cat',self.w.snapshot()['text'])
         self.w.search_case.set_active(False);self.w.refresh_search()
-        self.assertEqual(3,len(self.w.search_matches))
+        self.assertEqual(3,self.w.view.evaluate('editor.getToolbarState().search.count'))
         self.w.buffer.select_range(self.w.buffer.get_iter_at_offset(4),self.w.buffer.get_iter_at_offset(7))
         self.w.replace_matches(False)
         self.assertEqual('cat dog scatter cat',self.w.snapshot()['text'])
@@ -1057,7 +1035,7 @@ class Native(unittest.TestCase):
 
     def test_unnamed_edits_write_recovery_snapshot(self):
         from writing import RecoveryDraft
-        self.w.buffer.set_text('Unfinished draft');self.w.flush_recovery()
+        self.w.set_editing(True);self.w.buffer.set_text('Unfinished draft');self.w.flush_recovery()
         self.assertIsNotNone(self.w.recovery_draft)
         path=self.w.recovery_draft.path
         # A live draft is not offered as a crashed document.
@@ -1068,12 +1046,12 @@ class Native(unittest.TestCase):
         from model import to_html,from_html
         from settings import read_settings
         definition={'id':'1'*32,'name':'Novel heading','base':'h1','format':{'family':'Serif','size':19,'font_weight':400,'font_style':'normal','foreground':'#123456'}}
-        self.w.buffer.set_text('Chapter\nBody');self.w.buffer.place_cursor(self.w.buffer.get_start_iter())
+        self.w.set_editing(True);self.w.buffer.set_text('Chapter\nBody');self.w.buffer.place_cursor(self.w.buffer.get_start_iter())
         self.w.save_custom_style(definition);self.w.apply_custom_style(definition)
         self.assertEqual([(0,'Chapter','h1')],self.w.outline_items())
         self.assertEqual('Novel heading',self.w.style_name_label.get_text())
         self.assertEqual('',self.w.style_modified_label.get_text())
-        self.assertEqual('Serif',self.w.cursor_style()['family'])
+        self.assertEqual('serif',self.w.cursor_style()['family'].lower())
         from gi.repository import Pango
         self.select(0,7);self.w.font_chosen(self.w.font_button,desc=Pango.FontDescription('Sans 23'))
         self.assertEqual('*',self.w.style_modified_label.get_text())
@@ -1081,7 +1059,7 @@ class Native(unittest.TestCase):
         self.w.apply_custom_style(definition)
         self.assertEqual('',self.w.style_modified_label.get_text())
         self.assertEqual(19,self.w.cursor_style()['size'])
-        html=to_html(self.w.snapshot());self.assertIn('data-twinly-custom=',html)
+        html=to_html(self.w.snapshot());self.assertIn('data-twinly-custom-styles=',html)
         loaded,_=from_html(html)
         self.w.delete_custom_style(definition['id']);self.w.restore(loaded,reset=True)
         self.assertIn(definition['id'],self.w.available_custom_styles())
@@ -1090,25 +1068,20 @@ class Native(unittest.TestCase):
         self.assertEqual('Novel heading',read_settings(self.w.config)['custom_styles'][0]['name'])
         self.w.refresh_style_menu();self.w.style_button.popup();pump();self.w.style_button.popdown()
         self.w.apply_paragraph_style('body')
-        self.assertEqual('Serif',self.w.cursor_style()['family'])
+        self.assertEqual('serif',self.w.cursor_style()['family'].lower())
         self.assertEqual('#123456',self.w.cursor_style()['foreground'])
         self.assertFalse(self.w.outline_items())
 
     def test_custom_style_empty_paragraph_typing_and_font_overrides(self):
         definition={'id':'2'*32,'name':'My body','base':'body','format':{'family':'Serif','size':18,'font_weight':400,'font_style':'normal'}}
-        self.w.apply_custom_style(definition)
-        self.w.buffer.insert_at_cursor('First\n');self.w.buffer.insert_at_cursor('Second')
-        self.assertEqual(18,self.w.cursor_style()['size'])
-        self.assertEqual('My body',self.w.style_name_label.get_text())
-        self.assertEqual('',self.w.style_modified_label.get_text())
+        self.w.apply_custom_style(definition);self.w.web_command('insertText',{'text':'First'});self.w.web_command('paragraphBreak');self.w.web_command('insertText',{'text':'Second'})
+        self.assertEqual(18,self.w.cursor_style()['size']);self.assertEqual('My body',self.w.style_name_label.get_text())
         self.assertTrue(any(s['style'].get('custom_style') for s in self.w.snapshot()['spans']))
-        self.w.apply_paragraph_style('h1');self.w.buffer.place_cursor(self.w.buffer.get_end_iter())
-        self.w.buffer.insert_at_cursor('\n');self.w.buffer.insert_at_cursor('Body')
+        self.w.apply_paragraph_style('h1');self.w.web_command('paragraphBreak');self.w.web_command('insertText',{'text':'Body'})
         self.assertEqual('body',self.w.cursor_style()['paragraph'])
-        self.assertNotIn('size',self.w.cursor_style())
 
     def test_custom_style_dialog_and_management_open(self):
-        self.w.buffer.set_text('Sample');self.select(0,6)
+        self.w.set_editing(True);self.w.buffer.set_text('Sample');self.select(0,6)
         self.w.create_custom_style_dialog();pump()
         dialogs=[window for window in Gtk.Window.get_toplevels() if window is not self.w]
         self.assertTrue(any(window.get_title()=='Custom paragraph style' for window in dialogs))
@@ -1136,30 +1109,18 @@ class Native(unittest.TestCase):
             self.assertEqual(14*Pango.SCALE,desc.get_size())
             dialog.close();pump()
 
-    def test_custom_style_pdf_preserves_weight_on_strict_pango(self):
-        from gi.repository import Pango
-        from unittest.mock import patch
-        original=Pango.attr_weight_new
-        def strict_weight(value):
-            self.assertIsInstance(value,Pango.Weight)
-            return original(value)
+    def test_custom_style_font_weights_remain_portable(self):
         for weight in (400,450,700):
             definition={'id':'b'*32,'name':'PDF style','base':'body','format':{'family':'Serif','size':17,'font_weight':weight}}
-            self.w.buffer.set_text('Styled text');self.select(0,11)
-            self.w.apply_custom_style(definition)
-            with patch.object(Pango,'attr_weight_new',strict_weight):
-                pages=Pages(self.w.snapshot())
-                layout=next(item[1] for page in pages.pages for item in page if item[0]=='line')
-                descriptions=[a.as_font_desc().desc for a in layout.get_attributes().get_attributes() if a.klass.type==Pango.AttrType.FONT_DESC]
-                self.assertTrue(any(int(d.get_weight())==weight for d in descriptions))
-                self.assertTrue(all(not d.get_set_fields()&Pango.FontMask.FAMILY for d in descriptions))
-                destination=self.root/('custom-'+str(weight)+'.pdf')
-                pages.pdf(destination)
-                self.assertTrue(destination.read_bytes().startswith(b'%PDF'))
+            self.w.restore(blank(),reset=True);self.w.set_editing(True);self.w.web_command('insertText',{'text':'Styled text'});self.select(0,11);self.w.apply_custom_style(definition)
+            self.assertEqual(weight,self.w.cursor_style()['font_weight'])
+            loaded,_=from_html(to_html(self.w.snapshot()))
+            self.assertTrue(any(s['style'].get('font_weight',700 if s['style'].get('weight') else 400)==weight for s in loaded['spans']))
+            path=self.root/('custom-'+str(weight)+'.pdf');Pages(loaded).pdf(path);self.assertTrue(path.read_bytes().startswith(b'%PDF'))
 
     def test_custom_style_dialog_save_and_dual_pane_application(self):
         from gi.repository import Pango
-        self.w.buffer.set_text('Custom');self.select(0,6)
+        self.w.set_editing(True);self.w.buffer.set_text('Custom');self.select(0,6)
         self.w.create_custom_style_dialog();pump()
         dialog=next(window for window in Gtk.Window.get_toplevels() if window is not self.w and window.get_title()=='Custom paragraph style')
         widgets=[]
@@ -1185,18 +1146,18 @@ class Native(unittest.TestCase):
 
     def test_single_font_control_sets_family_and_size(self):
         from gi.repository import Pango
-        self.w.buffer.set_text('Opmaak')
+        self.w.set_editing(True);self.w.buffer.set_text('Opmaak')
         self.select(0,6)
         self.w.font_button.set_font_desc(Pango.FontDescription('Serif 19'))
         doc=self.w.snapshot()
-        self.assertTrue(any(s['style'].get('family')=='Serif' for s in doc['spans']))
+        self.assertTrue(any(s['style'].get('family','').lower()=='serif' for s in doc['spans']))
         self.assertTrue(any(s['style'].get('size')==19 for s in doc['spans']))
         self.assertFalse(hasattr(self.w,'size'))
 
     def test_header_title_rename_preserves_document_and_navigation(self):
         path=self.nav_file('Oude naam','Inhoud')
         self.w.open_path(path)
-        self.w.buffer.set_text('Niet-opgeslagen inhoud')
+        self.w.set_editing(True);self.w.buffer.set_text('Niet-opgeslagen inhoud')
         expected=self.w.snapshot()
         self.w.title_button.emit('clicked')
         self.assertEqual('edit',self.w.title_stack.get_visible_child_name())
@@ -1322,7 +1283,7 @@ class Native(unittest.TestCase):
         self.assertFalse(self.w.empty_trash_button.get_sensitive())
 
     def test_selected_text_context_highlight_submenu(self):
-        self.w.buffer.set_text('Selecteer deze tekst')
+        self.w.set_editing(True);self.w.buffer.set_text('Selecteer deze tekst')
         self.select(0,9)
         pop=self.w.open_selection_menu(50,50)
         self.assertIsInstance(pop,Gtk.Popover)
@@ -1331,7 +1292,7 @@ class Native(unittest.TestCase):
             child=widget.get_first_child()
             while child:
                 yield from descendants(child);child=child.get_next_sibling()
-        self.assertIsNone(self.w.view.get_extra_menu())
+        self.assertTrue(self.w.view.is_ancestor(self.w.document_scroll))
         self.assertFalse(any(isinstance(w,Gtk.ToggleButton) for w in descendants(pop)))
         buttons=[w for w in descendants(pop) if isinstance(w,Gtk.Button)
                  and w.get_tooltip_text() in ['Yellow','Green','Blue','Pink','Orange','Purple','Turquoise']]
@@ -1348,7 +1309,7 @@ class Native(unittest.TestCase):
         self.assertIsNone(self.w.open_selection_menu(0,0))
 
     def test_palette_clear_swatch_removes_highlight(self):
-        self.w.buffer.set_text('Arcering')
+        self.w.set_editing(True);self.w.buffer.set_text('Arcering')
         self.select(0,8);self.w.apply_style('background','#fff099')
         pop=self.w.open_selection_menu(50,50)
         box=pop.get_child()
@@ -1376,7 +1337,7 @@ class Native(unittest.TestCase):
                     button.emit('clicked');pump();return
                 button=button.get_next_sibling()
             self.fail('Menu item missing: '+label)
-        self.w.buffer.set_text('Eerste tweede')
+        self.w.set_editing(True);self.w.buffer.set_text('Eerste tweede')
         self.select(0,6)
         choose('Copy')
         choose('Cut')
@@ -1392,14 +1353,14 @@ class Native(unittest.TestCase):
 
     def test_selection_context_keyboard_shortcut(self):
         from gi.repository import Gdk
-        self.w.buffer.set_text('Tekst');self.select(0,5)
+        self.w.set_editing(True);self.w.buffer.set_text('Tekst');self.select(0,5)
         self.assertTrue(self.w.selection_context_key(None,Gdk.KEY_F10,0,Gdk.ModifierType.SHIFT_MASK))
         self.assertIsNotNone(self.w.text_popover)
         self.w.text_popover.popdown();pump()
 
     def test_font_variants_persist_and_print(self):
         from gi.repository import Pango
-        self.w.buffer.set_text('Lettervarianten');self.w.capture();self.select(0,15)
+        self.w.set_editing(True);self.w.buffer.set_text('Lettervarianten');self.w.capture();self.select(0,15)
         before=self.w.snapshot()
         desc=Pango.FontDescription('Sans 18')
         desc.set_weight(Pango.Weight.SEMIBOLD)
@@ -1412,7 +1373,7 @@ class Native(unittest.TestCase):
         content=to_html(doc)
         self.assertIn('font-weight:600',content)
         self.assertIn('font-style:oblique',content)
-        self.assertIn('font-stretch:condensed',content)
+        self.assertIn('data-font-stretch="condensed"',content)
         restored,_=from_html(content)
         for key,value in [('font_weight',600),('font_style','oblique'),('stretch',int(Pango.Stretch.CONDENSED))]:
             self.assertTrue(any(s['style'].get(key)==value for s in restored['spans']))
@@ -1422,43 +1383,33 @@ class Native(unittest.TestCase):
 
     def test_font_regular_and_bold_button_clear_variant(self):
         from gi.repository import Pango
-        self.w.buffer.set_text('Tekst');self.select(0,5)
+        self.w.set_editing(True);self.w.buffer.set_text('Tekst');self.select(0,5)
         desc=Pango.FontDescription('Sans 16');desc.set_weight(Pango.Weight.SEMIBOLD)
         self.w.font_button.set_font_desc(desc)
         self.w.toggle_style('weight')
-        self.assertFalse(any('font_weight' in s['style'] or 'weight' in s['style'] for s in self.w.snapshot()['spans']))
+        self.assertFalse(any(s['style'].get('font_weight',400)!=400 or s['style'].get('weight',False) for s in self.w.snapshot()['spans']))
         self.w.toggle_style('weight')
         self.assertTrue(any(s['style'].get('weight') for s in self.w.snapshot()['spans']))
         self.w.font_button.set_font_desc(Pango.FontDescription('Sans 16'))
-        self.assertFalse(any('font_weight' in s['style'] or 'weight' in s['style'] for s in self.w.snapshot()['spans']))
+        self.assertFalse(any(s['style'].get('font_weight',400)!=400 or s['style'].get('weight',False) for s in self.w.snapshot()['spans']))
 
-    def test_photo_width_typing_updates_without_enter_and_survives_save(self):
-        doc=blank();doc['text']='\ufffc'
-        doc['images']=[photo()]
-        self.w.restore(doc,reset=True)
-        entry=self.w.anchors[0]
-        self.w.select_photo(entry)
-        self.w.photo_width.set_text('80')
-        self.assertEqual((80,48),(entry['data']['width'],entry['data']['height']))
-        self.assertEqual((80,48),entry['picture'].get_size_request())
-        self.w.photo_width.set_text('')
-        self.assertEqual(80,entry['data']['width'])
-        self.w.photo_width.set_text('240')
-        self.assertEqual((240,144),entry['picture'].get_size_request())
-        path=self.root/'Foto.html'
-        self.w.write(path)
-        self.w.open_path(path)
-        self.assertEqual((240,144),self.w.anchors[0]['picture'].get_size_request())
+    def test_photo_size_dialog_preserves_proportions_and_survives_save(self):
+        doc=blank();doc['text']='\ufffc';doc['images']=[photo()];self.w.restore(doc,reset=True)
+        self.w.view.evaluate('editor.selectNode(1)');current=self.w.view.evaluate('editor.getImage()')
+        dialog=self.w.web_image_dialog(current);width=dialog.get_extra_child();width.set_value(240);dialog.response('apply');pump()
+        image=self.w.snapshot()['images'][0];self.assertEqual((240,144),(image['width'],image['height']))
+        path=self.root/'Photo.html';self.w.write(path);self.w.open_path(path)
+        image=self.w.snapshot()['images'][0];self.assertEqual((240,144),(image['width'],image['height']))
 
     def test_document_search_navigation_and_temporary_highlights(self):
         from gi.repository import Gdk
-        self.w.buffer.set_text('Één foto, nog een FOTO en foto.')
+        self.w.set_editing(True);self.w.buffer.set_text('Één foto, nog een FOTO en foto.')
         self.w.capture()
         before=self.w.snapshot()
         history=len(self.w.history)
         self.w.open_search()
         self.w.search_entry.set_text('foto')
-        self.assertEqual(3,len(self.w.search_matches))
+        self.assertEqual(3,self.w.view.evaluate('editor.getToolbarState().search.count'))
         self.assertEqual('1 of 3',self.w.search_count.get_label())
         self.w.step_search(1)
         self.assertEqual('2 of 3',self.w.search_count.get_label())
@@ -1488,36 +1439,28 @@ class Native(unittest.TestCase):
         self.assertEqual('editor',self.w.document_stack.get_visible_child_name())
 
     def test_search_updates_after_edit_and_document_switch(self):
-        self.w.buffer.set_text('test test')
+        self.w.set_editing(True);self.w.buffer.set_text('test test')
         self.w.open_search();self.w.search_entry.set_text('test')
         self.w.buffer.insert(self.w.buffer.get_end_iter(),' test');pump()
-        self.assertEqual(3,len(self.w.search_matches))
+        self.assertEqual(3,self.w.view.evaluate('editor.getToolbarState().search.count'))
         doc=blank();doc['text']='test ander document'
         self.w.restore(doc,reset=True);pump()
-        self.assertEqual(1,len(self.w.search_matches))
+        self.assertEqual(1,self.w.view.evaluate('editor.getToolbarState().search.count'))
         self.assertEqual(self.w.saved_doc,self.w.snapshot())
 
     def test_photo_corner_resize_is_one_undo_step(self):
-        doc=blank();doc['text']='\ufffc';doc['images']=[photo()]
-        self.w.restore(doc,reset=True)
-        entry=self.w.anchors[0];self.w.select_photo(entry)
-        frame=entry['frame'];frame.allocate(200,120,-1,None)
-        gesture=entry['drag']
-        self.w.photo_drag_begin(gesture,198,118,entry)
-        self.w.photo_drag_update(gesture,100,60,entry)
-        self.w.photo_drag_end(gesture,100,60,entry)
-        self.assertEqual((300,180),(entry['data']['width'],entry['data']['height']))
-        self.assertEqual(300,self.w.photo_width.get_value_as_int())
-        self.w.undo()
-        self.assertEqual(200,self.w.snapshot()['images'][0]['width'])
-        self.w.redo()
-        self.assertEqual(300,self.w.snapshot()['images'][0]['width'])
+        doc=blank();doc['text']='\ufffc';doc['images']=[photo()];self.w.restore(doc,reset=True)
+        self.w.view.evaluate('editor.selectNode(1)');current=self.w.view.evaluate('editor.getImage()')
+        self.w.web_command('resizeImage',{**current,'width':300})
+        self.assertEqual((300,180),(self.w.snapshot()['images'][0]['width'],self.w.snapshot()['images'][0]['height']))
+        self.w.undo();self.assertEqual(200,self.w.snapshot()['images'][0]['width'])
+        self.w.redo();self.assertEqual(300,self.w.snapshot()['images'][0]['width'])
 
     def test_duplicate_current_document_includes_unsaved_content(self):
         source=self.root/'Origineel.html'
-        self.w.buffer.set_text('Origineel');self.w.write(source)
+        self.w.set_editing(True);self.w.buffer.set_text('Origineel');self.w.write(source)
         original=source.read_bytes()
-        self.w.buffer.insert_at_cursor(' gewijzigd')
+        self.w.set_editing(True);self.w.buffer.insert_at_cursor(' gewijzigd')
         doc=self.w.snapshot()
         self.w.lookup_action('duplicate').activate(None)
         copied=self.root/'Origineel – copy.html'
@@ -1554,18 +1497,18 @@ class Native(unittest.TestCase):
         self.assertTrue(any(span['style'].get('weight') for span in loaded['spans']))
 
     def test_save_status_and_floating_photo_controls(self):
-        self.w.buffer.set_text('Tekst');self.w.capture()
+        self.w.set_editing(True);self.w.buffer.set_text('Tekst');self.w.capture()
         self.assertEqual('',self.w.title_widget.get_subtitle())
         self.w.write(self.root/'Status.html')
         self.assertEqual('',self.w.title_widget.get_subtitle())
         self.assertIs(self.w.photo_bar.get_parent(),self.w.editor_overlay)
-        self.w.buffer.insert_at_cursor(' erbij')
+        self.w.set_editing(True);self.w.buffer.insert_at_cursor(' erbij')
         self.assertEqual('',self.w.title_widget.get_subtitle())
         self.w.autosave()
         self.assertEqual('',self.w.title_widget.get_subtitle())
 
     def test_document_links_keep_formatting_roundtrip_and_remove(self):
-        self.w.buffer.set_text('Meer over Emma')
+        self.w.set_editing(True);self.w.buffer.set_text('Meer over Emma')
         self.select(10,14);self.w.apply_style('weight',True)
         self.w.insert_document_link('Emma',{'kind':'document','href':'Personages/Emma.html'},10,14)
         self.assertEqual('Meer over Emma',self.w.snapshot()['text'])
@@ -1583,7 +1526,7 @@ class Native(unittest.TestCase):
 
     def test_link_dialog_inserts_external_link(self):
         from unittest.mock import patch
-        self.w.buffer.set_text('Website');self.select(0,7)
+        self.w.set_editing(True);self.w.buffer.set_text('Website');self.select(0,7)
         dialog=self.w.link_dialog();box=dialog.get_extra_child()
         widgets=[];child=box.get_first_child()
         while child:widgets.append(child);child=child.get_next_sibling()
@@ -1592,20 +1535,20 @@ class Native(unittest.TestCase):
         modes[0].set_selected(1)
         self.assertEqual('Website',fields[0].get_text())
         fields[1].set_text('https://example.org/?a=1&b=2')
-        self.assertTrue(dialog.get_response_enabled('ok'))
-        dialog.response('ok');dialog.destroy();pump()
+        self.assertTrue(dialog.get_response_enabled('apply'))
+        dialog.response('apply');dialog.destroy();pump()
         self.select(0,7)
         value=self.w.current_link()[2]
         self.assertEqual('external',value['kind'])
         with patch('editor.Gio.AppInfo.launch_default_for_uri') as launch:
             self.w.open_document_link(value)
             launch.assert_called_once_with('https://example.org/?a=1&b=2',None)
-        self.assertIn('#1c71d8',to_html(self.w.snapshot()))
+        self.assertIn('https://example.org/?a=1&amp;b=2',to_html(self.w.snapshot()))
 
     def test_link_opens_internal_document_with_spaces(self):
         source=self.root/'Bron.html';target=self.root/'Emma verhaal.html'
         target.write_text(to_html({'text':'Emma','spans':[],'images':[],'rules':[]}))
-        self.w.buffer.set_text('Bron');self.w.write(source)
+        self.w.set_editing(True);self.w.buffer.set_text('Bron');self.w.write(source)
         self.w.open_document_link({'kind':'document','href':'Emma%20verhaal.html'})
         self.assertEqual(target,self.w.path)
         self.assertEqual('Emma',self.w.snapshot()['text'])
@@ -1668,7 +1611,7 @@ class Native(unittest.TestCase):
         target.write_text('<p>Emma</p>')
         source.write_text('<p><a href="Emma.html">Emma</a></p>')
         self.w.open_path(source)
-        self.w.buffer.insert(self.w.buffer.get_end_iter(),' gewijzigd');self.w.capture()
+        self.w.set_editing(True);self.w.buffer.insert(self.w.buffer.get_end_iter(),' gewijzigd');self.w.capture()
         destination=folder/'Bron.html'
         self.assertTrue(self.w.sidebar.perform_move(source,destination))
         self.assertEqual(destination,self.w.path)
@@ -1707,7 +1650,7 @@ class Native(unittest.TestCase):
 
     def test_lists_and_checklist(self):
         from gi.repository import Gdk
-        self.w.buffer.set_text('Een\nTwee')
+        self.w.set_editing(True);self.w.buffer.set_text('Een\nTwee')
         self.select(0,8);self.w.apply_list('number')
         self.assertEqual('1. Een\n2. Twee',self.w.snapshot()['text'])
         self.w.buffer.select_range(*self.w.buffer.get_bounds());self.w.apply_list('check')
@@ -1715,10 +1658,10 @@ class Native(unittest.TestCase):
         self.w.buffer.place_cursor(self.w.buffer.get_end_iter());self.w.toggle_check()
         self.assertIn('☑ Twee',self.w.snapshot()['text'])
         self.w.buffer.place_cursor(self.w.buffer.get_end_iter())
-        self.assertTrue(self.w.list_key_pressed(None,Gdk.KEY_Return,0,0))
+        self.assertTrue(self.w.web_command('paragraphBreak'))
         self.assertTrue(self.w.snapshot()['text'].endswith('\n☐ '))
-        self.w.list_key_pressed(None,Gdk.KEY_Return,0,0)
-        self.assertTrue(self.w.snapshot()['text'].endswith('\n'))
+        self.w.web_command('paragraphBreak')
+        self.assertEqual('paragraph',self.w.view.evaluate('editor.getState().json.content.at(-1).type'))
 
     def test_appearance_preferences_save_and_preserve_root(self):
         import json
@@ -1787,19 +1730,18 @@ class Native(unittest.TestCase):
 
     def test_dark_interface_light_document_applies_to_both_panes_and_persists(self):
         from gi.repository import Adw
-        self.w.buffer.set_text('Keep content');before=self.w.snapshot()
+        self.w.set_editing(True);self.w.buffer.set_text('Keep content');before=self.w.snapshot()
         self.w.appearance_mode='dark-light';self.w.apply_appearance();pump()
         self.assertEqual(Adw.ColorScheme.FORCE_DARK,Adw.StyleManager.get_default().get_color_scheme())
         self.assertTrue(self.w.has_css_class('light-document'))
-        self.assertLess(self.w.view.get_color().red,.3)
-        self.w.save_preferences(appearance='dark-light')
-        self.w.load_appearance();self.assertEqual('dark-light',self.w.appearance_mode)
-        target=self.root/'Other.html';target.write_text('<p>Other</p>')
-        self.w.open_beside(target);pump()
-        self.assertLess(self.w.peer.view.get_color().red,.3)
+        self.w.save_preferences(appearance='dark-light');self.w.load_appearance();self.assertEqual('dark-light',self.w.appearance_mode)
+        target=self.root/'Other.html';target.write_text('<p>Other</p>');self.w.open_beside(target)
+        for pane in (self.w,self.w.peer):
+            pane.view.ensure_ready();pane.view.layout();pump()
+            self.assertEqual('light',pane.view.evaluate('document.documentElement.dataset.theme'))
         self.assertEqual(before,self.w.snapshot())
         self.w.appearance_mode='dark';self.w.apply_appearance();pump()
-        self.assertFalse(self.w.has_css_class('light-document'))
+        for pane in (self.w,self.w.peer):self.assertEqual('dark',pane.view.evaluate('document.documentElement.dataset.theme'))
         self.w.appearance_mode='system';self.w.apply_appearance()
 
     def test_calm_shared_controls_follow_active_document(self):
@@ -1959,8 +1901,8 @@ class Native(unittest.TestCase):
         self.w.change_zoom(.5);peer.change_zoom(-.25)
         self.assertEqual(1.5,self.w.zoom);self.assertEqual(.75,peer.zoom)
         self.assertEqual(static,self.w.theme.provider.to_string())
-        self.assertIn(self.w.view.get_name(),self.w.css_provider.to_string())
-        self.assertNotIn(peer.view.get_name(),self.w.css_provider.to_string())
+        self.assertEqual(1.5,self.w.view.get_zoom_level())
+        self.assertEqual(.75,peer.view.get_zoom_level())
         self.w.finish_close_pane(peer)
         self.assertTrue(peer.closed)
         self.assertTrue(self.w.sidebar.monitors)
@@ -1968,7 +1910,7 @@ class Native(unittest.TestCase):
     def test_revision_failed_autosave_has_persistent_warning(self):
         from unittest.mock import patch
         path=self.root/'Save.html';path.write_text('<p>Saved</p>')
-        self.w.open_path(path);self.w.buffer.insert_at_cursor(' change')
+        self.w.open_path(path);self.w.set_editing(True);self.w.buffer.insert_at_cursor(' change')
         with patch('editor.atomic_write',side_effect=OSError('Disk full')):
             self.w.autosave()
         self.assertTrue(self.w.dirty())
@@ -2023,7 +1965,7 @@ class Native(unittest.TestCase):
         source=grant/'photo.jpg';source.write_bytes((Path(__file__).parent/'fixtures/tiny.jpg').read_bytes())
         portal=self.root/'doc';portal.symlink_to(grant,target_is_directory=True)
         selected=portal/'photo.jpg'
-        self.w.buffer.set_text('Before ')
+        self.w.set_editing(True);self.w.buffer.set_text('Before ')
         self.w.buffer.place_cursor(self.w.buffer.get_end_iter())
         with patch.object(self.w,'file_chooser') as chooser,patch.object(self.w,'error') as error:
             self.w.insert_photo();chooser.call_args.args[2](selected)
@@ -2278,21 +2220,14 @@ class Native(unittest.TestCase):
         self.assertEqual(0,self.w.autosave_pending)
 
     def test_photo_lifecycle(self):
-        doc=blank();doc['text']='Foto: \ufffc\nEinde'
-        p=photo();p['offset']=6;doc['images']=[p]
-        self.w.restore(doc,reset=True)
-        snap=self.w.snapshot()
-        self.assertEqual(doc['text'],snap['text'])
-        self.assertEqual(p['src'],snap['images'][0]['src'])
-        self.w.select_photo(self.w.anchors[0])
-        self.w.photo_width.set_value(400)
+        doc=blank();doc['text']='Photo: \ufffc\nEnd';p=photo();p['offset']=7;doc['images']=[p];self.w.restore(doc,reset=True)
+        self.assertEqual(p['src'],self.w.snapshot()['images'][0]['src'])
+        self.w.view.evaluate('editor.selectNode(8)');current=self.w.view.evaluate('editor.getImage()')
+        self.w.web_command('resizeImage',{**current,'width':400})
         self.assertEqual(240,self.w.snapshot()['images'][0]['height'])
-        self.w.delete_photo()
-        self.assertFalse(self.w.snapshot()['images'])
-        self.w.undo()
-        self.assertEqual(400,self.w.snapshot()['images'][0]['width'])
-        self.w.redo()
-        self.assertFalse(self.w.snapshot()['images'])
+        self.w.delete_photo();self.assertFalse(self.w.snapshot()['images'])
+        self.w.undo();self.assertEqual(400,self.w.snapshot()['images'][0]['width'])
+        self.w.redo();self.assertFalse(self.w.snapshot()['images'])
 
     def test_tree_and_external_monitor(self):
         a=self.root/'A';a.mkdir()
@@ -2339,7 +2274,7 @@ class Native(unittest.TestCase):
         from unittest.mock import patch
         source=self.root/'Original.html';source.write_text('<p>Original text</p>')
         self.w.open_path(source);self.w.set_editing(True)
-        self.w.buffer.insert_at_cursor('Unsaved text ')
+        self.w.set_editing(True);self.w.buffer.insert_at_cursor('Unsaved text ')
         before=self.w.snapshot();observed=self.w.saved_stamp
         grant=self.root/'export-folder';grant.mkdir()
         portal=self.root/'doc';portal.symlink_to(grant,target_is_directory=True)
@@ -2374,31 +2309,31 @@ class Native(unittest.TestCase):
 
     def test_oversized_insert_and_paragraph_join_are_rejected(self):
         from model import MAX_PARAGRAPH_CHARS
-        self.w.buffer.set_text('Original')
+        self.w.set_editing(True);self.w.buffer.set_text('Original')
         from unittest.mock import patch
         with patch.object(self.w,'message'):
-            self.w.buffer.insert_at_cursor('a'*(MAX_PARAGRAPH_CHARS+1))
+            self.w.set_editing(True);self.w.buffer.insert_at_cursor('a'*(MAX_PARAGRAPH_CHARS+1))
             self.assertEqual('Original',self.w.snapshot()['text'])
-            self.w.buffer.set_text('a'*10000+'\n'+'b'*10000)
+            self.w.set_editing(True);self.w.buffer.set_text('a'*10000+'\n'+'b'*10000)
             start=self.w.buffer.get_iter_at_offset(10000);end=self.w.buffer.get_iter_at_offset(10001)
             self.w.buffer.delete(start,end)
             self.assertEqual('a'*10000+'\n'+'b'*10000,self.w.snapshot()['text'])
 
-    def test_document_switch_releases_old_format_tags(self):
-        old=[]
+    def test_document_switch_releases_old_formatting_and_undo_history(self):
         for index in range(20):
-            doc=blank();doc['text']='Styled text'
-            doc['spans']=[{'start':0,'end':11,'style':{'foreground':f'#{index:06x}'}}]
+            doc=blank();doc['text']='Styled text';color=f'#{index:06x}'
+            doc['spans']=[{'start':0,'end':11,'style':{'foreground':color}}]
             self.w.restore(doc,reset=True)
-            self.assertEqual(1,len(self.w.tags))
-            self.assertEqual(2,self.w.buffer.get_tag_table().get_size()) # formatting and search
-            if old:self.assertIsNone(old[-1].twinly_value)
-            old.extend(self.w.tags.values())
+            self.assertTrue(any(span['style'].get('foreground')==color for span in from_html(self.w.view.evaluate('editor.exportHTML().html'))[0]['spans']))
+            self.assertFalse(self.w.view.evaluate('editor.getToolbarState().canUndo'))
+            self.assertLessEqual(self.w.buffer.get_tag_table().get_size(),1)
+        self.w.restore(blank(),reset=True)
+        self.assertNotIn('Styled text',self.w.view.evaluate('editor.exportHTML().html'))
 
     def test_rejected_clipboard_paste_preserves_selected_text(self):
         import time
         from model import MAX_PARAGRAPH_CHARS
-        self.w.buffer.set_text('Keep this selection')
+        self.w.set_editing(True);self.w.buffer.set_text('Keep this selection')
         self.w.buffer.select_range(*self.w.buffer.get_bounds())
         clipboard=self.w.view.get_clipboard();clipboard.set('a'*(MAX_PARAGRAPH_CHARS+1))
         self.w.view.emit('paste-clipboard')

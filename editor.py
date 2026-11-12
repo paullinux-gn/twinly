@@ -15,7 +15,7 @@ gi.require_version('Adw','1')
 gi.require_version('GdkPixbuf','2.0')
 from gi.repository import Gtk, Adw, Gio, GLib, Gdk, Pango
 from model import (blank, to_html, from_html, image_data, stamp, atomic_write,
-                   safe_name, COLORS, highlight_foreground, MAX_DOCUMENT, valid_link, relocated_href, relocate_html_links, validate_document,validate_image_budget,PARAGRAPH_STYLES,resolved_style,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_PADDING_PX,fit_image_dimensions)
+                   safe_name, COLORS, highlight_foreground, MAX_DOCUMENT, valid_link, relocated_href, relocate_document, relocate_html_links, validate_document,validate_image_budget,PARAGRAPH_STYLES,resolved_style,DOCUMENT_FONT,DOCUMENT_FONT_SIZE,PARAGRAPH_SPACING_PX,RULE_PADDING_PX,fit_image_dimensions)
 from printing import pixbuf_for, PrintPreview,clear_image_cache
 from sidebar import Sidebar,DocumentResults
 from model import validate_text,MAX_PARAGRAPH_CHARS,ResourceLimitError
@@ -27,16 +27,17 @@ from writing import WritingMixin
 from styles import CustomStylesMixin
 from focus import FocusMixin
 from preferences import PreferencesMixin
-from editor_view import DocumentView,FontButton
+from editor_view import FontButton
+from web_editor import WebEditorMixin
 from actions import ActionsMixin
-from lifecycle import CallbackOwner
+from lifecycle import CallbackOwner,cancel_source
 from application import APP_ID,VERSION,DEVELOPER_NAME,COPYRIGHT,LICENSE_ID,WEBSITE,DESCRIPTION,DATA_DIR,STARTER_NOTE,locations,default_root
 from filesystem import atomic_export,read_text,read_bytes,read_import_bytes,move_path,create_directory,private_directory,vault_container
 import private_trash
 import logging
 
 
-class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,PreferencesMixin,ActionsMixin,CallbackOwner):
+class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,PreferencesMixin,ActionsMixin,CallbackOwner):
     def __init__(self,app,root=None,workspace_owner=None):
         if workspace_owner or getattr(self,'embedded_host',None):super().__init__(orientation=Gtk.Orientation.VERTICAL)
         else:super().__init__(application=app,title='Twinly · Preview',default_width=1120,default_height=800,width_request=420,height_request=360)
@@ -302,25 +303,11 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.photo_bar.set_tooltip_text('Drag a photo corner or change the width · Aspect ratio is preserved')
         self.photo_bar.append(self.button('edit-delete-symbolic','Delete photo','win.delete-photo'))
         self.photo_bar.set_visible(False)
-        self.view=DocumentView(buffer=self.buffer,wrap_mode=Gtk.WrapMode.WORD_CHAR,
-                               left_margin=32,right_margin=32,top_margin=28,bottom_margin=40,
-                               pixels_below_lines=PARAGRAPH_SPACING_PX,vexpand=True)
+        from web_view import WebDocument
+        self.web_backend=True
+        self.view=WebDocument(self)
         self.view.add_css_class('document')
-        self.view.connect('paste-clipboard',self.guard_clipboard_paste)
-        link_click=Gtk.GestureClick(button=1)
-        link_click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        link_click.connect('pressed',self.link_control_click)
-        self.view.add_controller(link_click)
         self.text_popover=None
-        context_click=Gtk.GestureClick(button=3)
-        context_click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        context_click.connect('pressed',self.selection_context_click)
-        self.view.add_controller(context_click)
-        context_keys=Gtk.EventControllerKey()
-        context_keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        context_keys.connect('key-pressed',self.selection_context_key)
-        context_keys.connect('key-pressed',self.list_key_pressed)
-        self.view.add_controller(context_keys)
         scroll=Gtk.ScrolledWindow(vexpand=True)
         self.document_scroll=scroll
         scroll.set_child(self.view)
@@ -455,6 +442,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.font_button.connect('notify::font-desc',lambda *_:
             (self.workspace_owner or self).refresh_focus_layout()
             if hasattr(self.workspace_owner or self,'focus_overlay_slot') else None)
+        self.setup_web_editor()
 
     def dialog_parent(self):
         owner=self.workspace_owner or self
@@ -1380,7 +1368,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         if reset and hasattr(self,'sidebar') and hasattr(self.workspace_panel_host(),'right_panel_stack'):
             self.close_workspace_panel(owner=self.workspace_owner or self)
         if reset and self.autosave_pending:
-            GLib.source_remove(self.autosave_pending)
+            cancel_source(self.autosave_pending)
             self.autosave_pending=0
         self.typing_font=None
         self.typing_color=None
@@ -1411,9 +1399,6 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 end=self.buffer.get_iter_at_offset(offset+1)
                 self.buffer.delete(start,end)
                 self.attach_rule(self.buffer.get_iter_at_offset(offset))
-            for table in doc.get('tables',[]):
-                offset=table['offset'];self.buffer.delete(self.buffer.get_iter_at_offset(offset),self.buffer.get_iter_at_offset(offset+1))
-                self.attach_table(table,self.buffer.get_iter_at_offset(offset))
             for span in doc['spans']:
                 start=self.buffer.get_iter_at_offset(span['start'])
                 end=self.buffer.get_iter_at_offset(span['end'])
@@ -1442,7 +1427,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def capture(self):
         if self.loading:return False
         if self.history_pending:
-            GLib.source_remove(self.history_pending)
+            cancel_source(self.history_pending)
             self.history_pending=0
         doc=self.snapshot()
         if self.history_index<0 or doc!=self.history[self.history_index]:
@@ -1456,7 +1441,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
     def queue_autosave(self):
         if self.loading or self.closed:return
         self.queue_recovery()
-        if self.autosave_pending:GLib.source_remove(self.autosave_pending)
+        if self.autosave_pending:cancel_source(self.autosave_pending)
         self.autosave_pending=GLib.timeout_add(2000,self.autosave)
 
     def autosave(self):
@@ -1481,7 +1466,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
         self.cancel_deferred()
         for cancellable in getattr(self,'file_dialogs',[]):cancellable.cancel()
         self.file_dialogs=[]
-        if getattr(self,'preference_pending',0):GLib.source_remove(self.preference_pending)
+        if getattr(self,'preference_pending',0):cancel_source(self.preference_pending)
         self.preference_pending=0
         self.flush_preferences()
         title_popover=getattr(self,'title_popover',None)
@@ -1498,7 +1483,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             self.text_popover=None
         for name in ('autosave_pending','history_pending','search_pending'):
             timer=getattr(self,name,0)
-            if timer:GLib.source_remove(timer)
+            if timer:cancel_source(timer)
             setattr(self,name,0)
         Gtk.StyleContext.remove_provider_for_display(self.get_display(),self.css_provider)
         if not self.workspace_owner:
@@ -1697,7 +1682,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             filters.append(office_filter);dialog.set_filters(filters)
         elif export_format:
             filters=Gio.ListStore.new(Gtk.FileFilter)
-            export_filter=Gtk.FileFilter(name={'odt':'OpenDocument text (.odt)','docx':'Word document (.docx)'}[export_format])
+            export_filter=Gtk.FileFilter(name={'odt':'OpenDocument text (.odt)','docx':'Word document (.docx)','pdf':'PDF document (.pdf)'}[export_format])
             export_filter.add_pattern('*.'+export_format)
             filters.append(export_filter);dialog.set_filters(filters)
         elif action in (Gtk.FileChooserAction.OPEN,Gtk.FileChooserAction.SAVE):
@@ -1827,6 +1812,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 self.saved_stamp=loaded_stamp
                 self.restore(doc,reset=True)
                 self.set_editing(False)
+                self.show_editor()
                 self.record_navigation()
                 self.sidebar.select_path(path)
                 self.message(' · '.join(warnings) if warnings else 'Document opened · '+str(path))
@@ -1971,13 +1957,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                             if destination==active_destination and observed==expected:updated_active=True
                     except (OSError,ValueError) as exc:failures.append(destination.name+': '+str(exc))
             if active and active_destination:
-                def relocate_doc(doc):
-                    doc=copy.deepcopy(doc)
-                    for span in doc['spans']:
-                        link=span['style'].get('link')
-                        if link and link['kind']=='document':
-                            link['href']=relocated_href(link['href'],active,active_destination,old,new)
-                    return doc
+                def relocate_doc(doc):return relocate_document(doc,active,active_destination,old,new)
                 current=self.snapshot()
                 revised=relocate_doc(current)
                 self.saved_doc=relocate_doc(self.saved_doc)
@@ -2064,57 +2044,6 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
             available if available>24 else None)
         entry['picture'].set_size_request(width,height)
         if 'outline' in entry:entry['outline'].queue_draw()
-
-    def insert_table(self,*_):
-        if not self.editing:return
-        from tables import MAX_ROWS,MAX_COLUMNS,MAX_CELLS,MAX_TABLES
-        if len(self.snapshot().get('tables',[]))>=MAX_TABLES:self.error('A document supports up to 32 tables.');return
-        dialog=Adw.MessageDialog(transient_for=self.dialog_parent(),modal=True,heading='Insert table',body='Choose the number of rows and columns. Cells contain editable text.')
-        box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
-        rows=Gtk.SpinButton.new_with_range(1,MAX_ROWS,1);rows.set_value(3)
-        columns=Gtk.SpinButton.new_with_range(1,MAX_COLUMNS,1);columns.set_value(3)
-        for label,control in [('Rows',rows),('Columns',columns)]:
-            line=Gtk.Box(spacing=12);line.append(Gtk.Label(label=label,hexpand=True,xalign=0));line.append(control);box.append(line)
-        dialog.set_extra_child(box);dialog.add_response('cancel','Cancel');dialog.add_response('insert','Insert table');dialog.set_close_response('cancel')
-        def update(*_):dialog.set_response_enabled('insert',rows.get_value_as_int()*columns.get_value_as_int()<=MAX_CELLS)
-        rows.connect('value-changed',update);columns.connect('value-changed',update)
-        def response(_,choice):
-            if choice!='insert' or self.closed or not self.editing:return
-            try:self.create_table(rows.get_value_as_int(),columns.get_value_as_int())
-            except ValueError as exc:self.error(str(exc))
-        dialog.connect('response',response);dialog.set_destroy_with_parent(True);dialog.present()
-        return dialog
-
-    def create_table(self,rows,columns):
-        if not self.editing:return
-        from tables import validate_table,MAX_TABLES,MAX_ROWS,MAX_COLUMNS,MAX_TOTAL_CELLS
-        if type(rows) is not int or type(columns) is not int or not 1<=rows<=MAX_ROWS or not 1<=columns<=MAX_COLUMNS:raise ValueError('Invalid table dimensions.')
-        if sum(len(row) for t in self.snapshot().get('tables',[]) for row in t['cells'])+rows*columns>MAX_TOTAL_CELLS:raise ValueError('A document supports up to 2000 table cells.')
-        data=validate_table({'offset':0,'cells':[['']*columns for _ in range(rows)],'widths':[1]*columns})
-        if len(self.snapshot().get('tables',[]))>=MAX_TABLES:raise ValueError('Too many tables.')
-        self.capture();self.buffer.begin_user_action()
-        try:
-            self.buffer.delete_selection(True,True)
-            cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert())
-            if cursor.get_line_offset():self.buffer.insert(cursor,'\n')
-            entry=self.attach_table(data,self.buffer.get_iter_at_mark(self.buffer.get_insert()))
-            self.buffer.insert_at_cursor('\n')
-        finally:self.buffer.end_user_action()
-        self.changed();self.capture();entry['frame'].cells[0][0].grab_focus()
-        return entry
-
-    def attach_table(self,data,where):
-        from table_editor import TableEditor
-        anchor=self.buffer.create_child_anchor(where)
-        frame=TableEditor(self,data);entry={'anchor':anchor,'kind':'table','frame':frame}
-        frame.table_entry=entry;self.view.add_child_at_anchor(frame,anchor);self.anchors.append(entry)
-        return entry
-
-    def delete_table(self,widget):
-        entry=widget.table_entry
-        if not self.editing or entry['anchor'].get_deleted():return
-        self.capture();start=self.buffer.get_iter_at_child_anchor(entry['anchor']);end=start.copy();end.forward_char()
-        self.buffer.delete(start,end);self.changed();self.capture();self.view.grab_focus()
 
     def attach_rule(self,where):
         anchor=self.buffer.create_child_anchor(where)
@@ -2673,9 +2602,7 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 try:
                     exported=copy.deepcopy(document)
                     if source:
-                        for span in exported['spans']:
-                            link=span['style'].get('link')
-                            if link:span['style']['link']={**link,'href':relocated_href(link['href'],source,path,source,source)}
+                        exported=relocate_document(exported,source,path,source,source)
                     atomic_export(path,to_html(exported,path.stem),expected=expected)
                     self.message('HTML copy exported · '+path.name)
                 except (OSError,ValueError) as exc:self.error(str(exc))
@@ -2704,10 +2631,9 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
                 if source and path.resolve()==source.resolve():raise ValueError('Choose a separate file for the export.')
                 # Keep links pointing at the original HTML library after export elsewhere.
                 if source:
-                    for span in document['spans']:
-                        link=span['style'].get('link')
-                        if link:span['style']['link']={**link,'href':relocated_href(link['href'],source,path,source,source)}
-                export_document(document,path,format)
+                    exported=relocate_document(document,source,path,source,source)
+                else:exported=document
+                export_document(exported,path,format)
                 self.message('Document exported · '+path.name)
             except (OSError,ValueError) as exc:self.error(str(exc))
         self.file_chooser('Export as '+format.upper(),Gtk.FileChooserAction.SAVE,save_export,
@@ -2788,6 +2714,11 @@ class EditorCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,Prefer
 
 # Transitional forwarding properties keep existing actions compatible while state
 # has one explicit owner, independent of GTK widget lifetime.
+class EditorCore(WebEditorMixin,EditorShellCore):
+    """Native Twinly shell with the WebKit document engine."""
+    pass
+
+
 for _field in DocumentSession.__dataclass_fields__:
     setattr(EditorCore,_field,property(lambda self,key=_field:getattr(self.session,key),
                                      lambda self,value,key=_field:setattr(self.session,key,value)))

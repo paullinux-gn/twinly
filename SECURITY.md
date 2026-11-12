@@ -172,3 +172,27 @@ is atomic; failed catalog updates roll back Trash/restore moves. Workspace Trash
 supports no-overwrite restore and explicit confirmed permanent deletion, using
 anchored directory operations. An encrypted workspace must be locked before it
 can be moved. The encryption format and key derivation are unchanged.
+
+## Local WebKit document engine
+
+Twinly now embeds WebKitGTK 6 and the local ProseMirror engine adapted from
+Webkit-GN. The WebView loads only whitelisted `twinly:` application assets. Its
+content security policy prohibits network connections, external images, frames
+and objects. Document HTML passes through an inert, bounded Python sanitizer
+and ProseMirror schema parser; document scripts and event handlers are discarded.
+Navigation and downloads are denied; note links are handed to Twinly’s existing
+workspace checks; web links open through the system browser.
+
+Each document uses an ephemeral network session and a separate WebKit context.
+No document cache, cookies or local storage are persisted. Workspace locking
+clears the bridge’s snapshots and terminates the document processes. Clipboard
+copies use native providers, so existing encrypted-workspace clipboard clearing
+also covers rich text. Preview PDFs are created only after the existing encrypted
+workspace disclosure and live in a private temporary directory until printing
+and conversion finish.
+
+Text, paragraph, table and image limits apply to WebKit transactions, sanitized
+HTML, rich cell content, recovery records and encrypted documents. WebKit’s
+sandbox remains enabled in application code; confined development containers
+that cannot create nested namespaces must explicitly configure their test
+process environment.

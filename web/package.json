@@ -1,0 +1,27 @@
+{
+  "name": "webkit-gn-editor",
+  "private": true,
+  "version": "0.30.0",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/editor.js --bundle --minify --legal-comments=external --format=iife --target=safari16 --outfile=editor.bundle.js",
+    "test": "node --test tests/*.test.js",
+    "benchmark": "node tests/benchmark.mjs"
+  },
+  "dependencies": {
+    "prosemirror-commands": "^1.7.1",
+    "prosemirror-history": "^1.4.1",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.0",
+    "prosemirror-schema-basic": "^1.2.4",
+    "prosemirror-schema-list": "^1.5.1",
+    "prosemirror-state": "^1.4.3",
+    "prosemirror-tables": "^1.8.0",
+    "prosemirror-transform": "^1.10.0",
+    "prosemirror-view": "^1.40.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.0.0"
+  }
+}

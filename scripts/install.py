@@ -5,13 +5,14 @@ from pathlib import Path
 import shutil
 import gzip
 
-MODULES=('tables.py','table_editor.py','actions.py','application.py','editor.py','editor_view.py','exporting.py','filesystem.py','focus.py','importing.py','lifecycle.py','model.py','managed_workspaces.py','pdf_import.py','preferences.py','private_trash.py','printing.py','session.py','settings.py','sidebar.py','theme.py','workspace.py','writing.py','styles.py','vault.py','vault_ui.py')
+MODULES=('tables.py','web_view.py','web_editor.py','web_document.py','web_dialogs.py','web_print.py','web_print_preview.py','actions.py','application.py','editor.py','editor_view.py','exporting.py','filesystem.py','focus.py','importing.py','lifecycle.py','model.py','managed_workspaces.py','pdf_import.py','preferences.py','private_trash.py','printing.py','session.py','settings.py','sidebar.py','theme.py','workspace.py','writing.py','styles.py','vault.py','vault_ui.py')
 APP_ID='io.github.paullinux_gn.Twinly'
 
 def install(source,prefix,destdir):
     target=destdir/str(prefix).lstrip('/') if destdir else prefix
     application=target/'share'/'twinly';application.mkdir(parents=True,exist_ok=True)
     for name in MODULES:shutil.copy2(source/name,application/name)
+    shutil.copytree(source/'web',application/'web',dirs_exist_ok=True,ignore=shutil.ignore_patterns('node_modules','src','tests','package*.json','__pycache__'))
     shutil.copytree(source/'vendor',application/'vendor',dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
     data=application/'data';data.mkdir(exist_ok=True)
     shutil.copytree(source/'data'/'fonts',data/'fonts',dirs_exist_ok=True)
@@ -30,6 +31,7 @@ def install(source,prefix,destdir):
     legal=target/'share'/'licenses'/'twinly';legal.mkdir(parents=True,exist_ok=True)
     for name in ('LICENSE','LICENSING.md'):shutil.copy2(source/name,legal/name)
     shutil.copy2(source/'data'/'CREDITS.md',legal/'CREDITS.md')
+    shutil.copytree(source/'data'/'poppler-licenses',legal/'poppler',dirs_exist_ok=True)
     launcher=target/'bin'/'twinly';launcher.parent.mkdir(parents=True,exist_ok=True)
     entry=prefix/'share'/'twinly'/'editor.py'
     import shlex

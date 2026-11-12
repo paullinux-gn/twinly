@@ -6,7 +6,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gdk, Gio, GLib, GObject, Pango
 from filesystem import move_path,vault_container
-from lifecycle import CallbackOwner
+from lifecycle import CallbackOwner,cancel_source
 
 
 class Node(GObject.Object):
@@ -538,6 +538,6 @@ class Sidebar(CallbackOwner,Gtk.Box):
             if pop.get_parent():pop.unparent()
         self.popovers.clear()
         for m in self.monitors:m.cancel()
-        if self.pending:GLib.source_remove(self.pending)
+        if self.pending:cancel_source(self.pending)
         self.pending=0
         self.monitors=[]

@@ -1,4 +1,5 @@
 """Encrypted workspace window: virtual documents, fail-closed storage overrides and GTK entry points."""
+from lifecycle import cancel_source
 import copy
 from dataclasses import dataclass
 from pathlib import Path
@@ -151,6 +152,7 @@ class VaultEditing:
         if self.dirty():self.flush_recovery()
 
     def wipe_editor(self):
+        if hasattr(self,'web_backend'):self.view.wipe()
         self.loading=True
         self.buffer.set_text('');self.history.clear();self.navigation.clear();self.anchors.clear()
         self.clear_format_tags();self.saved_doc=blank();self.path=None
@@ -173,7 +175,7 @@ class VaultEditing:
         def entry(pane):
             return {'identity':pane.path.identity if pane.path else None,'draft':pane.vault_draft_id,
                     'cursor':pane.buffer.get_iter_at_mark(pane.buffer.get_insert()).get_offset(),
-                    'scroll':pane.document_scroll.get_vadjustment().get_value(),
+                    'scroll':pane.document_scroll_value(),
                     'zoom':pane.zoom,'pinned':pane.pinned,'editing':pane.editing,'dirty':pane.dirty()}
         session={'documents':[entry(self)],'active':int(self.active_editor is self.peer),'swapped':self.swapped}
         if self.peer:
@@ -218,7 +220,7 @@ class VaultEditing:
             if self.peer:
                 self.panes.set_position(round(self.panes.get_width()*finite_number(session.get('ratio'),.5,.15,.85)))
                 self.activate_pane(self.peer if session.get('active')==1 else self)
-            for pane,item in restored:pane.document_scroll.get_vadjustment().set_value(finite_number(item.get('scroll'),0,0,1e9))
+            for pane,item in restored:pane.restore_document_scroll(finite_number(item.get('scroll'),0,0,1e9))
             return False
         self.add_tick_callback(position)
 
@@ -227,7 +229,7 @@ class VaultEditing:
     def navigate(self,step):pass
     def refresh_documents(self):pass
     def clear_recovery(self):
-        if getattr(self,'recovery_pending',0):GLib.source_remove(self.recovery_pending)
+        if getattr(self,'recovery_pending',0):cancel_source(self.recovery_pending)
         self.recovery_pending=0
         if not getattr(self.workspace_owner or self,'locking',False) and not getattr(self.workspace_owner or self,'vault_preserve_recovery',False) and self.vault_store.key is not None:
             self.vault_store.remove_draft(self.vault_draft_id)
@@ -454,6 +456,9 @@ class VaultEditing:
             else:self.open_path(ref)
         except (ValueError,KeyError):self.error('Encrypted workspace document link not found.')
     def link_dialog(self,*_):
+        if hasattr(self,'web_backend'):
+            from web_dialogs import link_dialog
+            return link_dialog(self)
         bounds=self.buffer.get_selection_bounds();cursor=self.buffer.get_iter_at_mark(self.buffer.get_insert())
         start,end=(i.get_offset() for i in bounds) if bounds else (cursor.get_offset(),cursor.get_offset())
         choices=[(k,n['name']) for k,n in self.vault_store.catalog['nodes'].items() if n['type']=='document' and not n.get('trash')]
@@ -485,22 +490,11 @@ class VaultEditing:
         if isinstance(kwargs.get('folder'),VaultRef):kwargs.pop('folder')
         return super().file_chooser(title,action,checked,**kwargs)
     def print_preview(self,*_,path=None):
-        def preview():
-            from printing import PrintPreview
-            try:
-                window=PrintPreview(self.workspace_owner or self,self.document_for_print(path));window.present()
-            except (OSError,ValueError) as exc:self.error(str(exc))
-        self.disclosure(preview)
+        from web_editor import WebEditorMixin
+        self.disclosure(lambda:WebEditorMixin.print_preview(self,path=path))
     def print_document(self,*_,path=None):
-        def printing():
-            from printing import PrintPreview
-            window=None
-            try:
-                window=PrintPreview(self.workspace_owner or self,self.document_for_print(path));window.print_document()
-            except (OSError,ValueError) as exc:self.error(str(exc))
-            finally:
-                if window:window.destroy()
-        self.disclosure(printing)
+        from web_editor import WebEditorMixin
+        self.disclosure(lambda:WebEditorMixin.print_document(self,path=path))
     def export_office(self,format):
         from exporting import export_document
         def start():
@@ -636,7 +630,7 @@ class VaultController(VaultEditing):
             self.vault_toplevels.disconnect(self.vault_toplevel_handler);self.vault_toplevel_handler=0
         if getattr(self,'vault_screen_handler',0):
             self.vault_application.disconnect(self.vault_screen_handler);self.vault_screen_handler=0
-        if getattr(self,'vault_idle',0):GLib.source_remove(self.vault_idle);self.vault_idle=0
+        if getattr(self,'vault_idle',0):cancel_source(self.vault_idle);self.vault_idle=0
         panes=[p for p in (self,self.peer) if p]
         super().cleanup()
         for pane in panes:pane.wipe_editor()

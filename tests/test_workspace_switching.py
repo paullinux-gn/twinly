@@ -268,10 +268,10 @@ class WorkspaceSwitching(unittest.TestCase):
         page.appearance_mode='dark';page.apply_appearance()
         self.assertFalse(self.w.has_css_class('light-document'))
         about=page.about();self.assertIs(self.w,about.get_transient_for())
-        from printing import PrintPreview
         with patch.object(page,'disclosure',side_effect=lambda callback:callback()):page.print_preview()
-        preview=next(w for w in Gtk.Window.get_toplevels() if isinstance(w,PrintPreview) and w.get_transient_for() is self.w)
-        self.assertIs(page,preview.document_owner)
+        preview=page.web_print_dialog.dialog
+        self.assertIs(self.w,preview.get_transient_for())
+        self.assertIs(page,page.web_print_dialog.owner)
         self.assertTrue(page.activate_action('win.vault-lock',None));settle()
         self.assertFalse(about.get_visible());self.assertFalse(preview.get_visible());self.assertTrue(page.closed)
         self.assertIsNone(self.w.embedded_workspace);self.assertTrue(self.w.get_visible())
@@ -342,11 +342,11 @@ class WorkspaceSwitching(unittest.TestCase):
         first=self.document('Long.html','A long document line.\n'*300)
         second=self.document('Reference.html','A reference line.\n'*300)
         self.w.open_path(first);self.w.open_beside(second);settle()
-        self.w.document_scroll.get_vadjustment().set_value(320)
-        self.w.peer.document_scroll.get_vadjustment().set_value(480);settle()
-        before=[p.document_scroll.get_vadjustment().get_value() for p in (self.w,self.w.peer)]
+        self.w.restore_document_scroll(320)
+        self.w.peer.restore_document_scroll(480);settle()
+        before=[p.document_scroll_value() for p in (self.w,self.w.peer)]
         item,store=self.encrypted();self.w.vault_launcher().present(store);settle()
         self.w.embedded_workspace.lock_vault();settle()
         self.assertIs(self.w.peer,self.w.active_editor)
         for pane,expected in zip((self.w,self.w.peer),before):
-            self.assertAlmostEqual(expected,pane.document_scroll.get_vadjustment().get_value(),delta=2)
+            self.assertAlmostEqual(expected,pane.document_scroll_value(),delta=2)

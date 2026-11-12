@@ -21,17 +21,19 @@ development, and licensed under **[GPL-3.0-or-later](LICENSE)**.
   document Trash are encrypted at rest.
 - **Write comfortably.** Use paragraph styles, custom styles, text colours,
   highlighting, alignment, bullets, numbered lists and checkboxes. The formatting
-  toolbar appears on hover; the eye button can keep it visible. Its line-spacing
+  toolbar uses two compact rows and appears on hover; the eye button can keep it visible. Its line-spacing
   icon offers 0.95, 1.00, 1.15, 1.25, 1.50 and 2.00 for the current or selected
   paragraphs; spacing is preserved when saving, printing and exporting. The
   highlight and text-colour palettes have identical grids: 10 columns of colours
   with 6 progressively darker shades,
   including black. Dark highlights use white text; lighter ones keep your text colour.
-- **Add tables.** Choose rows and columns with the table icon beside the line icon.
-  Select a cell, then use its **Table** handle to add or delete rows and columns,
-  or delete the table. Drag column grips to resize; set **Border** to 0–10 pixels
-  (0 hides borders). Cells contain plain text; Tab moves between cells. Tables
-  are preserved in HTML, PDF, ODT and DOCX exports.
+- **Add tables.** Twinly uses Webkit-GN’s ProseMirror tables: edit formatted
+  text directly in cells, drag column boundaries to resize, and use the small
+  **⋮** properties handle or toolbar table icon to change an existing table.
+  Choose rows, columns, a header row, 0–12 pixel borders, table width and floating
+  layout with text wrapping. The dialog also offers **Delete table** and
+  **Continue below table** (Alt+Enter); deletion supports undo. Existing Twinly
+  tables remain readable.
 - **Read before editing.** Existing notes open read-only. Click the pencil to
   the left of a title to edit; its checkmark saves and returns to reading.
 - **Work with two notes.** Open beside, pin a reference, swap panes and adjust
@@ -75,7 +77,7 @@ never replaced by a template update.
 
 ## Run from source
 
-Requires Linux, Python 3.10+, PyGObject, Pycairo, GTK 4.12+ and libadwaita 1.4+.
+Requires Linux, Python 3.10+, PyGObject, Pycairo, GTK 4.12+, libadwaita 1.4+, WebKitGTK 6.0 and Poppler.
 Use your distribution's Python so the GTK bindings are available.
 
 Clone the repository and enter it:
@@ -88,7 +90,7 @@ cd twinly
 **Arch Linux**
 
 ```sh
-sudo pacman -S python python-gobject python-cairo gtk4 libadwaita
+sudo pacman -S python python-gobject python-cairo gtk4 libadwaita webkitgtk-6.0 poppler
 bash start.sh
 ```
 
@@ -98,7 +100,7 @@ For encrypted workspaces, also install `python-pynacl`. Twinly requires
 **Ubuntu 24.04**
 
 ```sh
-sudo apt install python3-gi python3-cairo python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1
+sudo apt install python3-gi python3-cairo python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-webkit-6.0 poppler-utils
 bash start.sh
 ```
 
@@ -219,8 +221,8 @@ input is rejected rather than shortened. Encrypted workspaces support at most
 **10,000 items**, including folders and trashed items. Image and import budgets
 are detailed in [SECURITY.md](SECURITY.md).
 
-Tables, fixed-page editing, nested lists, full-workspace body search and cloud
-synchronisation are not provided. The
+Fixed-page editing, full-workspace body search and cloud synchronisation are
+not provided. The
 [maintenance and scalability review](docs/MAINTENANCE-REVIEW-2026-11-05.md)
 records measurements, security checks and remaining issues, including a GTK 4.14
 tooltip teardown issue observed in an extra-wide automated test run.
@@ -246,3 +248,19 @@ Useful references:
 - [Licensing and third-party notices](LICENSING.md)
 - [Publishing](docs/PUBLISHING.md)
 - [Latest audit and benchmarks](docs/MAINTENANCE-REVIEW-2026-11-05.md)
+
+The editor engine runs entirely inside Twinly. No browser, account or network
+service is needed. Only the bundled editor code runs; note HTML is parsed into
+the document schema. WebKit sessions are ephemeral, external resources are
+blocked, and encrypted workspace locks terminate their document processes.
+
+To rebuild the bundled engine after editing its source:
+
+```sh
+npm ci --prefix web
+npm test --prefix web
+npm run build --prefix web
+```
+
+The installed application uses the committed local bundle; Node.js is only a
+development dependency. See [web/README.md](web/README.md) for provenance.

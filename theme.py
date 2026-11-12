@@ -23,7 +23,7 @@ BASE_CSS = r"""
                 color:@accent_color;
                 }
             .floating-toolbar .format-toolbar {
-                background:@view_bg_color;border-radius:999px;
+                background:@view_bg_color;border-radius:18px;
                 padding:4px 8px;border:1px solid alpha(currentColor,.10);
                 box-shadow:0 3px 8px alpha(black,.15);
             }

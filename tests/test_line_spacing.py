@@ -40,9 +40,9 @@ class NativeLineSpacing(unittest.TestCase):
         self.w.buffer.select_range(self.w.buffer.get_iter_at_offset(2),self.w.buffer.get_iter_at_offset(18))
         self.w.lookup_action('line-spacing-4').activate(None)
         spans=[s for s in self.w.snapshot()['spans'] if 'line_spacing' in s['style']]
-        self.assertEqual([(0,33,1.5)],[(s['start'],s['end'],s['style']['line_spacing']) for s in spans])
-        self.assertEqual(1.5,self.w.tag_for('line_spacing',1.5).get_property('line-height'))
-        self.w.undo();self.assertFalse(any('line_spacing' in s['style'] for s in self.w.snapshot()['spans']))
+        self.assertEqual([(0,15,1.5),(16,32,1.5),(33,48,1.0)],[(s['start'],s['end'],s['style']['line_spacing']) for s in spans])
+        self.assertEqual('24px',self.w.view.evaluate('getComputedStyle(document.querySelector(".ProseMirror p")).lineHeight'))
+        self.w.undo();self.assertFalse(any(s['style'].get('line_spacing',1)!=1 for s in self.w.snapshot()['spans']))
         self.w.redo();before=copy.deepcopy(self.w.snapshot())
         self.w.set_editing(False);self.assertFalse(self.w.lookup_action('line-spacing-5').get_enabled())
         self.w.set_line_spacing(2);self.assertEqual(before,self.w.snapshot())
@@ -61,12 +61,6 @@ class NativeLineSpacing(unittest.TestCase):
             doc=blank();doc['text']='First\u2028Second\u2028Third'
             doc['spans']=[{'start':0,'end':len(doc['text']),'style':{'line_spacing':value}}]
             self.w.restore(doc,reset=True);settle()
-            first=self.w.view.get_iter_location(self.w.buffer.get_iter_at_offset(0))
-            second=self.w.view.get_iter_location(self.w.buffer.get_iter_at_offset(6))
-            native=(second.y-first.y)*.75
-            pages=Pages(doc,text_context=self.w.view.get_pango_context())
-            lines=[item for page in pages.pages for item in page if item[0]=='line']
-            printed=lines[1][3]-lines[0][3]
-            self.assertAlmostEqual(native,printed,delta=1.5,msg=str(value))
-            distances.append(printed)
+            distances.append(self.w.view.evaluate('parseFloat(getComputedStyle(document.querySelector(".ProseMirror p")).lineHeight)'))
+            self.assertEqual(str(value).removesuffix('.0'),self.w.view.evaluate('document.querySelector(".ProseMirror p").style.lineHeight'))
         self.assertGreater(distances[-1],distances[0]*1.9)

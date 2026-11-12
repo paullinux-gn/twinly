@@ -1,4 +1,5 @@
 """Paragraph styles, document navigation, replacement and private crash drafts."""
+from lifecycle import cancel_source
 import fcntl
 import heapq
 import json
@@ -194,7 +195,7 @@ class WritingMixin:
 
     def queue_recovery(self):
         if self.loading or self.closed:return
-        if self.recovery_pending:GLib.source_remove(self.recovery_pending)
+        if self.recovery_pending:cancel_source(self.recovery_pending)
         self.recovery_pending=GLib.timeout_add(1000,self.flush_recovery)
 
     def flush_recovery(self):
@@ -210,7 +211,7 @@ class WritingMixin:
         return False
 
     def clear_recovery(self):
-        if getattr(self,'recovery_pending',0):GLib.source_remove(self.recovery_pending)
+        if getattr(self,'recovery_pending',0):cancel_source(self.recovery_pending)
         self.recovery_pending=0
         if getattr(self,'recovery_draft',None):
             try:self.recovery_draft.close()

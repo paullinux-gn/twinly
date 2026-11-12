@@ -1,6 +1,12 @@
 """Cancelable main-loop callbacks owned by a view/controller."""
 from gi.repository import GLib
 
+def cancel_source(identifier):
+    """Cancel an owned callback even if a nested GTK loop already dispatched it."""
+    if identifier:
+        source=GLib.MainContext.default().find_source_by_id(identifier)
+        if source:source.destroy()
+
 class CallbackOwner:
     def defer(self,callback,*args):
         if getattr(self,'closed',False):return 0
@@ -17,5 +23,5 @@ class CallbackOwner:
     def cancel_deferred(self):
         sources=getattr(self,'deferred_sources',set())
         if getattr(self,'search_pending',0) in sources:self.search_pending=0
-        for source in sources:GLib.source_remove(source)
+        for source in sources:cancel_source(source)
         self.deferred_sources=set()

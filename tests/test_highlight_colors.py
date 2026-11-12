@@ -78,27 +78,20 @@ class NativeHighlightColors(unittest.TestCase):
     def test_dark_override_and_light_preserves_normal_color(self):
         self.w.buffer.set_text('Colour test');b=self.w.buffer
         bounds=lambda:(b.get_start_iter(),b.get_end_iter())
-        self.w.apply_style('background','#000000',bounds())
-        self.w.apply_style('foreground','#c01c28',bounds())
-        dark=self.w.tag_for('background','#000000');red=self.w.tag_for('foreground','#c01c28')
-        self.assertGreater(dark.get_priority(),red.get_priority())
-        self.assertTrue(dark.get_property('foreground-set'))
-        self.assertEqual(1,dark.get_property('foreground-rgba').red)
+        self.w.apply_style('background','#000000',bounds());self.w.apply_style('foreground','#c01c28',bounds())
+        self.assertEqual('rgb(255, 255, 255)',self.w.view.evaluate('getComputedStyle(document.querySelector(".ProseMirror p span[data-auto-contrast]")).color'))
         self.w.apply_style('background','#fff099',bounds())
-        self.assertFalse(self.w.tag_for('background','#fff099').get_property('foreground-set'))
+        self.assertTrue(any(s['style'].get('foreground')=='#c01c28' for s in self.w.snapshot()['spans']))
         self.w.apply_style('background',None,bounds())
         self.assertTrue(any(s['style'].get('foreground')=='#c01c28' for s in self.w.snapshot()['spans']))
         self.assertFalse(any('background' in s['style'] for s in self.w.snapshot()['spans']))
 
     def test_search_contrast_is_temporary(self):
-        self.w.restore(highlighted(),reset=True)
-        before=self.w.snapshot();self.w.open_search();self.w.search_entry.set_text('Colour');pump()
-        self.w.refresh_search(select=False)
-        dark=self.w.tag_for('background','#000000')
-        self.assertGreater(self.w.search_tag.get_priority(),dark.get_priority())
-        self.assertEqual(before,self.w.snapshot())
-        self.w.search_bar.set_search_mode(False);pump()
-        self.assertEqual(before,self.w.snapshot())
+        self.w.restore(highlighted(),reset=True);before=self.w.snapshot()
+        self.w.open_search();self.w.search_entry.set_text('Colour');self.w.refresh_search(select=False);pump()
+        self.assertTrue(self.w.view.evaluate('!!document.querySelector(".search-match")'))
+        self.assertEqual(before,self.w.snapshot());self.w.search_bar.set_search_mode(False);pump()
+        self.assertFalse(self.w.view.evaluate('!!document.querySelector(".search-match")'));self.assertEqual(before,self.w.snapshot())
 
     def test_identical_ten_by_six_grids(self):
         highlight=self.w.palette.get_child().get_first_child()

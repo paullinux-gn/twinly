@@ -26,15 +26,50 @@ def validate_table(table):
     if not isinstance(widths,list) or len(widths)!=columns or any(type(w) not in (int,float) or not math.isfinite(w) or not .01<=w<=10000 for w in widths):raise ValueError('Invalid table column widths.')
     if type(table.get('offset')) is not int or table['offset']<0:raise ValueError('Invalid table position.')
     border=table.get('border',1)
-    if type(border) not in (int,float) or not math.isfinite(border) or not 0<=border<=10:raise ValueError('Table border width must be between 0 and 10 pixels.')
-    return {'border':border,'offset':table['offset'],'cells':[list(row) for row in cells],'widths':list(widths)}
+    if type(border) not in (int,float) or not math.isfinite(border) or not 0<=border<=12:raise ValueError('Table border width must be between 0 and 12 pixels.')
+    result={'border':border,'offset':table['offset'],'cells':[list(row) for row in cells],'widths':list(widths)}
+    if 'header' in table:result['header']=bool(table['header'])
+    if 'floating' in table:result['floating']=bool(table['floating'])
+    if 'width' in table:
+        value=table['width']
+        if type(value) not in (int,float) or not math.isfinite(value) or not 25<=value<=100:raise ValueError('Invalid table width.')
+        result['width']=value
+    if 'cell_docs' in table:
+        from model import validate_document
+        documents=table['cell_docs']
+        if not isinstance(documents,list) or len(documents)!=len(cells):raise ValueError('Invalid table cell documents.')
+        result['cell_docs']=[]
+        for row in documents:
+            if not isinstance(row,list) or len(row)!=columns:raise ValueError('Invalid table cell documents.')
+            cleaned=[]
+            for doc in row:
+                if not isinstance(doc,dict) or doc.get('tables') or 'web_html' in doc:raise ValueError('Nested table documents are not supported.')
+                clean=validate_document(doc)
+                if len(clean['text'])>MAX_CELL_CHARS:raise ValueError('A table cell supports up to 4096 characters.')
+                cleaned.append(clean)
+            result['cell_docs'].append(cleaned)
+    return result
+
 
 
 def table_html(table):
-    widths=table['widths'];total=sum(widths)
+    widths=table['widths'];total=sum(widths);border=table.get('border',1)
     cols=''.join(f'<col style="width:{100*w/total:.6g}%">' for w in widths)
-    rows=''.join('<tr>'+''.join('<td style="border:'+str(table.get('border',1))+'px solid #808080">'+html.escape(cell).replace('\n','<br>')+'</td>' for cell in row)+'</tr>' for row in table['cells'])
-    return '<table data-twinly-border="'+str(table.get('border',1))+'" data-twinly-widths="'+html.escape(json.dumps(widths),quote=True)+'"><colgroup>'+cols+'</colgroup><tbody>'+rows+'</tbody></table>'
+    rows=[]
+    for r,row in enumerate(table['cells']):
+        rendered=[]
+        for c,cell in enumerate(row):
+            if table.get('cell_docs'):
+                from model import to_html
+                from web_document import sanitize
+                content,_=sanitize(to_html(table['cell_docs'][r][c]))
+            else:content=html.escape(cell).replace('\n','<br>')
+            tag='th' if r==0 and table.get('header') else 'td'
+            rendered.append('<'+tag+' style="border:'+str(border)+'px solid #808080">'+content+'</'+tag+'>')
+        rows.append('<tr>'+''.join(rendered)+'</tr>')
+    style='width:'+str(table.get('width',100))+'%;--table-border-width:'+str(border)+'px;'
+    if table.get('floating'):style+='float:left;margin-right:16px;'
+    return '<table style="'+style+'" data-border-width="'+str(border)+'" data-table-width="'+str(table.get('width',100))+'" data-floating="'+str(bool(table.get('floating'))).lower()+'" data-twinly-border="'+str(border)+'" data-twinly-widths="'+html.escape(json.dumps(widths),quote=True)+'"><colgroup>'+cols+'</colgroup><tbody>'+''.join(rows)+'</tbody></table>'
 
 
 class TableReader:

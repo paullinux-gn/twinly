@@ -209,6 +209,16 @@ def validate_document(doc):
             else:continue
             clean[key]=value
         if start<end and clean:result['spans'].append({'start':start,'end':end,'style':clean})
+    rich_cells=[cell for table in result.get('tables',[]) for row in table.get('cell_docs',[]) for cell in row]
+    if rich_cells and len(result['spans'])+sum(len(cell['spans']) for cell in rich_cells)>MAX_SPANS:raise ResourceLimitError('Too many formatting spans, including table cells.')
+    if rich_cells:
+        validate_image_budget(result['images']+[image for t in result.get('tables',[]) for row in t.get('cell_docs',[]) for cell in row for image in cell['images']])
+    if 'web_styles' in doc:
+        if not isinstance(doc['web_styles'],list) or len(doc['web_styles'])>100:raise ValueError('Invalid document style library.')
+        result['web_styles']=[validate_custom_style(v) for v in doc['web_styles']]
+    if 'web_html' in doc:
+        from web_document import export_html
+        result['web_html']=export_html(doc['web_html'])
     return result
 
 
@@ -336,6 +346,9 @@ class StyleCursor:
         return result
 
 def to_html(doc, title='Document'):
+    if 'web_html' in doc:
+        from web_document import export_html
+        return export_html(doc['web_html'],title)
     doc=validate_document(doc)
     text = doc['text']
     images = {i['offset']: i for i in doc['images']}
@@ -407,12 +420,17 @@ def parse_style(value):
         if ':' not in declaration: continue
         key, val = (s.strip() for s in declaration.split(':', 1))
         key = key.lower()
+        if key in ('color','background','background-color'):
+            rgb=re.fullmatch(r'rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)',val)
+            if rgb and all(int(v)<=255 for v in rgb.groups()):val='#'+''.join(f'{int(v):02x}' for v in rgb.groups())
         if key == 'font-weight':
             if val in ('bold','bolder','700'):out['weight']=True
             elif val.isdigit() and 100<=int(val)<=1000:out['font_weight']=int(val)
         elif key=='font-style' and val=='italic':out['italic']=True
         elif key=='font-style' and val in ('normal','oblique'):out['font_style']=val
-        elif key=='font-stretch' and val in STRETCH_NAMES and val!='normal':out['stretch']=STRETCH_NAMES.index(val)
+        elif key=='font-stretch':
+            val=dict(zip(('50%','62.5%','75%','87.5%','100%','112.5%','125%','150%','200%'),STRETCH_NAMES)).get(val,val)
+            if val in STRETCH_NAMES and val!='normal':out['stretch']=STRETCH_NAMES.index(val)
         elif key in ('text-decoration', 'text-decoration-line'):
             if 'underline' in val: out['underline'] = True
             if 'line-through' in val: out['strike'] = True
@@ -431,7 +449,26 @@ def parse_style(value):
     return out
 
 
-class Reader(HTMLParser):
+class BoundedHTMLParser(HTMLParser):
+    def parse_starttag(self,index):
+        # Bound tag/attribute work before HTMLParser materialises the attribute list.
+        raw=self.rawdata
+        name=tagfind_tolerant.match(raw,index+1)
+        end=locatestarttagend_tolerant.match(raw,index)
+        if name and end:
+            limit=int(MAX_IMAGE*1.4)+16384 if name.group(1).lower()=='img' else 131072 if name.group(1).lower()=='body' else 16384
+            if end.end()-index>limit:raise ResourceLimitError('HTML tag is too large.')
+            cursor=name.end();count=0
+            while cursor<end.end():
+                attribute=attrfind_tolerant.match(raw,cursor)
+                if attribute is None:break
+                count+=1
+                if count>MAX_ATTRIBUTES:raise ResourceLimitError('Too many attributes in an HTML tag.')
+                cursor=attribute.end()
+        return super().parse_starttag(index)
+
+
+class Reader(BoundedHTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.doc = blank()
@@ -464,23 +501,6 @@ class Reader(HTMLParser):
         if style and text:
             if len(self.doc['spans'])>=MAX_SPANS:raise ResourceLimitError('Too many formatting ranges.')
             self.doc['spans'].append({'start': start, 'end': start + len(text), 'style': style})
-
-    def parse_starttag(self,index):
-        # Bound tag/attribute work before HTMLParser materialises the attribute list.
-        raw=self.rawdata
-        name=tagfind_tolerant.match(raw,index+1)
-        end=locatestarttagend_tolerant.match(raw,index)
-        if name and end:
-            limit=int(MAX_IMAGE*1.4)+16384 if name.group(1).lower()=='img' else 16384
-            if end.end()-index>limit:raise ResourceLimitError('HTML tag is too large.')
-            cursor=name.end();count=0
-            while cursor<end.end():
-                attribute=attrfind_tolerant.match(raw,cursor)
-                if attribute is None:break
-                count+=1
-                if count>MAX_ATTRIBUTES:raise ResourceLimitError('Too many attributes in an HTML tag.')
-                cursor=attribute.end()
-        return super().parse_starttag(index)
 
     def handle_starttag(self, tag, attrs):
         self.node_count+=1
@@ -548,7 +568,7 @@ class Reader(HTMLParser):
                 if len(self.doc['images'])>=MAX_IMAGES or self.image_bytes>MAX_TOTAL_IMAGE_BYTES or self.image_pixels>MAX_TOTAL_PIXELS:
                     raise ResourceLimitError('The document exceeds the combined image budget.')
                 width = max(24, min(2400, int(float(attrs.get('width', 480)))))
-                height = max(24, min(2400, int(float(attrs.get('height', 320)))))
+                height = max(24, min(2400, int(float(attrs.get('height', width*h/w)))))
                 self.doc['images'].append({'offset': self.length, 'src': uri,
                                            'width': width, 'height': height, 'alt': attrs.get('alt', 'Photo')})
                 self.add('\ufffc')
@@ -584,7 +604,10 @@ class Reader(HTMLParser):
         self.add(data)
 
 
-def from_html(content):
+def from_html(content,_legacy=False):
+    if not _legacy and ('data-twinly-webkit=' in content or '<table' in content.lower()):
+        from web_document import decode
+        return decode(content)
     if len(content.encode('utf-8')) > MAX_DOCUMENT:
         raise ValueError('The HTML document is larger than 64 MB.')
     parser = Reader()
@@ -646,3 +669,16 @@ def relocate_html_links(content,source,destination,old,new):
     parser=Links(convert_charrefs=True);parser.feed(content)
     for start,end,value in reversed(changes):content=content[:start]+value+content[end:]
     return content
+
+
+def relocate_document(doc,source,destination,old,new):
+    """Rebase both structured fallbacks and the canonical WebKit HTML."""
+    import copy
+    doc=copy.deepcopy(doc)
+    for span in doc['spans']:
+        link=span['style'].get('link')
+        if link and link['kind']=='document':link['href']=relocated_href(link['href'],source,destination,old,new)
+    if 'web_html' in doc:doc['web_html']=relocate_html_links(doc['web_html'],source,destination,old,new)
+    for table in doc.get('tables',[]):
+        if 'cell_docs' in table:table['cell_docs']=[[relocate_document(cell,source,destination,old,new) for cell in row] for row in table['cell_docs']]
+    return doc

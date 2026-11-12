@@ -5,6 +5,8 @@ accessibility, packaging, performance and small UI improvements. Keep the calm n
 GTK4/libadwaita design and standalone HTML compatibility.
 
 Run `python3 scripts/check_release.py` and the native tests described in README.md.
+For editor changes, also run `npm ci --prefix web`, `npm test --prefix web` and
+`npm run build --prefix web`; commit the rebuilt local bundle with its source.
 Add regression tests for data loss, file operations, links and pane lifecycle changes.
 Do not include personal documents, preferences, build outputs or credentials in commits.
 The bundled introduction is the user-authored `data/Start to note.html`. Edit
