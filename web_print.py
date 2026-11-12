@@ -43,7 +43,17 @@ class WebPrintDialog:
 
     def ready_for_print(self):
         view=self.webview
-        return view.ready and not view.syncing and view.evaluate('(()=>{document.querySelectorAll(".ProseMirror img[src]").forEach(image=>image.loading="eager");return document.fonts.status==="loaded"&&Array.from(document.querySelectorAll(".ProseMirror img[src]")).every(image=>image.complete)})()')
+        return view.ready and not view.syncing and view.evaluate("""(() => {
+            if (!window.printImagesReady) {
+                const images = Array.from(document.querySelectorAll('.ProseMirror img[src]'));
+                window.printImagesReady = Promise.allSettled(images.map(image => {
+                    image.loading = 'eager';
+                    image.decoding = 'sync';
+                    return image.decode();
+                })).then(() => { window.printImagesDecoded = true; });
+            }
+            return window.printImagesDecoded === true && document.fonts.status === 'loaded';
+        })()""")
 
     def create_print_operation(self):
         operation=WebKit.PrintOperation.new(self.webview);self.operations.add(operation)

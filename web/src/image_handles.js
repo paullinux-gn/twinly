@@ -9,7 +9,7 @@ export function imageNodeView(node){
     dom.loading='lazy';dom.decoding='async';dom.style.removeProperty('width');return true;
   }
   update(node);
-  return {dom,update,ignoreMutation:record=>record.type==='attributes'&&record.attributeName==='style'};
+  return {dom,update,ignoreMutation:record=>record.type==='attributes'&&['style','loading','decoding'].includes(record.attributeName)};
 }
 
 export function installImageHandles(view,resize){
