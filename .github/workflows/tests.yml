@@ -35,6 +35,11 @@ jobs:
       - name: Run tests
         env:
           GSK_RENDERER: cairo
+          GTK_A11Y: none
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          # Hosted runners deny the namespace/loopback setup used by bwrap.
+          # This exception applies only to this headless test process.
+          WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS: "1"
           G_DEBUG: fatal-criticals
           PYTHONPATH: ${{ runner.temp }}/twinly-crypto
         run: |

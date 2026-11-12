@@ -193,6 +193,9 @@ and conversion finish.
 
 Text, paragraph, table and image limits apply to WebKit transactions, sanitized
 HTML, rich cell content, recovery records and encrypted documents. WebKit’s
-sandbox remains enabled in application code; confined development containers
-that cannot create nested namespaces must explicitly configure their test
-process environment.
+sandbox remains enabled in application code and installed builds. The headless
+GitHub Actions test step and confined development containers explicitly disable
+it for their test processes because those hosts reject namespace/loopback setup.
+The override is not set by the launcher or Flatpak manifest. CI uses software
+rendering and disables accessibility integration because Xvfb has no desktop
+accessibility bus.
