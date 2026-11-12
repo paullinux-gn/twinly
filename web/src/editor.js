@@ -70,12 +70,12 @@ let nodes = basic.spec.nodes.update("doc",{content:"block+",attrs:{customStyles:
 .update("horizontal_rule",{...basic.spec.nodes.get("horizontal_rule"),parseDOM:[{tag:"hr:not([data-page-break])"}]}).update("paragraph", {
   content: "inline*", group: "block", attrs: {align: {default:"left"},styleName:{default:"Normal"},clear:{default:false},lineSpacing:{default:1.0}},
   parseDOM: [{tag:"p",getAttrs:el=>({...blockAttrs(el),styleName:el.dataset.style||"Normal",clear:el.style.clear==="both"})}, {tag:"div",getAttrs:blockAttrs}],
-  toDOM: node => ["p", {style:`text-align:${node.attrs.align};line-height:${node.attrs.lineSpacing}${node.attrs.clear?";clear:both":""}`,"data-style":nodeStyle(node)},0],
+  toDOM: node => ["p", {style:`text-align:${node.attrs.align};line-height:${node.attrs.lineSpacing};--twinly-line-spacing:${node.attrs.lineSpacing}${node.attrs.clear?";clear:both":""}`,"data-style":nodeStyle(node)},0],
 }).update("heading", {
   content:"inline*", group:"block", defining:true,
   attrs:{level:{default:1},align:{default:"left"},styleName:{default:null},lineSpacing:{default:1.0}},
   parseDOM:[1,2,3].map(level => ({tag:`h${level}`,getAttrs:el=>({level,...blockAttrs(el),styleName:el.dataset.style||`H${level}`})})),
-  toDOM:node=>[`h${node.attrs.level}`,{style:`text-align:${node.attrs.align};line-height:${node.attrs.lineSpacing}`,"data-style":nodeStyle(node)},0],
+  toDOM:node=>[`h${node.attrs.level}`,{style:`text-align:${node.attrs.align};line-height:${node.attrs.lineSpacing};--twinly-line-spacing:${node.attrs.lineSpacing}`,"data-style":nodeStyle(node)},0],
 }).update("image", {
   inline:true, group:"inline", draggable:true,
   attrs:{src:{},alt:{default:""},title:{default:null},width:{default:null}},

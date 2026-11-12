@@ -41,7 +41,7 @@ class NativeLineSpacing(unittest.TestCase):
         self.w.lookup_action('line-spacing-4').activate(None)
         spans=[s for s in self.w.snapshot()['spans'] if 'line_spacing' in s['style']]
         self.assertEqual([(0,15,1.5),(16,32,1.5),(33,48,1.0)],[(s['start'],s['end'],s['style']['line_spacing']) for s in spans])
-        self.assertEqual('24px',self.w.view.evaluate('getComputedStyle(document.querySelector(".ProseMirror p")).lineHeight'))
+        self.assertAlmostEqual(34.8,float(self.w.view.evaluate('parseFloat(getComputedStyle(document.querySelector(".ProseMirror p")).lineHeight)')),places=2)
         self.w.undo();self.assertFalse(any(s['style'].get('line_spacing',1)!=1 for s in self.w.snapshot()['spans']))
         self.w.redo();before=copy.deepcopy(self.w.snapshot())
         self.w.set_editing(False);self.assertFalse(self.w.lookup_action('line-spacing-5').get_enabled())
@@ -64,3 +64,19 @@ class NativeLineSpacing(unittest.TestCase):
             distances.append(self.w.view.evaluate('parseFloat(getComputedStyle(document.querySelector(".ProseMirror p")).lineHeight)'))
             self.assertEqual(str(value).removesuffix('.0'),self.w.view.evaluate('document.querySelector(".ProseMirror p").style.lineHeight'))
         self.assertGreater(distances[-1],distances[0]*1.9)
+
+    def test_wrapped_lines_have_room_for_noto_sans(self):
+        self.w.view.evaluate("editor.loadHTML('<p style=\"line-height:.95\">' + 'Wrapped text '.repeat(25) + '</p>')")
+        self.w.view.evaluate("document.querySelector('.ProseMirror p').style.width = '240px'")
+        settle()
+        self.assertTrue(self.w.view.evaluate("""
+            (() => {
+                const paragraph = document.querySelector('.ProseMirror p');
+                const range = document.createRange();
+                range.selectNodeContents(paragraph);
+                const lines = [...range.getClientRects()];
+                return lines.length > 1 && lines.slice(1).every(
+                    (line, index) => line.top >= lines[index].bottom - 0.5
+                );
+            })()
+        """))

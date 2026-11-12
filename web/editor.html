@@ -43,6 +43,10 @@ body{min-width:0;font-family:"Noto Sans",sans-serif;padding:80px 0 40px}
 #editor{width:auto;max-width:900px;min-height:0;margin:0 auto}
 .ProseMirror{padding:8px 32px 40px;min-height:calc(100vh - 120px);font-family:"Noto Sans",sans-serif;line-height:1}
 .ProseMirror p{margin:0 0 8px}
+/* Scale the Noto Sans line box, whose font metrics exceed one em. */
+.ProseMirror :is(p,h1,h2,h3){
+  line-height:calc(1.45 * var(--twinly-line-spacing, 1)) !important;
+}
 @media print{html{scrollbar-gutter:auto}body{padding:0!important;min-height:0;min-width:0;background:white;color:#202020}#editor{width:auto;max-width:none;margin:0;min-height:0;zoom:1}.ProseMirror,#print-document{padding:0!important;min-height:0!important}.glass-backdrop{display:none!important}}
 .ProseMirror[contenteditable="false"] [data-table-properties]{display:none!important}
 </style></head><body><main id="editor"></main><div id="header-glass" class="glass-backdrop" aria-hidden="true"></div><div id="toolbar-glass" class="glass-backdrop" aria-hidden="true"></div><div id="search-glass" class="glass-backdrop" aria-hidden="true"></div><div id="outline-glass" class="glass-backdrop" aria-hidden="true"></div><script src="editor.bundle.js"></script></body></html>
