@@ -286,6 +286,38 @@ class WebEditorMixin:
             box.append(button)
         if not headings:box.append(Gtk.Label(label='No headings in this document'))
         self.outline_popover.set_child(box)
+    def edit_page_margins(self,*_):
+        if not self.editing or not self.view.ensure_ready():return
+        margins=self.view.evaluate('editor.getMargins()')
+        document_id=self.view.evaluate('editor.getSummary().documentId')
+        dialog=Adw.AlertDialog(heading='Page margins',body='Set the document margins in millimetres.')
+        dialog.add_response('cancel','Cancel')
+        dialog.add_response('apply','Apply')
+        dialog.set_response_appearance('apply',Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response('apply')
+        dialog.set_close_response('cancel')
+        fields=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
+        inputs={}
+        for side in ('top','bottom','left','right'):
+            row=Gtk.Box(spacing=12)
+            label=Gtk.Label(label=side.title(),xalign=0,hexpand=True)
+            field=Gtk.SpinButton.new_with_range(0,90,0.1)
+            field.set_digits(1)
+            field.set_value(margins[side])
+            field.update_property([Gtk.AccessibleProperty.LABEL],[side.title()+' margin in millimetres'])
+            row.append(label);row.append(field);fields.append(row)
+            inputs[side]=field
+        dialog.set_extra_child(fields)
+        def apply(_,response):
+            if (response!='apply' or self.closed or not self.editing
+                or self.view.evaluate('editor.getSummary().documentId')!=document_id):return
+            for field in inputs.values():field.update()
+            values={side:field.get_value() for side,field in inputs.items()}
+            if values!=margins:self.web_command('pageMargins',{'value':values})
+        dialog.connect('response',apply)
+        dialog.present(self.dialog_parent())
+        return dialog
+
     def print_preview(self,*args,path=None):
         from web_print import WebPrintDialog
         self.web_print_dialog=WebPrintDialog(self,self.document_for_print(path),preview=True)

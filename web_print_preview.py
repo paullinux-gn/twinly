@@ -21,7 +21,7 @@ class PrintPreview:
         controls=Gtk.Box(spacing=8)
         self.previous=Gtk.Button(icon_name="go-previous-symbolic",tooltip_text="Previous page")
         self.next=Gtk.Button(icon_name="go-next-symbolic",tooltip_text="Next page")
-        self.label=Gtk.Label(label="Preview uses the selected paper size and margins",hexpand=True)
+        self.label=Gtk.Label(label="Preview uses the selected paper size and document margins",hexpand=True)
         self.refresh=Gtk.Button(label="Update preview",tooltip_text="Apply current print settings to the preview")
         self.previous.connect("clicked",lambda _:self.render(self.page-1))
         self.next.connect("clicked",lambda _:self.render(self.page+1))

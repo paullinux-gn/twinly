@@ -6,16 +6,18 @@ from gi.repository import Gtk,WebKit,GLib
 from web_view import WebDocument
 from web_print_preview import PrintPreview
 from filesystem import atomic_export
+from web_document import document_margins
 
 
 class WebPrintDialog:
     def __init__(self,owner,document,preview=False):
         self.owner=owner;self.closed=False;self.operations=set()
+        self.margins=document_margins(document)
         self.webview=WebDocument(owner,preview_only=True);self.webview.restore_document(document)
         self.dialog=Gtk.PrintUnixDialog(title='Print',transient_for=owner.dialog_parent(),modal=True,destroy_with_parent=True)
         self.dialog.set_embed_page_setup(True);self.dialog.set_default_size(850,760)
         page=Gtk.PageSetup();page.set_paper_size(Gtk.PaperSize.new(Gtk.PAPER_NAME_A4))
-        for side in ('top','bottom','left','right'):getattr(page,'set_'+side+'_margin')(15,Gtk.Unit.MM)
+        self.apply_margins(page)
         self.dialog.set_page_setup(page)
         self.preview=PrintPreview(self,self.dialog)
         save=Gtk.Button(label='Save PDF…');save.connect('clicked',self.save_pdf)
@@ -48,7 +50,13 @@ class WebPrintDialog:
         operation.connect('finished',lambda op:self.finished(op))
         operation.connect('failed',lambda _,error:self.owner.error('Printing failed: '+error.message) if not self.closed else None)
         return operation
+    def apply_margins(self,page):
+        for side,value in self.margins.items():
+            getattr(page,'set_'+side+'_margin')(value,Gtk.Unit.MM)
+
     def configure_print_page(self,operation,page):
+        page=page.copy()
+        self.apply_margins(page)
         operation.set_page_setup(page)
         width=page.get_paper_width(Gtk.Unit.MM)-page.get_left_margin(Gtk.Unit.MM)-page.get_right_margin(Gtk.Unit.MM)
         height=page.get_paper_height(Gtk.Unit.MM)-page.get_top_margin(Gtk.Unit.MM)-page.get_bottom_margin(Gtk.Unit.MM)

@@ -7,7 +7,7 @@ class ActionsMixin:
         'list-bullet','list-number','list-check','list-remove','toggle-check',
         'replace','link','photo','insert-table','horizontal-rule','delete-photo','undo','redo',
         'bold','italic','underline','strike','superscript','subscript','clear','left','center','right',
-        'justify','palette','unhighlight','apply-custom-style',
+        'justify','palette','unhighlight','apply-custom-style','page-margins',
     ))
 
     def edit_action(self,name):
@@ -60,6 +60,7 @@ class ActionsMixin:
             'root':(self.choose_root,[]), 'show-trash':(self.show_trash,[]), 'new-root':(self.new_root,[]), 'new-folder':(self.new_folder,[]),
             'rename':(self.rename,[]), 'move':(self.move,[]), 'trash':(self.trash,[]),
             'insert-table':(self.insert_table,[]), 'photo':(self.insert_photo,[]), 'horizontal-rule':(self.insert_rule,[]), 'delete-photo':(self.delete_photo,[]),
+            'page-margins':(self.edit_page_margins,[]),
             'print-direct':(self.print_document,[]),
             'export-html':(self.export_html,[]),
             'export-pdf':(self.export_pdf,[]),

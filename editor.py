@@ -125,7 +125,7 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
             [('New document','new'),('Open…','open'),('Import…','import-office')],
             [('Save','save'),('Save as…','save-as'),('Make a copy','duplicate')],
             [('Find…','find'),('Insert link…','link'),('Insert photo…','photo'),('Insert table…','insert-table')],
-            [('Print preview…','print'),('Print…','print-direct')],
+            [('Page margins…','page-margins'),('Print preview…','print'),('Print…','print-direct')],
             [('Open beside current document…','open-beside'),('Swap panes','swap-panes'),('Pin as reference','pin-pane'),('Close pane','close')],
         ]:
             section=Gio.Menu()

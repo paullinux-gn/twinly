@@ -608,6 +608,9 @@ export function createEditor(mount, notify=()=>{}) {
             {...node.attrs,level:definition.level,styleName:fallback});
       });
       dispatch(tr.setStoredMarks(null));success=true;
+    } else if(command==="pageMargins") {
+      dispatch(closeHistory(state.tr).setDocAttribute("margins",normaliseMargins(args.value)));
+      success=true;
     } else if(command==="lineSpacing") {
       const value=bounded(args.value,.95,3,1.5);let tr=state.tr;
       state.doc.nodesBetween(state.selection.from,state.selection.to,(node,pos)=>{

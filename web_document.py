@@ -97,6 +97,20 @@ def sanitize(content,legacy=False):
     return ''.join(parser.parts),parser.body_attrs
 
 
+def document_margins(document):
+    margins=dict.fromkeys(('top','bottom','left','right'),20)
+    if not document.get('web_html'):return margins
+    _,attrs=sanitize(document['web_html'])
+    try:values=json.loads(attrs.get('data-page-margins','null'))
+    except ValueError:return margins
+    if isinstance(values,dict):
+        for side in margins:
+            value=values.get(side)
+            if type(value) in (float,int) and 0<=value<=90:
+                margins[side]=round(value,1)
+    return margins
+
+
 def export_html(content,title='Document'):
     body,attrs=sanitize(content)
     styles={}

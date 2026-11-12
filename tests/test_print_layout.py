@@ -53,6 +53,38 @@ class PrintLayout(unittest.TestCase):
             self.assertEqual(20,page.get_top_margin(Gtk.Unit.MM))
         finally:preview.dialog.destroy();preview.close()
 
+    def test_document_margins_apply_to_editor_and_frozen_print_preview(self):
+        from web_print import WebPrintDialog
+        from web_document import document_margins
+        self.w.set_editing(True)
+        dialog=self.w.edit_page_margins()
+        row=dialog.get_extra_child().get_first_child()
+        margins={'top':13.5,'bottom':17,'left':25,'right':32}
+        for value in margins.values():
+            row.get_last_child().set_value(value)
+            row=row.get_next_sibling()
+        dialog.emit('response','apply')
+        dialog.force_close()
+        settle()
+        document=self.w.snapshot()
+        self.assertEqual(margins,document_margins(document))
+        self.w.restore(document)
+        settle()
+        self.assertEqual(margins,self.w.view.evaluate('editor.getMargins()'))
+        for side,value in margins.items():
+            pixels=self.w.view.evaluate(f'parseFloat(getComputedStyle(editor.view.dom).padding{side.title()})')
+            self.assertAlmostEqual(value*96/25.4,pixels,delta=.01)
+        preview=WebPrintDialog(self.w,document)
+        try:
+            page=preview.dialog.get_page_setup()
+            for side,value in margins.items():
+                self.assertAlmostEqual(value,getattr(page,'get_'+side+'_margin')(Gtk.Unit.MM))
+            page.set_left_margin(5,Gtk.Unit.MM)
+            operation=preview.create_print_operation()
+            preview.configure_print_page(operation,page)
+            self.assertAlmostEqual(margins['left'],operation.get_page_setup().get_left_margin(Gtk.Unit.MM))
+        finally:preview.dialog.destroy();preview.close()
+
     def test_obsolete_layout_settings_are_ignored(self):
         from settings import write_settings
         self.w.saved_doc=self.w.snapshot();self.w.destroy();settle()
