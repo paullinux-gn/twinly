@@ -702,9 +702,16 @@ class Native(unittest.TestCase):
         self.assertGreater(self.w.toolbar.get_height(),45)
         _,fonts=self.w.font_family_dropdown.compute_bounds(self.w.toolbar)
         _,formatting=self.w.format_group.compute_bounds(self.w.toolbar)
-        _,printing=self.w.right_controls.compute_bounds(self.w.toolbar)
+        _,printing=self.w.print_preview_button.compute_bounds(self.w.toolbar)
+        _,size=self.w.font_size_dropdown.compute_bounds(self.w.toolbar)
+        _,colors=self.w.color_group.compute_bounds(self.w.toolbar)
         self.assertAlmostEqual(fonts.get_y(),formatting.get_y(),delta=3)
+        _,undo=self.w.undo_group.compute_bounds(self.w.toolbar)
         self.assertGreater(printing.get_y(),fonts.get_y())
+        self.assertAlmostEqual(printing.get_y(),undo.get_y(),delta=3)
+        self.assertLess(printing.get_x(),undo.get_x())
+        self.assertAlmostEqual(colors.get_y(),printing.get_y(),delta=3)
+        self.assertAlmostEqual(colors.get_x()+colors.get_width(),size.get_x()+size.get_width(),delta=6)
         self.assertGreaterEqual(self.w.workspace_overlay.get_size_request()[0],self.w.toolbar.measure(Gtk.Orientation.HORIZONTAL,-1)[1]+34)
         self.assertEqual(4,flow.get_max_children_per_line())
 
@@ -858,6 +865,7 @@ class Native(unittest.TestCase):
 
     def test_shared_toolbar_keeps_width_and_icon_spacing_with_same_font(self):
         import time
+        self.w.toolbar_pin_button.set_active(True)
         target=self.root/'Other.html';target.write_text('<p>Other</p>')
         self.w.open_beside(target)
         geometries=[]

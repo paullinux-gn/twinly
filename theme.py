@@ -30,7 +30,7 @@ BASE_CSS = r"""
             .floating-toolbar .format-toolbar button {
                 min-width:24px;min-height:24px;padding:2px 3px;
             }
-            .floating-toolbar .format-toolbar flowboxchild {
+            .format-toolbar flowboxchild {
                 padding:0;
             }
             .floating-toolbar .format-toolbar .linked {
