@@ -128,7 +128,7 @@ Install `flatpak` and `flatpak-builder`, then run:
 
 ```sh
 sh scripts/build-flatpak.sh
-flatpak install --user dist/Twinly-0.4.2.flatpak
+flatpak install --user dist/Twinly-1.4.3.flatpak
 flatpak run io.github.paullinux_gn.Twinly
 ```
 
@@ -137,7 +137,7 @@ dependencies. Building downloads dependencies; normal writing works offline.
 The GitHub **Build Flatpak preview** workflow can also produce a downloadable
 workflow artifact. It does not publish to Flathub automatically.
 
-The current version is **0.4.2**, with Flatpak application ID
+The current version is **1.4.3**, with Flatpak application ID
 `io.github.paullinux_gn.Twinly`. There is no published Flathub release at present.
 See [publishing instructions](docs/PUBLISHING.md) for release preparation.
 
