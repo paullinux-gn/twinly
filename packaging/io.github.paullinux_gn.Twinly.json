@@ -17,6 +17,7 @@
       "buildsystem": "cmake-ninja",
       "config-opts": [
         "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_INSTALL_LIBDIR=lib",
         "-DENABLE_UTILS=ON",
         "-DENABLE_CPP=OFF",
         "-DENABLE_GLIB=OFF",
