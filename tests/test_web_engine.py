@@ -79,7 +79,7 @@ class WebEngine(unittest.TestCase):
 
     def test_actual_engine_two_rows_and_header_fade(self):
         self.assertIsInstance(self.w.view,WebKit.WebView)
-        self.assertEqual(6,self.w.format_controls.get_max_children_per_line())
+        self.assertEqual(4,self.w.format_controls.get_max_children_per_line())
         self.w.toolbar_pin_button.set_active(True);pump(.2)
         self.assertGreater(self.w.toolbar.get_height(),45)
         self.assertIn('linear-gradient',self.w.view.evaluate('getComputedStyle(document.getElementById("header-glass")).maskImage'))

@@ -65,6 +65,7 @@ BASE_CSS = r"""
             popover.selection-context separator {margin:3px 0;}
             .format-toolbar button, .format-toolbar menubutton > button {
                 background:transparent;box-shadow:none;border-color:transparent;border-radius:6px;}
+            .format-toolbar label.format-dropdown-label {font-weight:normal;}
             .format-toolbar button:hover {background:alpha(currentColor,.07);}
             .pane-title {min-height:0;}
             .pane-title, .pane-title button, .pane-title button label,

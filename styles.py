@@ -33,7 +33,7 @@ class CustomStylesMixin:
         for key,(label,_) in PARAGRAPH_STYLES.items():section.append(label,'win.style-'+key)
         self.style_menu.append_section(None,section)
         self.style_button=Gtk.MenuButton(menu_model=self.style_menu,tooltip_text='Paragraph style')
-        self.style_name_label=Gtk.Label(label='Body',width_chars=9,max_width_chars=9,ellipsize=Pango.EllipsizeMode.END)
+        self.style_name_label=Gtk.Label(label='Body',css_classes=['format-dropdown-label'],width_chars=9,max_width_chars=9,ellipsize=Pango.EllipsizeMode.END)
         self.style_modified_label=Gtk.Label(label='',width_chars=1)
         box=Gtk.Box(spacing=2);box.append(self.style_name_label);box.append(self.style_modified_label)
         box.append(Gtk.Image.new_from_icon_name('pan-down-symbolic'))

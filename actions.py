@@ -6,7 +6,7 @@ class ActionsMixin:
     EDIT_ACTIONS=frozenset((
         'list-bullet','list-number','list-check','list-remove','toggle-check',
         'replace','link','photo','insert-table','horizontal-rule','delete-photo','undo','redo',
-        'bold','italic','underline','strike','clear','left','center','right',
+        'bold','italic','underline','strike','superscript','subscript','clear','left','center','right',
         'justify','palette','unhighlight','apply-custom-style',
     ))
 
@@ -78,7 +78,8 @@ class ActionsMixin:
             bindings['line-spacing-'+str(index)]=(lambda *_,v=value:self.set_line_spacing(v),[])
         for style in PARAGRAPH_STYLES:
             bindings['style-'+style]=(lambda *_,s=style:self.apply_paragraph_style(s),[])
-        for key,attr,shortcut in [('bold','weight','b'),('italic','italic','i'),('underline','underline','u'),('strike','strike',None)]:
+        for key,attr,shortcut in [('bold','weight','b'),('italic','italic','i'),('underline','underline','u'),('strike','strike',None),
+                                  ('superscript','superscript',None),('subscript','subscript',None)]:
             bindings[key]=(lambda *_,k=attr:self.toggle_style(k),['<Primary>'+shortcut] if shortcut else [])
         for key in ('left','center','right','justify'):
             bindings[key]=(lambda *_,k=key:self.align(k),[])

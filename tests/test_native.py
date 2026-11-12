@@ -697,11 +697,35 @@ class Native(unittest.TestCase):
 
     def test_floating_toolbar_uses_two_rows_with_complete_controls(self):
         flow=self.w.format_controls
-        self.assertEqual(6,flow.get_min_children_per_line());self.assertEqual(6,flow.get_max_children_per_line())
+        self.assertEqual(4,flow.get_min_children_per_line());self.assertEqual(4,flow.get_max_children_per_line())
         self.w.toolbar_pin_button.set_active(True);self.w.refresh_focus_layout();pump(.15)
         self.assertGreater(self.w.toolbar.get_height(),45)
+        _,fonts=self.w.font_family_dropdown.compute_bounds(self.w.toolbar)
+        _,formatting=self.w.format_group.compute_bounds(self.w.toolbar)
+        _,printing=self.w.right_controls.compute_bounds(self.w.toolbar)
+        self.assertAlmostEqual(fonts.get_y(),formatting.get_y(),delta=3)
+        self.assertGreater(printing.get_y(),fonts.get_y())
         self.assertGreaterEqual(self.w.workspace_overlay.get_size_request()[0],self.w.toolbar.measure(Gtk.Orientation.HORIZONTAL,-1)[1]+34)
-        self.assertEqual(6,flow.get_max_children_per_line())
+        self.assertEqual(4,flow.get_max_children_per_line())
+
+    def test_toolbar_font_dropdowns_and_script_buttons(self):
+        self.w.set_editing(True)
+        self.w.buffer.set_text('H2O')
+        self.select(1,2)
+        for dropdown,value in ((self.w.font_family_dropdown,'Serif'),(self.w.font_size_dropdown,'18')):
+            model=dropdown.get_model()
+            dropdown.set_selected(next(i for i in range(model.get_n_items()) if model.get_string(i)==value))
+            pump()
+        for action,tag in (('superscript','sup'),('subscript','sub')):
+            self.w.lookup_action(action).activate(None)
+            pump()
+            html=self.w.view.evaluate('editor.exportHTML().html')
+            self.assertIn(f'<{tag}>',html)
+            self.assertIn('font-family: serif',html.lower())
+            self.assertIn('font-size: 18pt',html)
+        self.assertNotIn('<sup>',html)
+        self.w.set_editing(False)
+        self.assertFalse(self.w.lookup_action('subscript').get_enabled())
 
     def test_floating_toolbar_timer_is_cancelled_and_dialog_keeps_controls(self):
         self.w.toolbar_pin_button.set_active(True)

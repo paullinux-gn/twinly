@@ -153,7 +153,17 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
         self.font_button.connect('notify::font-desc',self.font_chosen)
         self.font_button.connect('clicked',self.choose_font)
         self.format_controls.insert(self.paragraph_style_menu(),-1)
-        self.format_controls.insert(self.font_button,-1)
+        families={family.get_name() for family in self.toolbar.get_pango_context().list_families()}
+        families.update((DOCUMENT_FONT,'Sans','Serif','Monospace'))
+        self.font_family_dropdown=self.font_dropdown('Font family',sorted(families,key=str.casefold),11,'family')
+        self.font_family_dropdown.set_enable_search(True)
+        self.font_size_dropdown=self.font_dropdown('Font size (pt)',
+            [str(size) for size in (8,9,10,11,12,13,14,16,18,20,22,24,26,28,32,36,40,48,56,64,72,96)],4,'size')
+        self.sync_font_dropdowns(DOCUMENT_FONT,DOCUMENT_FONT_SIZE)
+        font_controls=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=4)
+        font_controls.append(self.font_family_dropdown)
+        font_controls.append(self.font_size_dropdown)
+        self.format_controls.insert(font_controls,-1)
         self.format_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.format_group.add_css_class('linked')
         for icon,label,action in [('format-text-bold-symbolic','Bold','bold'),
@@ -161,6 +171,10 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
                                   ('format-text-underline-symbolic','Underline','underline'),
                                   ('format-text-strikethrough-symbolic','Strikethrough','strike')]:
             self.format_group.append(self.button(icon,label,'win.'+action))
+        for glyph,label,action in [('x²','Superscript','superscript'),('x₂','Subscript','subscript')]:
+            button=Gtk.Button(label=glyph,tooltip_text=label,action_name='win.'+action,focus_on_click=False)
+            button.update_property([Gtk.AccessibleProperty.LABEL],[label])
+            self.format_group.append(button)
         self.format_controls.insert(self.format_group,-1)
         palette_button=Gtk.MenuButton(icon_name='document-edit-symbolic',tooltip_text='Highlight text')
         self.palette=Gtk.Popover()
@@ -172,9 +186,11 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
         self.text_color_popover=Gtk.Popover()
         self.text_color_popover.set_child(self.text_color_palette())
         colour_button.set_popover(self.text_color_popover)
-        self.format_controls.insert(colour_button,-1)
-        self.format_controls.insert(palette_button,-1)
-        self.format_controls.insert(self.button('edit-clear-symbolic','Clear formatting','win.clear'),-1)
+        self.color_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,css_classes=['linked'])
+        self.color_group.append(colour_button)
+        self.color_group.append(palette_button)
+        self.color_group.append(self.button('edit-clear-symbolic','Clear formatting','win.clear'))
+        self.format_controls.insert(self.color_group,-1)
         self.paragraph_group=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.paragraph_group.add_css_class('linked')
         alignment=Gio.Menu()
@@ -213,7 +229,7 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
                                     halign=Gtk.Align.END,valign=Gtk.Align.START,margin_top=3,margin_start=12)
         self.right_controls.append(self.button('document-print-symbolic','Print preview','win.print'))
         self.right_controls.append(self.undo_group)
-        self.toolbar.append(self.right_controls)
+        self.format_controls.insert(self.right_controls,-1)
         self.split=Adw.OverlaySplitView()
         self.split.set_min_sidebar_width(190)
         self.split.set_max_sidebar_width(600)
@@ -443,6 +459,40 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
             (self.workspace_owner or self).refresh_focus_layout()
             if hasattr(self.workspace_owner or self,'focus_overlay_slot') else None)
         self.setup_web_editor()
+
+    def font_dropdown(self,label,options,width,key):
+        dropdown=Gtk.DropDown(model=Gtk.StringList.new(options),focus_on_click=False,tooltip_text=label)
+        dropdown.update_property([Gtk.AccessibleProperty.LABEL],[label])
+        factory=Gtk.SignalListItemFactory()
+        def setup(_,item):
+            text=Gtk.Label(xalign=0,width_chars=width,max_width_chars=width,
+                           css_classes=['format-dropdown-label'])
+            text.set_ellipsize(Pango.EllipsizeMode.END)
+            item.set_child(text)
+        factory.connect('setup',setup)
+        factory.connect('bind',lambda _,item:item.get_child().set_text(item.get_item().get_string()))
+        dropdown.set_factory(factory)
+        dropdown.connect('notify::selected',self.font_dropdown_changed,key)
+        return dropdown
+
+    def font_dropdown_changed(self,dropdown,_property,key):
+        item=dropdown.get_selected_item()
+        if item is None or self.syncing_font_dropdowns or not self.editing:return
+        value=item.get_string()
+        self.apply_style(key,float(value) if key=='size' else value)
+
+    def sync_font_dropdowns(self,family,size):
+        self.syncing_font_dropdowns=True
+        try:
+            for dropdown,value in ((self.font_family_dropdown,family),(self.font_size_dropdown,f'{size:g}')):
+                model=dropdown.get_model()
+                index=next((i for i in range(model.get_n_items())
+                            if model.get_string(i).casefold()==value.casefold()),None)
+                if index is None:
+                    index=model.get_n_items()
+                    model.append(value)
+                dropdown.set_selected(index)
+        finally:self.syncing_font_dropdowns=False
 
     def dialog_parent(self):
         owner=self.workspace_owner or self

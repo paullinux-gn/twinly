@@ -102,7 +102,7 @@ class WebEditorMixin:
 
     def toggle_style(self,key):
         if not hasattr(self,'web_backend'):return super().toggle_style(key)
-        return self.web_command({'weight':'bold','italic':'italic','underline':'underline','strike':'strike'}[key])
+        return self.web_command({'weight':'bold','italic':'italic','underline':'underline','strike':'strike','superscript':'superscript','subscript':'subscript'}[key])
     def align(self,value):
         if not hasattr(self,'web_backend'):return super().align(value)
         return self.web_command('align',{'value':value})
@@ -174,9 +174,13 @@ class WebEditorMixin:
     def update_format_state(self):
         if not hasattr(self,'web_backend'):return super().update_format_state()
         state=self.view.state;formatting=state.get('format',{})
+        size=str(formatting.get('size','12pt'))
+        points=float(size[:-2])*(.75 if size.endswith('px') else 1)
+        self.sync_font_dropdowns(formatting.get('font','Noto Sans'),points)
         child=self.format_group.get_first_child()
         while child:
-            active=formatting.get({'win.bold':'strong','win.italic':'em','win.underline':'underline','win.strike':'strike'}.get(child.get_action_name(),''),False)
+            action=child.get_action_name().removeprefix('win.')
+            active=formatting.get({'bold':'strong','italic':'em'}.get(action,action),False)
             if active:child.add_css_class('active-format')
             else:child.remove_css_class('active-format')
             child=child.get_next_sibling()
