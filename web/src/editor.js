@@ -438,6 +438,12 @@ export function createEditor(mount, notify=()=>{}) {
       return {dom,contentDOM,update,stopEvent:event=>event.target===checkbox,
         ignoreMutation:record=>record.type==="attributes"&&(record.target===checkbox||record.target===dom)};
     }},
+    handleClickOn(view,_pos,node,nodePos,event,direct){
+      if(!view.editable||!direct||node.type!==schema.nodes.image||event.button!==0)return false;
+      view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc,nodePos)));
+      view.focus();
+      return true;
+    },
     handleDOMEvents:{
       keydown(view,event){
         if(!view.state.selection.empty&&(event.key==='ContextMenu'||event.key==='F10'&&event.shiftKey)){
@@ -488,7 +494,15 @@ export function createEditor(mount, notify=()=>{}) {
     const encoder=new TextEncoder();
     if(text.length>4*1024*1024||html.length>64*1024*1024||encoder.encode(text).length>4*1024*1024||encoder.encode(html).length>64*1024*1024){event.preventDefault();event.stopImmediatePropagation();notify({type:'error',message:'The clipboard exceeds Twinly’s document limits.'});}
   },true);
-  view.dom.addEventListener('contextmenu',event=>{if(!view.state.selection.empty){event.preventDefault();send();notify({type:'text-context',x:event.clientX,y:event.clientY});}});
+  view.dom.addEventListener('contextmenu',event=>{
+    event.preventDefault();
+    const hit=view.posAtCoords({left:event.clientX,top:event.clientY});
+    const {from,to}=view.state.selection;
+    if(event.button===2&&hit&&(hit.pos<from||hit.pos>to)){
+      view.dispatch(view.state.tr.setSelection(Selection.near(view.state.doc.resolve(hit.pos))));
+    }
+    send();notify({type:'text-context',x:event.clientX,y:event.clientY});
+  });
   view.dom.addEventListener('copy',event=>{event.preventDefault();api.copy(false);});
   view.dom.addEventListener('cut',event=>{event.preventDefault();api.copy(true);});
   view.dom.addEventListener('click',event=>{const anchor=event.target.closest('a[href]');if(anchor&&(!view.editable||event.ctrlKey)){event.preventDefault();notify({type:'open-link',href:anchor.getAttribute('href')});}});

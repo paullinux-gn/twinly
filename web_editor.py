@@ -210,15 +210,16 @@ class WebEditorMixin:
         return self.web_command('deleteImage')
     def selection_context_key(self,controller,keyval,keycode,state):
         from gi.repository import Gdk
-        if not self.buffer.get_has_selection():return False
         if keyval==Gdk.KEY_Menu or (keyval==Gdk.KEY_F10 and state&Gdk.ModifierType.SHIFT_MASK):
+            if not self.view.ready:return False
             position=self.view.evaluate('(()=>{const p=editor.view.coordsAtPos(editor.view.state.selection.from);return {x:p.left,y:p.bottom}})()')
             self.open_selection_menu(position['x']*self.zoom,position['y']*self.zoom);return True
         return False
 
     def open_selection_menu(self,x,y):
         if not hasattr(self,'web_backend'):return super().open_selection_menu(x,y)
-        if not self.buffer.get_has_selection():return None
+        if not self.view.ready:return None
+        selected=bool(self.view.state.get('selectedText') or self.buffer.get_has_selection())
         from gi.repository import Gdk
         if self.text_popover:
             self.text_popover.popdown()
@@ -230,7 +231,9 @@ class WebEditorMixin:
             button=Gtk.Button(label=label,css_classes=['flat'],focus_on_click=False);button.set_sensitive(enabled)
             button.connect('clicked',lambda *_:(callback(),pop.popdown()));box.append(button)
         item('Insert link…',self.link_dialog,self.editing)
-        for label,signal in [('Cut    Ctrl+X','cut-clipboard'),('Copy    Ctrl+C','copy-clipboard'),('Paste    Ctrl+V','paste-clipboard')]:item(label,lambda s=signal:self.view.emit(s),self.editing or signal=='copy-clipboard')
+        item('Cut    Ctrl+X',lambda:self.view.emit('cut-clipboard'),self.editing and selected)
+        item('Copy    Ctrl+C',lambda:self.view.emit('copy-clipboard'),selected)
+        item('Paste    Ctrl+V',lambda:self.view.emit('paste-clipboard'),self.editing)
         item('Select all    Ctrl+A',lambda:self.view.evaluate('editor.select(1,editor.view.state.doc.content.size-1)'))
         pop.set_child(box);self.text_popover=pop
         pop.connect('closed',lambda *_:self.defer(lambda:(pop.unparent() if pop.get_parent() else None,False)[1]))

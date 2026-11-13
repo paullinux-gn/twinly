@@ -1329,7 +1329,13 @@ class Native(unittest.TestCase):
         self.assertEqual(['Insert link…','Cut','Copy','Paste','Select all'],labels)
         pop.popdown()
         self.w.buffer.place_cursor(self.w.buffer.get_end_iter())
-        self.assertIsNone(self.w.open_selection_menu(0,0))
+        pump()
+        pop=self.w.open_selection_menu(0,0)
+        buttons={button.get_label().split('    ')[0]:button for button in pop.get_child()}
+        self.assertFalse(buttons['Cut'].get_sensitive())
+        self.assertFalse(buttons['Copy'].get_sensitive())
+        self.assertTrue(buttons['Paste'].get_sensitive())
+        pop.popdown()
 
     def test_palette_clear_swatch_removes_highlight(self):
         self.w.set_editing(True);self.w.buffer.set_text('Arcering')
@@ -1369,9 +1375,12 @@ class Native(unittest.TestCase):
         import time
         for _ in range(10):time.sleep(0.01);pump()
         self.assertEqual(' Eerste',self.w.snapshot()['text'])
+        self.select(7,7)
+        choose('Paste')
+        self.assertEqual(' EersteEerste',self.w.snapshot()['text'])
         self.select(1,3)
         choose('Select all')
-        self.assertEqual((0,7),tuple(i.get_offset() for i in self.w.buffer.get_selection_bounds()))
+        self.assertEqual((0,13),tuple(i.get_offset() for i in self.w.buffer.get_selection_bounds()))
 
     def test_selection_context_keyboard_shortcut(self):
         from gi.repository import Gdk

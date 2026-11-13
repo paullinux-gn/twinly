@@ -153,6 +153,21 @@ class WebEngine(unittest.TestCase):
         self.w.web_command('insertText',{'text':'Temporary document'});self.w.view.dispose_document()
         self.assertEqual(blank(),self.w.snapshot());self.assertTrue(self.w.view.disposed)
 
+    def test_clicking_picture_shows_resize_handles(self):
+        from test_native import photo
+        self.load('<p><img width="100" src="'+photo()['src']+'"></p>')
+        self.w.set_editing(True)
+        self.assertTrue(self.w.view.evaluate("""(() => {
+            const view = editor.view;
+            return view.someProp('handleClickOn', handler =>
+                handler(view, 1, view.state.doc.nodeAt(1), 1, {button: 0}, true));
+        })()"""))
+        pump(.2)
+        self.assertTrue(self.w.view.evaluate("!document.querySelector('.image-resize-controls').hidden"))
+        self.w.view.evaluate("""document.querySelector('[data-handle="right"]').dispatchEvent(
+            new KeyboardEvent('keydown', {key: 'ArrowRight'}))""")
+        self.assertEqual(110,self.w.view.evaluate('editor.getImage().width'))
+
     def test_pdf_preview_uses_webkit_table_layout(self):
         from test_native import photo
         self.load('<p>Printed body<img width="100" src="'+photo()['src']+'"></p><table data-border-width="0"><tr><td><p><strong>Printed cell</strong></p></td></tr></table>')
