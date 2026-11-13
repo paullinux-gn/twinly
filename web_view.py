@@ -184,13 +184,20 @@ class WebDocument(WebKit.WebView):
         for name,widget in (('header',(owner.workspace_owner or owner).document_header),('toolbar',owner.toolbar)):
             found,bounds=widget.compute_bounds(self)
             if found:geometry[name]={'left':bounds.get_x(),'top':bounds.get_y(),'width':bounds.get_width(),'height':bounds.get_height()}
-        options={'theme':'dark' if dark else 'light','blur':True,'fallback':False,'opacity':.96,'blur_radius':getattr(owner,'blur_radius',14) if getattr(owner,'blur_requested',False) and getattr(owner,'blur_available',False) else 0,'viewport':{'width':self.get_width()},'geometry':geometry}
+        blur_enabled=getattr(appearance,'blur_requested',False) and getattr(appearance,'blur_available',False)
+        # The native header already adds tint over this WebKit backdrop.
+        opacity=getattr(appearance,'blur_tint',75)*.003 if blur_enabled else .96
+        options={'theme':'dark' if dark else 'light','blur':True,'fallback':False,
+                 'opacity':opacity,'blur_radius':getattr(appearance,'blur_radius',14) if blur_enabled else 0,
+                 'viewport':{'width':self.get_width()},'geometry':geometry}
         self.evaluate('editor.setAppearance('+json.dumps(options)+')',wait=False)
 
     def tick_layout(self,*_):
         if self.disposed:return False
         owner=self.owner
-        key=(self.get_width(),self.get_height(),owner.document_header.get_height(),owner.toolbar.get_height(),owner.toolbar.get_visible(),owner.zoom,getattr(owner,'appearance_mode',None),self.top_margin,getattr(owner,'blur_requested',False),Adw.StyleManager.get_default().get_dark())
+        appearance=owner.workspace_owner or owner
+        key=(self.get_width(),self.get_height(),owner.document_header.get_height(),owner.toolbar.get_height(),owner.toolbar.get_visible(),owner.zoom,getattr(owner,'appearance_mode',None),self.top_margin,getattr(appearance,'blur_requested',False),getattr(appearance,'blur_available',False),
+             getattr(appearance,'blur_tint',75),getattr(appearance,'blur_radius',14),Adw.StyleManager.get_default().get_dark())
         if key!=self.layout_key:self.layout_key=key;self.layout()
         return True
 
