@@ -1815,7 +1815,10 @@ class Native(unittest.TestCase):
         pop.set_parent(self.w.sidebar.list);pop.popup();pump()
         # Reproduce a hover change while GTK is closing/dispatching the menu.
         self.w.hover_document();self.assertIs(self.w,self.w.active_editor)
-        self.assertTrue(pop.activate_action('context.open-beside',None));pump()
+        self.assertTrue(pop.activate_action('context.open-beside',None))
+        deadline=time.monotonic()+5
+        while self.w.path!=third and time.monotonic()<deadline:
+            pump()
         self.assertEqual(third,self.w.path)
         self.assertEqual(second,self.w.peer.path)
         from unittest.mock import patch
