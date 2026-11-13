@@ -34,7 +34,9 @@ class Editing(unittest.TestCase):
         self.w.destroy();pump();self.tmp.cleanup()
 
     def test_open_is_read_only_with_permanently_visible_title(self):
-        self.w.open_path(self.path);pump();self.w.header_title_hover(False)
+        self.w.open_path(self.path)
+        self.assertTrue(self.w.view.ensure_ready())
+        pump();self.w.header_title_hover(False)
         self.assertFalse(self.w.view.get_editable())
         self.assertFalse(self.w.view.get_cursor_visible())
         self.assertTrue(self.w.edit_button.is_sensitive())
@@ -57,6 +59,7 @@ class Editing(unittest.TestCase):
         self.assertTrue(self.w.lookup_action('find').get_enabled())
         self.assertTrue(self.w.lookup_action('print').get_enabled())
         pop=self.w.open_selection_menu(20,20)
+        self.assertIsInstance(pop,Gtk.Popover)
         labels={};child=pop.get_child().get_first_child()
         while child:
             if isinstance(child,Gtk.Button):labels[child.get_label()]=child
