@@ -140,7 +140,6 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
         self.document_menu_button=Gtk.MenuButton(menu_model=document_menu,tooltip_text='Document menu')
         self.document_menu_button.set_child(Gtk.Image.new_from_icon_name('open-menu-symbolic'))
         header.pack_end(self.document_menu_button)
-        header.pack_end(self.button('system-search-symbolic','Find in document · Ctrl+F','win.toggle-find'))
         self.toolbar=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=10)
         self.toolbar.add_css_class('format-toolbar')
         self.format_controls=Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,max_children_per_line=20,
@@ -152,7 +151,10 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
         self.font_button.set_font_desc(Pango.FontDescription(DOCUMENT_FONT+' '+str(DOCUMENT_FONT_SIZE)))
         self.font_button.connect('notify::font-desc',self.font_chosen)
         self.font_button.connect('clicked',self.choose_font)
-        self.format_controls.insert(self.paragraph_style_menu(),-1)
+        search_and_style=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=4)
+        search_and_style.append(self.button('system-search-symbolic','Find in document · Ctrl+F','win.toggle-find'))
+        search_and_style.append(self.paragraph_style_menu())
+        self.format_controls.insert(search_and_style,-1)
         families={family.get_name() for family in self.toolbar.get_pango_context().list_families()}
         families.update((DOCUMENT_FONT,'Sans','Serif','Monospace'))
         self.font_family_dropdown=self.font_dropdown('Font family',sorted(families,key=str.casefold),9,'family')
@@ -221,8 +223,9 @@ class EditorShellCore(CustomStylesMixin,WritingMixin,FocusMixin,WorkspaceMixin,P
         self.undo_group.append(self.button('edit-undo-symbolic','Undo','win.undo'))
         self.undo_group.append(self.button('edit-redo-symbolic','Redo','win.redo'))
         clear_button=self.button('edit-clear-symbolic','Clear formatting','win.clear')
-        clear_button.set_halign(Gtk.Align.END)
-        self.format_controls.insert(clear_button,-1)
+        self.clear_and_outline=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=4,halign=Gtk.Align.END)
+        self.clear_and_outline.append(clear_button)
+        self.format_controls.insert(self.clear_and_outline,-1)
         self.format_controls.insert(self.list_group,-1)
 
         paragraph_and_color=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,spacing=6)

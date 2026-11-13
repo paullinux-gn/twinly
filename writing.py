@@ -63,7 +63,7 @@ class WritingMixin:
         self.recovery_notice_shown=False
         self.outline_popover=Gtk.Popover(has_arrow=False)
         self.outline_button=Gtk.MenuButton(icon_name='view-list-symbolic',tooltip_text='Document outline · Ctrl+Shift+L',popover=self.outline_popover)
-        self.document_header.pack_end(self.outline_button)
+        self.clear_and_outline.append(self.outline_button)
         self.outline_popover.connect('show',lambda _:self.refresh_outline())
         self.replace_entry=Gtk.Entry(placeholder_text='Replace with…',hexpand=True)
         self.replace_entry.connect('activate',lambda *_:self.replace_matches(False))
@@ -152,7 +152,19 @@ class WritingMixin:
         scroll.set_child(box);self.outline_popover.set_child(scroll)
 
     def show_outline(self,*_):
-        owner=self.workspace_owner or self;owner.outline_popover.popup()
+        if self.outline_button.get_mapped():
+            self.outline_popover.popup()
+            return
+        # The document menu also opens the outline when the toolbar is hidden.
+        self.outline_button.set_popover(None)
+        anchor=self.document_menu_button
+        self.outline_popover.set_parent(anchor)
+        def restore(popover):
+            popover.disconnect(handler)
+            popover.unparent()
+            self.outline_button.set_popover(popover)
+        handler=self.outline_popover.connect('closed',restore)
+        self.outline_popover.popup()
 
     def open_replace(self,*_):
         self.open_search();self.replace_toggle.set_active(True)
